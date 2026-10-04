@@ -1,4 +1,4 @@
-# Omarchy Guardian 🛡️
+# Omarchy Child Protect Guardian 🛡️
 
 **🌐 语言：** [English](README.md) · [Polski](README.pl.md) · [Español](README.es.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · **中文**
 
@@ -50,8 +50,8 @@
 
 ## ❤️ 支持项目
 
-如果 Omarchy Guardian 对你有帮助，欢迎通过 **PayPal** 支持开发：
-**[wasyl@o2.pl](https://www.paypal.com/donate/?business=wasyl@o2.pl&item_name=Omarchy+Guardian)**
+如果 Omarchy Child Protect Guardian 对你有帮助，欢迎通过 **PayPal** 支持开发：
+**[wasyl@o2.pl](https://www.paypal.com/donate/?business=wasyl@o2.pl&item_name=Omarchy+Child+Protect+Guardian)**
 
 每一份支持都帮助它保持免费、私密与开放。
 

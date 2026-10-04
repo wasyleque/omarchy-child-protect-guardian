@@ -1,19 +1,23 @@
 # AGENTS.md — status & working notes
 
-**Project:** Omarchy Guardian — parental controls + remote install approval for Omarchy Linux.
+**Project:** Omarchy Child Protect Guardian — parental controls + remote install approval for Omarchy Linux.
 **Created by:** wasyleque · Support: PayPal wasyl@o2.pl
 **Phase:** 0 — concept draft. No code yet.
 
 ## Current status
+- Name DECIDED: **Omarchy Child Protect Guardian**.
 - Multilingual README (EN/PL/ES/DE/FR/ZH) + concept, architecture, roadmap docs written.
-- Brainstorm done with `agy` (Zero-Bypass, Playtest Sandbox, AI-TL;DR adopted).
-- Repo scaffold; awaiting user's ideas before Stage 1.
+- Two `agy` brainstorms done. Adopted: Zero-Bypass, Playtest Sandbox, AI-TL;DR,
+  **scoped remote-root via Intent Binding** (frozen cache + Ed25519, no TOCTOU/shell),
+  **LACS** open multi-dimensional age-rating feed (Web of Trust, signed/TUF),
+  **AI risk assistant** (on-device SLM + optional API, traffic light + permission translator),
+  **usage stats + gentle AI parenting digest** (local-first, coach parent not police child).
+- Repo scaffold public; awaiting more user ideas before Stage 1.
 
 ## Open decisions (need user)
 - Phone MVP: ntfy (fast start) vs PWA with Ed25519 signing (true zero-trust) first.
 - Content-filter scope in MVP: DNS blocklists only vs eBPF per-app from the start.
-- License (proposed GPL-3.0) and whether repo is public.
-- Final product name (working: "Omarchy Guardian").
+- License (proposed GPL-3.0) and whether repo stays public.
 
 ## Workflow routing (this machine)
 - **Logic / architecture / integrations →** `agy`.

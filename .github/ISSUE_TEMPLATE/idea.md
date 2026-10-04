@@ -6,7 +6,7 @@ labels: idea
 ---
 
 ## The idea / Pomysł
-<!-- What should Omarchy Guardian do? / Co powinien robić? -->
+<!-- What should Omarchy Child Protect Guardian do? / Co powinien robić? -->
 
 ## Why it helps parents/kids / Dlaczego to pomaga
 <!-- The problem it solves / Jaki problem rozwiązuje -->

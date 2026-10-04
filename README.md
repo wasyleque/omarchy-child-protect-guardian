@@ -1,4 +1,4 @@
-# Omarchy Guardian 🛡️
+# Omarchy Child Protect Guardian 🛡️
 
 **🌐 Languages:** **English** · [Polski](README.pl.md) · [Español](README.es.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [中文](README.zh.md)
 
@@ -37,6 +37,14 @@ Things competitors on Windows/macOS/Android **can't** do, but we can:
 - **System-wide content filter** — DNS + eBPF, enforced SafeSearch / restricted mode.
 - **Readable reports for the parent** — what the child did and asked for (no creepy corporate spying).
 - **Cryptographically signed approvals** — even a compromised push broker can't forge an "Allow".
+- **Scoped remote-root (Intent Binding)** — an approval grants root for *exactly one* described
+  action, never a shell; cryptographically bound to what the parent actually saw.
+- **AI risk assistant** — on-demand, plain-language risk check (traffic light + permission
+  translator); public app metadata only, zero child data leaves the device.
+- **LACS open age ratings** — a community, multi-dimensional age scale beyond PEGI/ESRB, covering
+  Linux/AUR/Flathub apps.
+- **Gentle stats & AI parenting digest** — hours, apps and site categories, plus a weekly summary
+  that coaches the parent toward a conversation — not a surveillance dossier.
 
 ## Documentation
 
@@ -60,8 +68,8 @@ Multi-agent workflow on this machine: **logic/architecture/integrations → `agy
 
 ## ❤️ Support the project
 
-If Omarchy Guardian is useful to you, you can support its development via **PayPal**:
-**[wasyl@o2.pl](https://www.paypal.com/donate/?business=wasyl@o2.pl&item_name=Omarchy+Guardian)**
+If Omarchy Child Protect Guardian is useful to you, you can support its development via **PayPal**:
+**[wasyl@o2.pl](https://www.paypal.com/donate/?business=wasyl@o2.pl&item_name=Omarchy+Child+Protect+Guardian)**
 
 Every bit helps keep this free, private and open.
 

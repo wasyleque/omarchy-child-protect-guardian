@@ -1,4 +1,4 @@
-# Omarchy Guardian 🛡️
+# Omarchy Child Protect Guardian 🛡️
 
 **🌐 Sprachen:** [English](README.md) · [Polski](README.pl.md) · [Español](README.es.md) · **Deutsch** · [Français](README.fr.md) · [中文](README.zh.md)
 
@@ -55,8 +55,8 @@ Dinge, die die Konkurrenz auf Windows/macOS/Android **nicht** kann, wir aber sch
 
 ## ❤️ Projekt unterstützen
 
-Wenn Omarchy Guardian dir nützt, kannst du die Entwicklung per **PayPal** unterstützen:
-**[wasyl@o2.pl](https://www.paypal.com/donate/?business=wasyl@o2.pl&item_name=Omarchy+Guardian)**
+Wenn Omarchy Child Protect Guardian dir nützt, kannst du die Entwicklung per **PayPal** unterstützen:
+**[wasyl@o2.pl](https://www.paypal.com/donate/?business=wasyl@o2.pl&item_name=Omarchy+Child+Protect+Guardian)**
 
 Jeder Beitrag hilft, das Projekt kostenlos, privat und offen zu halten.
 

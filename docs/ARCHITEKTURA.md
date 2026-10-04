@@ -1,4 +1,4 @@
-# Architektura — Omarchy Guardian
+# Architektura — Omarchy Child Protect Guardian
 
 Szkic techniczny fazy 0. Decyzje nie są zabetonowane — to punkt wyjścia do dyskusji.
 
@@ -98,3 +98,33 @@ Push przez publiczny broker nie może oznaczać, że „ktokolwiek z linkiem" za
 - eBPF/nftables vs. uprawnienia i stabilność po aktualizacjach jądra Arch.
 - UX zawieszonego terminala (jasny komunikat, timeout, tryb offline gdy brak neta).
 - Pewność dostarczenia pusha (retry, fallback kanał).
+
+## 7. Zdalny root ograniczony do akcji — Intent Binding
+
+Zgoda = jednorazowe, związane z akcją podniesienie uprawnień (nigdy shell). Przepływ:
+
+1. `guardiand` rozwiązuje żądanie do konkretnej akcji, **pobiera z góry** pakiet + metadane do
+   zamrożonego cache roota (`/var/cache/guardian/<uuid>/`) i liczy SHA-256.
+2. Buduje kanoniczny obiekt **intent** `{action, package_id, artifact_sha256, uuid, nonce, ts,
+   description_sha256}` i wysyła czytelny opis na telefon.
+3. Telefon podpisuje intent kluczem Ed25519 rodzica; `guardiand` weryfikuje podpis, nonce (niezużyty),
+   TTL (~5 min) i że `artifact_sha256` wciąż zgadza się z zamrożonym cache.
+4. Wykonanie: dedykowany helper przez `execve` w izolowanym namespace z jedną potrzebną capability,
+   instalacja **wyłącznie** z zamrożonego cache (bez ponownego pobierania → bez TOCTOU).
+5. Podpisany intent + wynik dopisywane do chronionego append-only logu (SQLite/journald).
+
+## 8. Feed LACS (źródło danych wiekowych)
+
+- Dostarczany jako **podpisany feed metadanych** (styl TUF / Sigstore) z publicznego rejestru Git.
+- `guardiand` trzyma **lokalny podpisany cache**, więc działa **offline**; podpis weryfikowany przed użyciem.
+- Klucz = tożsamość pakietu (app-id Flathub / pkgname AUR + zakres wersji). Wpis = 5 wymiarów LACS.
+  Zasila kartę decyzji rodzica i asystenta AI.
+
+## 9. Statystyki + pipeline digestu AI
+
+- **Kolektor (lokalny):** `guardiand` agreguje czas apek na pierwszym planie (cgroups/Hyprland) i
+  liczniki domen/kategorii sieci (warstwa nftables/eBPF) do **lokalnego** magazynu (SQLite).
+  Zapis jako **kategorie + czas**, nie surowe klawisze czy pełna historia URL.
+- **Retencja i przejrzystość:** okno kroczące; dziecko widzi własne statystyki.
+- **Digest AI (na żądanie, local-first):** lokalny model zamienia agregaty w tygodniowe streszczenie
+  prostym językiem + sugestie rozmowy. Surowe dane nie opuszczają maszyny.

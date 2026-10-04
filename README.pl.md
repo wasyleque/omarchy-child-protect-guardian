@@ -1,4 +1,4 @@
-# Omarchy Guardian 🛡️
+# Omarchy Child Protect Guardian 🛡️
 
 **🌐 Języki:** [English](README.md) · **Polski** · [Español](README.es.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [中文](README.zh.md)
 
@@ -38,6 +38,14 @@ Rzeczy, których konkurencja na Windows/macOS/Android **nie może** zrobić, a m
 - **Filtr treści dla całego systemu** — DNS + eBPF, wymuszony SafeSearch / tryb ograniczony.
 - **Czytelne raporty dla rodzica** — co dziecko robiło i o co prosiło (bez korpo-szpiegowania).
 - **Kryptograficznie podpisane zgody** — nawet przejęcie brokera push nie pozwala podrobić „Zezwól".
+- **Zdalny root ograniczony do akcji (Intent Binding)** — zgoda daje roota na *dokładnie jedną*
+  opisaną akcję, nigdy shell; kryptograficznie związana z tym, co rodzic faktycznie zobaczył.
+- **Asystent AI oceny ryzyka** — na żądanie, prostym językiem (światła + tłumacz uprawnień);
+  wyłącznie publiczne metadane apki, żadne dane dziecka nie opuszczają urządzenia.
+- **Otwarty ranking wiekowy LACS** — społecznościowa, wielowymiarowa skala poza PEGI/ESRB,
+  obejmująca apki z Linux/AUR/Flathub.
+- **Łagodne statystyki i digest AI dla rodzica** — godziny, aplikacje i kategorie stron oraz
+  tygodniowe streszczenie prowadzące do rozmowy — a nie dossier inwigilacji.
 
 ## Dokumentacja
 
@@ -61,8 +69,8 @@ Model wieloagentowy tej maszyny: **logika/architektura/integracje → `agy`**,
 
 ## ❤️ Wsparcie projektu
 
-Jeśli Omarchy Guardian jest dla Ciebie przydatny, możesz wesprzeć rozwój przez **PayPal**:
-**[wasyl@o2.pl](https://www.paypal.com/donate/?business=wasyl@o2.pl&item_name=Omarchy+Guardian)**
+Jeśli Omarchy Child Protect Guardian jest dla Ciebie przydatny, możesz wesprzeć rozwój przez **PayPal**:
+**[wasyl@o2.pl](https://www.paypal.com/donate/?business=wasyl@o2.pl&item_name=Omarchy+Child+Protect+Guardian)**
 
 Każda złotówka pomaga utrzymać projekt darmowym, prywatnym i otwartym.
 

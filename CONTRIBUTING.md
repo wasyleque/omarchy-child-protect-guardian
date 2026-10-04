@@ -1,6 +1,6 @@
 # Contributing / Współtworzenie / Contribuir / Mitwirken / Contribuer / 参与贡献
 
-**Created by [wasyleque](https://github.com/wasyleque).** ❤️ Support: **PayPal — [wasyl@o2.pl](https://www.paypal.com/donate/?business=wasyl@o2.pl&item_name=Omarchy+Guardian)**
+**Created by [wasyleque](https://github.com/wasyleque).** ❤️ Support: **PayPal — [wasyl@o2.pl](https://www.paypal.com/donate/?business=wasyl@o2.pl&item_name=Omarchy+Child+Protect+Guardian)**
 
 This project is at **phase 0 (concept)** — ideas matter as much as code right now.
 

@@ -1,4 +1,4 @@
-# Architecture — Omarchy Guardian
+# Architecture — Omarchy Child Protect Guardian
 
 Technical sketch, phase 0. Nothing is set in stone — this is a starting point for discussion.
 (Polish original: [`ARCHITEKTURA.md`](ARCHITEKTURA.md).)
@@ -99,3 +99,34 @@ Pushing through a public broker must not mean "anyone with the link" can approve
 - eBPF/nftables vs. permissions and stability across Arch kernel updates.
 - UX of a hung terminal (clear message, timeout, offline mode when no network).
 - Push delivery assurance (retries, fallback channel).
+
+## 7. Scoped remote-root via Intent Binding
+
+The approval is a one-shot, action-scoped elevation — never a shell. Flow:
+
+1. `guardiand` resolves the request to a concrete action, **pre-fetches** the package + metadata into
+   a frozen root cache (`/var/cache/guardian/<uuid>/`) and computes its SHA-256.
+2. It builds a canonical **intent** object `{action, package_id, artifact_sha256, uuid, nonce, ts,
+   description_sha256}` and sends the human description to the phone.
+3. The phone signs the intent with the parent's Ed25519 key; `guardiand` verifies the signature,
+   the nonce (unused), the TTL (~5 min) and that `artifact_sha256` still matches the frozen cache.
+4. Execution: a dedicated helper is `execve`'d in an isolated namespace with only the required
+   capability, installing **solely** from the frozen cache (no network re-fetch → no TOCTOU).
+5. The signed intent + outcome are appended to a protected append-only audit log (SQLite/journald).
+
+## 8. LACS feed (age-rating data source)
+
+- Served as a **signed metadata feed** (TUF / Sigstore-style) from a public Git-backed registry.
+- `guardiand` keeps a **local signed cache**, so lookups work **offline**; signature verified before use.
+- Keyed by package identity (Flathub app-id / AUR pkgname + version range). Entry = the 5 LACS
+  dimensions. Feeds both the parent's decision card and the AI risk assistant.
+
+## 9. Usage stats + AI digest pipeline
+
+- **Collector (local):** `guardiand` aggregates per-app foreground time (from cgroups/Hyprland) and
+  per-domain/category network counters (from the nftables/eBPF layer) into a **local** store
+  (SQLite). Stored as **categories + durations**, not raw keystrokes or full URL history.
+- **Retention & transparency:** rolling window, child can view their own stats.
+- **AI digest (on demand, local-first):** a local model turns the aggregates into a plain-language
+  weekly summary + conversation suggestions. Raw data never leaves the machine; only the parent's
+  device renders it.
