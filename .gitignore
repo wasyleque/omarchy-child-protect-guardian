@@ -1,0 +1,23 @@
+# Rust
+/target
+**/*.rs.bk
+Cargo.lock.orig
+
+# Build / tmp
+/dist
+/build
+*.log
+*.tmp
+
+# Secrets — never commit pairing keys, tokens, ntfy topics
+*.key
+*.pem
+secrets.toml
+.env
+.env.*
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
