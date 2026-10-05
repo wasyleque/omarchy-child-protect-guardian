@@ -37,9 +37,8 @@ Trzy ścieżki instalacji → trzy mechanizmy haka:
 
 | Ścieżka | Mechanizm przechwycenia |
 |---|---|
-| `pacman`, `flatpak` (systemowy) | **Reguła Polkit** w `/etc/polkit-1/rules.d/` — żądanie autoryzacji akcji instalacji trafia do `guardiand`, który zamiast pytać o hasło roota wstrzymuje i czeka na zdalny token. |
-| `sudo`/`doas pacman -U` (AUR via `yay`) | **Moduł PAM** (`pam_exec` lub własny) — terminal zawiesza się na etapie PAM z komunikatem *„Oczekiwanie na zgodę rodzica…"*, dokładnie jak serwerowe 2FA (wzorzec Duo Unix). |
-| `flatpak --user` | **Wrapper** w `/usr/local/bin/flatpak` (przed systemowym w `PATH`) gadający z `guardiand` po D-Bus; blokuje do decyzji. |
+| `pacman`, `yay`/`paru`, AUR (`pacman -U`), instalatory GUI | **Hook ALPM `PreTransaction`** (`/etc/pacman.d/hooks/`) uruchamiający mały `guardian-hook`, który łączy się z gniazdem i blokuje do decyzji. Zakres `Operation = Install`, więc aktualizacje systemu (`-Syu`) przechodzą bez blokady; kod wyjścia ≠ 0 anuluje całą transakcję, zanim cokolwiek zostanie zapisane (fail-closed). Wszystko, co instaluje pakiet, przechodzi przez `libalpm` — więc **nie da się tego obejść z konta użytkownika**, a w przeciwieństwie do reguły Polkit łapie też zwykłe `sudo pacman` w terminalu (którego Polkit nie pośredniczy). |
+| Flatpak (systemowy lub `--user`) | Cienki wrapper / mechanizm D-Bus przed `flatpak install`, bo Flatpak używa libflatpak, nie libalpm (projekt do ustalenia w pod-etapie Flatpak). |
 
 Budowanie pakietu AUR (jako user) jest nieszkodliwe — blokujemy dopiero *instalację* do systemu.
 Dla pełnej szczelności rozważamy też tryb, w którym dziecko w ogóle nie ma ścieżki `sudo`,

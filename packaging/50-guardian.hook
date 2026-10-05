@@ -1,0 +1,19 @@
+# Omarchy Child Protect Guardian — pacman interception (Stage 2).
+# Install to /etc/pacman.d/hooks/50-guardian.hook
+#
+# Fires before any NEW package install (pacman -S, yay/paru, pacman -U from AUR,
+# GUI installers — all go through libalpm). `Operation = Install` only, so routine
+# system upgrades (pacman -Syu of already-installed packages) are NOT blocked.
+# guardian-hook connects to guardiand and blocks; a non-zero exit aborts the whole
+# transaction before anything is written to disk (fail-closed).
+
+[Trigger]
+Operation = Install
+Type = Package
+Target = *
+
+[Action]
+Description = Omarchy Child Protect Guardian: waiting for parent approval...
+When = PreTransaction
+Exec = /usr/lib/guardian/guardian-hook
+NeedsTargets

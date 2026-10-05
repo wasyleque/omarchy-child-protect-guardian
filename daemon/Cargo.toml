@@ -18,6 +18,10 @@ path = "src/bin/guardiand.rs"
 name = "guardian-ctl"
 path = "src/bin/guardian-ctl.rs"
 
+[[bin]]
+name = "guardian-hook"
+path = "src/bin/guardian-hook.rs"
+
 [dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "io-util", "time"] }
 serde = { version = "1", features = ["derive"] }

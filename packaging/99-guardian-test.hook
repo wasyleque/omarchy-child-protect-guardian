@@ -1,0 +1,22 @@
+# NON-DESTRUCTIVE TEST hook — scoped to a single harmless package (`sl`).
+# Use this instead of 50-guardian.hook while trying interception on a dev machine,
+# so only `pacman -S sl` is held and the rest of pacman keeps working normally.
+#
+#   1. sudo cp 99-guardian-test.hook /etc/pacman.d/hooks/
+#   2. sudo install -Dm755 target/release/guardian-hook /usr/lib/guardian/guardian-hook
+#   3. make sure guardiand is running (see daemon/README.md)
+#   4. sudo pacman -S sl         # hangs on the hook
+#      guardian-ctl list         # shows the held request
+#      guardian-ctl allow <id>   # install proceeds   (or `deny` → transaction aborts)
+#   5. ROLLBACK: sudo rm /etc/pacman.d/hooks/99-guardian-test.hook   # restores normal pacman
+
+[Trigger]
+Operation = Install
+Type = Package
+Target = sl
+
+[Action]
+Description = Omarchy Child Protect Guardian (TEST): waiting for parent approval...
+When = PreTransaction
+Exec = /usr/lib/guardian/guardian-hook
+NeedsTargets

@@ -36,9 +36,8 @@ Three install paths → three hook mechanisms:
 
 | Path | Interception mechanism |
 |---|---|
-| `pacman`, system `flatpak` | **Polkit rule** in `/etc/polkit-1/rules.d/` — the install action's authorization request goes to `guardiand`, which instead of asking for the root password holds and waits for a remote token. |
-| `sudo`/`doas pacman -U` (AUR via `yay`) | **PAM module** (`pam_exec` or custom) — the terminal hangs at the PAM stage with *"Waiting for parent's approval…"*, exactly like server-side 2FA (Duo Unix pattern). |
-| `flatpak --user` | **Wrapper** at `/usr/local/bin/flatpak` (ahead in `PATH`) talking to `guardiand` over D-Bus; holds until a decision. |
+| `pacman`, `yay`/`paru`, AUR (`pacman -U`), GUI installers | **ALPM `PreTransaction` hook** (`/etc/pacman.d/hooks/`) running a small `guardian-hook` that connects to the socket and blocks for a decision. Scoped to `Operation = Install`, so system upgrades (`-Syu`) pass through untouched; a non-zero exit aborts the whole transaction before anything is written (fail-closed). Everything that installs a package goes through `libalpm`, so this is **not bypassable from a user account** — and unlike a Polkit rule it also catches plain `sudo pacman` in a terminal (which Polkit does not mediate). |
+| Flatpak (system or `--user`) | A thin wrapper / D-Bus mechanism in front of `flatpak install`, since Flatpak uses libflatpak rather than libalpm (design TBD in the Flatpak sub-stage). |
 
 Building an AUR package (as a user) is harmless — we block only the *install* into the system. For
 full tightness we also consider a mode where the child has no `sudo` path at all, and installs go
