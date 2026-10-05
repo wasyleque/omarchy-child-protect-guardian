@@ -51,8 +51,12 @@
   (UEFI pw + Secure Boot + UKI/locked GRUB + LUKS) · L7 tamper-evidence/alert. No "zero gaps"
   without L6 — stated honestly; CMOS reset / other devices are out of scope.
 - DONE hardenings: SO_PEERCRED on IPC (child uid refused); `guardian-hook` ignores GUARDIAN_SOCKET
-  in release (fixed path). Build + tests + e2e regression green.
-- P1 next: fapolicyd exec allowlist · nftables egress · Ed25519 approvals · hardware baseline+checklist.
+  in release (fixed path); **Ed25519 signed-approval mode** (daemon/src/crypto.rs + ntfy signed mode;
+  `[ntfy].parent_pubkey` → accepts only signed decisions; `guardian-sign` dev helper simulates the
+  phone). Verified e2e vs real ntfy.sh: legit allow works; broker decision-flip + bogus signature
+  both rejected → fail-closed DENY. 7 unit tests (queue+crypto) + e2e green.
+- P1 next: fapolicyd exec allowlist · nftables egress (DoH/DoT/VPN block) · hardware baseline+checklist.
+  Ed25519 remaining piece = the parent app (PWA) holding the private key (replaces guardian-sign).
 
 ## Open decisions (need user)
 - (none blocking) — proceeding down the P1 hardening list; Ed25519 is the next big code piece.

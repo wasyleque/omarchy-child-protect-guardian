@@ -82,12 +82,26 @@ request_topic = "guardian-<long-random-string>"   # the phone subscribes to this
 ```
 
 The parent installs the [ntfy app](https://ntfy.sh) (Android/iOS) and subscribes to `request_topic`.
-Tapping a button sends a one-time-token-signed decision back over a random response channel; the
-daemon verifies the token and resolves the request. `guardian-ctl` still works as a local override.
-On a timeout, or if a decision can't be trusted, the daemon **fails closed (denies)**.
+Tapping a button sends a one-time token back over a random response channel; the daemon verifies it
+and resolves the request. `guardian-ctl` still works as a local override. On a timeout, or if a
+decision can't be trusted, the daemon **fails closed (denies)**.
 
-> MVP note: ntfy topics are a public broker, so the per-request token + unguessable topics are the
-> current guard. True zero-trust (Ed25519-signed decisions) lands in a later stage.
+### Zero-trust (signed) mode
+
+Add a paired `parent_pubkey` (base64 Ed25519) to `[ntfy]` and the daemon switches to **signed mode**:
+the push carries only `{id, package, nonce}` — nothing that grants approval — and the daemon accepts
+*only* a decision signed by the parent's private key. An attacker who controls the network and the
+broker and sees the nonce still cannot forge an approval. The raw token path is disabled.
+
+```bash
+# generate a demo keypair (the real parent app does this on the phone; the private key never leaves it)
+cargo run --bin guardian-sign -- keygen        # prints privkey (secret) + pubkey (→ policy.toml)
+# sign a decision the way the app will (dev/testing):
+cargo run --bin guardian-sign -- sign --privkey <b64> --id <uuid> --decision allow --nonce <hex>
+```
+
+> The token mode is the MVP for the raw ntfy app; signed mode is the real zero-trust and is what the
+> future parent app (PWA/native) will use.
 
 ---
 

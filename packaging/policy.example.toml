@@ -20,3 +20,8 @@ default_on_timeout = "deny"
 #enabled = true
 #server = "https://ntfy.sh"      # or your self-hosted ntfy instance
 #request_topic = "guardian-REPLACE-WITH-LONG-RANDOM-STRING"
+# Zero-trust: pair the parent app's Ed25519 public key here. When set, the daemon runs in
+# SIGNED mode and accepts ONLY cryptographically-signed decisions (the raw token path is
+# disabled), so a public-broker eavesdropper can't forge an approval. Generate a demo keypair:
+#   cargo run --bin guardian-sign -- keygen
+#parent_pubkey = "base64-ed25519-public-key"

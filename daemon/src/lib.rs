@@ -7,6 +7,7 @@
 //! real pacman/flatpak interception hooks.
 
 pub mod config;
+pub mod crypto;
 pub mod ipc;
 pub mod ntfy;
 pub mod queue;

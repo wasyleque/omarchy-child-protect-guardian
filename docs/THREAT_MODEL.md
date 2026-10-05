@@ -117,8 +117,8 @@ with the installer hook as one input among several.
 ### 5.5 Remote approval channel
 | Vector | Mitigation | Status |
 |---|---|---|
-| Child reads the public ntfy topic, grabs the one-time token, self-approves before the parent (preemption race) | unguessable topics + one-time token (raises bar) → **replace with Ed25519 challenge-response** | MVP guard done; **Ed25519 = P1** |
-| Broker flips `deny`→`allow` | Ed25519 signature over `challenge‖decision‖id‖ts` (broker can't forge) | planned (P1) |
+| Child reads the public ntfy topic, grabs the one-time token, self-approves before the parent (preemption race) | **signed mode**: notification carries only `{id, package, nonce}`, no approval secret; decision must be Ed25519-signed | **done (daemon)**; parent app pending |
+| Broker flips `deny`→`allow` | Ed25519 signature over `OCPG-v1‖id‖decision‖nonce‖ts` (broker can't forge); verified e2e (flip + bogus-sig rejected → fail-closed DENY) | **done (daemon)** |
 | Replay an old approval | one-time nonce + short TTL + request-id binding | done (token) / hardened by Ed25519 |
 
 ## 6. Mandatory hardware/setup baseline (the foundation)
@@ -155,6 +155,12 @@ can read the token and self-approve in ~50 ms — before the phone even buzzes. 
 - **IPC peer-credential check (SO_PEERCRED)**: the daemon accepts connections only from the
   daemon-owner uid (root in production) — the child's uid is refused — regardless of socket file
   permissions. Closes the "connect and self-approve" vector; a split hook/admin socket is the next step.
+- **Ed25519 signed approvals (signed mode)**: when a `parent_pubkey` is paired, the daemon only
+  accepts decisions signed by the parent's key over `OCPG-v1‖id‖decision‖nonce‖ts`; the push carries
+  no approval secret, nonces are one-time, and timestamps must be fresh. Verified end-to-end over
+  real ntfy.sh: a legitimate signed approval succeeds; a broker decision-flip and a fabricated
+  signature are both rejected → fail-closed DENY. The remaining piece is the parent app holding the
+  private key (today a dev `guardian-sign` helper stands in for it).
 
 ## 9. Honestly out of scope (no false promises)
 
@@ -168,7 +174,7 @@ can read the token and self-approve in ~50 ms — before the phone even buzzes. 
 ## 10. Hardening priorities
 
 - **P1:** execution allowlisting (fapolicyd) · network egress default-deny (nftables + DoH/DoT/VPN
-  block) · Ed25519 signed approvals · hardware baseline (UEFI/SecureBoot/UKI/LUKS). *(SO_PEERCRED and
-  the env-var fix are already done.)*
+  block) · hardware baseline (UEFI/SecureBoot/UKI/LUKS). *(SO_PEERCRED, the env-var fix, and
+  **Ed25519 signed approvals (daemon side)** are already done; signed mode awaits only the parent app.)*
 - **P2:** scriptlet/Intent-Binding safeguards · L7 tamper-evidence, watchdog, audit log & parent alert.
 - **P3:** account/session hardening polish · Flatpak/PackageKit coverage · browser managed policies.

@@ -42,6 +42,11 @@ pub struct NtfyConfig {
     pub server: String,
     /// Topic the parent's phone is subscribed to. MUST be long and unguessable.
     pub request_topic: String,
+    /// Optional base64 Ed25519 public key of the parent's device (from pairing). When set, the
+    /// daemon runs in **signed mode**: it only accepts cryptographically-signed decisions and the
+    /// raw one-time-token path is disabled. This closes the public-broker forgery/preemption gap.
+    #[serde(default)]
+    pub parent_pubkey: Option<String>,
 }
 
 fn default_ntfy_server() -> String {

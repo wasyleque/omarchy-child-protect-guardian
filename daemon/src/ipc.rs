@@ -159,8 +159,7 @@ impl Server {
                     // Push to the parent's phone, if configured. A push failure is not fatal:
                     // the request stays held for a local `guardian-ctl` decision.
                     if let Some(ntfy) = &self.ntfy {
-                        let token = ntfy.register(req.id);
-                        if let Err(e) = ntfy.publish(&req, &token).await {
+                        if let Err(e) = ntfy.push(&req).await {
                             eprintln!(
                                 "guardiand: ntfy push failed for {}: {e:#} — held for local decision",
                                 req.id

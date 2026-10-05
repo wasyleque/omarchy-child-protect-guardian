@@ -44,11 +44,16 @@ async fn main() -> Result<()> {
 
     // Set up remote push-approval if configured and enabled.
     let ntfy = match &policy.ntfy {
-        Some(cfg) if cfg.enabled => {
-            let ntfy = Ntfy::new(cfg.clone());
-            tokio::spawn(Arc::clone(&ntfy).subscribe_loop(Arc::clone(&queue)));
-            Some(ntfy)
-        }
+        Some(cfg) if cfg.enabled => match Ntfy::new(cfg.clone()) {
+            Ok(ntfy) => {
+                tokio::spawn(Arc::clone(&ntfy).subscribe_loop(Arc::clone(&queue)));
+                Some(ntfy)
+            }
+            Err(e) => {
+                eprintln!("guardiand: ntfy disabled — {e:#} (local decisions still work)");
+                None
+            }
+        },
         _ => None,
     };
 

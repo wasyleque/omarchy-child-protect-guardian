@@ -1,35 +1,51 @@
 //! Remote push-approval over [ntfy](https://ntfy.sh) — no own backend required.
 //!
-//! When a request is held, the daemon publishes a notification with **Allow/Deny** HTTP
-//! action buttons to the parent's `request_topic`. Tapping a button makes the ntfy app
-//! POST a small JSON decision to a per-daemon random `response_topic`, which this daemon
-//! subscribes to as an NDJSON stream and uses to resolve the held request.
+//! Two modes:
+//!   * **token** (MVP, works with the raw ntfy app): the notification carries Allow/Deny HTTP
+//!     action buttons whose body includes a one-time token. Simple, but the token traverses a
+//!     public broker, so it is only a stopgap (see docs/THREAT_MODEL.md §7).
+//!   * **signed** (enabled by setting `parent_pubkey`): the notification carries only the request
+//!     id, package and a one-time `nonce` — nothing that grants approval. The parent app signs the
+//!     decision with its Ed25519 private key; the daemon verifies with the paired public key. An
+//!     attacker who controls the network and the broker still cannot forge a decision.
 //!
-//! MVP security (public broker): the `request_topic`/`response_topic` are unguessable, and
-//! each request carries a one-time, per-request `token` that the daemon verifies and then
-//! consumes. A malicious broker node could still flip a decision — that is only closed in
-//! v2 by Ed25519-signed decisions (see docs/ARCHITECTURE). Until then, the daemon timeout
-//! stays fail-closed, so a dropped or withheld decision denies.
+//! In both modes the daemon stays fail-closed: no trusted decision ⇒ the request times out to deny.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context, Result};
+use ed25519_dalek::VerifyingKey;
 use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::config::NtfyConfig;
+use crate::crypto::{self, SignedDecision};
 use crate::queue::Queue;
 use crate::request::{Decision, InstallRequest};
+
+/// How far a signed decision's timestamp may drift from the daemon clock (seconds).
+const MAX_TS_SKEW_SECS: u64 = 600;
+
+enum Mode {
+    Token,
+    Signed(VerifyingKey),
+}
+
+/// Per-request secret awaiting a matching response.
+enum PendingAuth {
+    Token(String),
+    Challenge(String),
+}
 
 pub struct Ntfy {
     cfg: NtfyConfig,
     client: reqwest::Client,
-    /// Random, per-daemon-run topic the action buttons POST decisions to.
+    /// Random, per-daemon-run topic the parent's response is POSTed to.
     response_topic: String,
-    /// One-time tokens keyed by request id; consumed on first valid use.
-    tokens: Mutex<HashMap<Uuid, String>>,
+    mode: Mode,
+    pending: Mutex<HashMap<Uuid, PendingAuth>>,
 }
 
 #[derive(Deserialize)]
@@ -39,50 +55,93 @@ struct StreamEvent {
     message: Option<String>,
 }
 
+/// Token-mode decision payload.
 #[derive(Deserialize)]
-struct DecisionPayload {
+struct TokenDecision {
     id: Uuid,
     decision: Decision,
     token: String,
 }
 
+fn now_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+fn random_hex() -> String {
+    Uuid::new_v4().simple().to_string()
+}
+
 impl Ntfy {
-    pub fn new(cfg: NtfyConfig) -> Arc<Self> {
-        let response_topic = format!("guardian-resp-{}", Uuid::new_v4().simple());
+    /// Build the ntfy handle. Returns an error (so the caller can run without ntfy) if a
+    /// `parent_pubkey` is configured but cannot be parsed — we never silently downgrade.
+    pub fn new(cfg: NtfyConfig) -> Result<Arc<Self>> {
+        let mode = match cfg.parent_pubkey.as_deref() {
+            Some(pk) => {
+                let vk = crypto::parse_pubkey(pk)
+                    .context("parent_pubkey is set but is not a valid base64 Ed25519 public key")?;
+                eprintln!("guardiand: ntfy running in SIGNED mode (Ed25519 parent key paired)");
+                Mode::Signed(vk)
+            }
+            None => {
+                eprintln!("guardiand: ntfy running in TOKEN mode (MVP; pair an Ed25519 key for zero-trust)");
+                Mode::Token
+            }
+        };
+
         // Only a connect timeout: the subscription is a long-lived streaming GET, so a
         // total-request timeout would tear it down periodically. Publish gets its own per-request timeout.
         let client = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(10))
             .build()
-            .expect("building reqwest client");
-        Arc::new(Self {
+            .context("building reqwest client")?;
+
+        Ok(Arc::new(Self {
             cfg,
             client,
-            response_topic,
-            tokens: Mutex::new(HashMap::new()),
-        })
+            response_topic: format!("guardian-resp-{}", random_hex()),
+            mode,
+            pending: Mutex::new(HashMap::new()),
+        }))
     }
 
     fn base(&self) -> &str {
         self.cfg.server.trim_end_matches('/')
     }
 
-    /// Register a fresh one-time token for a request and return it.
-    pub fn register(&self, id: Uuid) -> String {
-        let token = Uuid::new_v4().simple().to_string();
-        self.tokens.lock().unwrap().insert(id, token.clone());
-        token
-    }
-
-    /// Drop a request's token (e.g. after it resolved locally or timed out).
+    /// Drop a request's pending secret (e.g. after it resolved locally or timed out).
     pub fn forget(&self, id: &Uuid) {
-        self.tokens.lock().unwrap().remove(id);
+        self.pending.lock().unwrap().remove(id);
     }
 
-    /// Publish the approval notification with Allow/Deny action buttons.
-    pub async fn publish(&self, req: &InstallRequest, token: &str) -> Result<()> {
+    /// Register the request's secret and push the appropriate notification to the parent's phone.
+    pub async fn push(&self, req: &InstallRequest) -> Result<()> {
+        match &self.mode {
+            Mode::Token => {
+                let token = random_hex();
+                self.pending
+                    .lock()
+                    .unwrap()
+                    .insert(req.id, PendingAuth::Token(token.clone()));
+                self.publish_token(req, &token).await
+            }
+            Mode::Signed(_) => {
+                let nonce = random_hex();
+                self.pending
+                    .lock()
+                    .unwrap()
+                    .insert(req.id, PendingAuth::Challenge(nonce.clone()));
+                self.publish_challenge(req, &nonce).await
+            }
+        }
+    }
+
+    /// Token mode: notification with Allow/Deny HTTP action buttons.
+    async fn publish_token(&self, req: &InstallRequest, token: &str) -> Result<()> {
         let resp_url = format!("{}/{}", self.base(), self.response_topic);
-        let decision_body = |decision: &str| {
+        let body = |decision: &str| {
             serde_json::json!({ "id": req.id, "decision": decision, "token": token }).to_string()
         };
         let reason_suffix = req
@@ -90,7 +149,6 @@ impl Ntfy {
             .as_deref()
             .map(|r| format!(" (reason: {r})"))
             .unwrap_or_default();
-
         let payload = serde_json::json!({
             "topic": self.cfg.request_topic,
             "title": format!("Install request: {}", req.package),
@@ -98,11 +156,36 @@ impl Ntfy {
             "priority": 4,
             "tags": ["closed_lock_with_key"],
             "actions": [
-                { "action": "http", "label": "Allow", "url": resp_url, "method": "POST", "body": decision_body("allow"), "clear": true },
-                { "action": "http", "label": "Deny",  "url": resp_url, "method": "POST", "body": decision_body("deny"),  "clear": true }
+                { "action": "http", "label": "Allow", "url": resp_url, "method": "POST", "body": body("allow"), "clear": true },
+                { "action": "http", "label": "Deny",  "url": resp_url, "method": "POST", "body": body("deny"),  "clear": true }
             ]
         });
+        self.post_publish(payload).await
+    }
 
+    /// Signed mode: notification carries only id/package/nonce (no approval secret). The parent
+    /// app reads this, signs, and POSTs the signed decision to the response topic.
+    async fn publish_challenge(&self, req: &InstallRequest, nonce: &str) -> Result<()> {
+        // Machine-readable payload for the parent app to consume and sign.
+        let data = serde_json::json!({
+            "id": req.id,
+            "package": req.package,
+            "nonce": nonce,
+            "reason": req.reason,
+            "respond_to": format!("{}/{}", self.base(), self.response_topic),
+        })
+        .to_string();
+        let payload = serde_json::json!({
+            "topic": self.cfg.request_topic,
+            "title": format!("Approve install: {}", req.package),
+            "message": data,
+            "priority": 4,
+            "tags": ["closed_lock_with_key"],
+        });
+        self.post_publish(payload).await
+    }
+
+    async fn post_publish(&self, payload: serde_json::Value) -> Result<()> {
         let resp = self
             .client
             .post(format!("{}/", self.base()))
@@ -149,10 +232,9 @@ impl Ntfy {
                     continue;
                 }
                 if let Ok(ev) = serde_json::from_slice::<StreamEvent>(line) {
-                    // ntfy sends "open"/"keepalive"/"message"; only the last carries a decision.
                     if ev.event == "message" {
                         if let Some(msg) = ev.message {
-                            self.handle_decision(&msg, queue);
+                            self.handle_message(&msg, queue);
                         }
                     }
                 }
@@ -161,16 +243,22 @@ impl Ntfy {
         Ok(())
     }
 
-    fn handle_decision(&self, msg: &str, queue: &Queue) {
-        let payload: DecisionPayload = match serde_json::from_str(msg) {
+    fn handle_message(&self, msg: &str, queue: &Queue) {
+        match &self.mode {
+            Mode::Token => self.handle_token(msg, queue),
+            Mode::Signed(vk) => self.handle_signed(vk, msg, queue),
+        }
+    }
+
+    fn handle_token(&self, msg: &str, queue: &Queue) {
+        let payload: TokenDecision = match serde_json::from_str(msg) {
             Ok(p) => p,
-            Err(_) => return, // not a decision payload; ignore
+            Err(_) => return,
         };
-        // Verify and consume the one-time token for this exact request id.
         let valid = {
-            let mut map = self.tokens.lock().unwrap();
+            let mut map = self.pending.lock().unwrap();
             match map.get(&payload.id) {
-                Some(expected) if *expected == payload.token => {
+                Some(PendingAuth::Token(expected)) if *expected == payload.token => {
                     map.remove(&payload.id);
                     true
                 }
@@ -179,13 +267,45 @@ impl Ntfy {
         };
         if !valid {
             eprintln!(
-                "guardiand: ntfy rejected a decision for {} (unknown id or bad/stale token)",
+                "guardiand: ntfy rejected a token decision for {} (unknown id or bad/stale token)",
                 payload.id
             );
             return;
         }
         if queue.resolve(payload.id, payload.decision) {
-            eprintln!("guardiand: ntfy decision {} → {:?}", payload.id, payload.decision);
+            eprintln!("guardiand: ntfy (token) {} → {:?}", payload.id, payload.decision);
+        }
+    }
+
+    fn handle_signed(&self, vk: &VerifyingKey, msg: &str, queue: &Queue) {
+        let sd: SignedDecision = match serde_json::from_str(msg) {
+            Ok(p) => p,
+            Err(_) => return,
+        };
+        // 1) The nonce must match the one we issued for this exact request (one-time).
+        let nonce_ok = {
+            let map = self.pending.lock().unwrap();
+            matches!(map.get(&sd.id), Some(PendingAuth::Challenge(n)) if *n == sd.nonce)
+        };
+        if !nonce_ok {
+            eprintln!("guardiand: ntfy rejected signed decision for {} (unknown id or stale nonce)", sd.id);
+            return;
+        }
+        // 2) Timestamp freshness (defends against very old captured signatures).
+        let now = now_secs();
+        if sd.ts > now.saturating_add(60) || now.saturating_sub(sd.ts) > MAX_TS_SKEW_SECS {
+            eprintln!("guardiand: ntfy rejected signed decision for {} (timestamp out of window)", sd.id);
+            return;
+        }
+        // 3) The signature must verify against the paired parent key.
+        if !crypto::verify(vk, &sd) {
+            eprintln!("guardiand: ntfy rejected signed decision for {} (bad signature)", sd.id);
+            return;
+        }
+        // Consume the nonce so a replay can't reuse it.
+        self.pending.lock().unwrap().remove(&sd.id);
+        if queue.resolve(sd.id, sd.decision) {
+            eprintln!("guardiand: ntfy (signed) {} → {:?}", sd.id, sd.decision);
         }
     }
 }
