@@ -1,7 +1,10 @@
 # Rust
-/target
+target/
 **/*.rs.bk
 Cargo.lock.orig
+
+# aider
+.aider*
 
 # Build / tmp
 /dist

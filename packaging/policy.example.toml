@@ -1,0 +1,12 @@
+# Example policy for guardiand. Install to /etc/guardian/policy.toml.
+# Any missing key falls back to the built-in default shown here.
+
+# Unix-domain control socket the daemon listens on.
+socket_path = "/run/guardian/guardian.sock"
+
+# How long a held install request waits for a parent's decision (seconds)
+# before the fallback below is applied.
+decision_timeout_secs = 300
+
+# Fallback decision when a request times out. "deny" = fail-closed (recommended).
+default_on_timeout = "deny"

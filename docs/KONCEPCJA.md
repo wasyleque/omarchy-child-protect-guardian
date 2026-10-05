@@ -34,6 +34,9 @@ Aplikacja na telefon musi być **prosta i przejrzysta** (rodzic decyduje w ~3 se
 rozumie, co zatwierdza) **i jednocześnie w 100% skuteczna** (klik zawsze dociera do PC i jest
 niezawodnie wyegzekwowany — żadnych cichych awarii, żadnego obejścia). Prostota nigdy nie kosztuje
 skuteczności ani odwrotnie.
+Klient rodzica działa **na każdym wiodącym OS** — Android i iOS oraz desktopy Windows, macOS i Linux —
+żeby rodzic mógł zatwierdzać z dowolnego urządzenia pod ręką. Jeden wspólny rdzeń (PWA z podpisem
+WebCrypto Ed25519) działa wszędzie, opakowany natywnie per platforma dla obecności w sklepach i pushy.
 
 ## 3. Przewagi możliwe dzięki Linux/Arch
 

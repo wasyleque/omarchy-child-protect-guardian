@@ -32,6 +32,10 @@ phone's notification.
 The phone app must be **simple and transparent** (decide in ~3 seconds, understand exactly what is
 being approved) **and at the same time totally effective** (a tapped decision always reaches the PC
 and is reliably enforced — no silent failures, no bypass). Neither goal is sacrificed for the other.
+The parent client is **cross-platform on every leading OS** — Android and iOS, plus Windows, macOS
+and Linux desktops — so a parent can approve from whatever device is in hand. One shared core (a PWA
+with WebCrypto Ed25519 signing) runs everywhere, wrapped as a native app per platform for store
+presence and native push.
 
 ## 3. Advantages unlocked by Linux/Arch
 

@@ -1,0 +1,20 @@
+[Unit]
+Description=Omarchy Child Protect Guardian daemon
+Documentation=https://github.com/wasyleque/omarchy-child-protect-guardian
+After=local-fs.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/guardiand /etc/guardian/policy.toml
+Restart=always
+RestartSec=2
+User=root
+RuntimeDirectory=guardian
+RuntimeDirectoryMode=0750
+
+ProtectHome=read-only
+ProtectSystem=strict
+NoNewPrivileges=false
+
+[Install]
+WantedBy=multi-user.target

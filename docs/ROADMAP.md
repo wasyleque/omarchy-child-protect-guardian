@@ -46,7 +46,9 @@ with `agy` for logic/integration stages). Each stage ends with something testabl
   about and suggests how to start a conversation — coach the parent, don't police the child (local-first).
 
 ## Stage 5 — Parent phone app (simple · transparent · 100% effective)
-- [ ] PWA/native app holding an Ed25519 key → **signed** decisions (full zero-trust).
+- [ ] Parent client on **every leading OS** (Android, iOS, Windows, macOS, Linux) from one shared
+  core — a PWA with WebCrypto **Ed25519** signing, wrapped natively per platform → **signed**
+  decisions (full zero-trust).
 - [ ] One-glance request card: app name, AI-TL;DR, who/where, *Allow / Deny / Sandbox 1h*.
 - [ ] Delivery guarantees: retries, fallback channel, "decision confirmed on PC" receipt.
 - [ ] Multi-parent / multi-child; optional "both parents must approve" for sensitive categories.
