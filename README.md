@@ -54,6 +54,8 @@ Things competitors on Windows/macOS/Android **can't** do, but we can:
 | [`docs/ARCHITECTURE.en.md`](docs/ARCHITECTURE.en.md) / [`docs/ARCHITEKTURA.md`](docs/ARCHITEKTURA.md) | Architecture: daemon, interception points, push-approval, security |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Build stages (MVP → v1), split into small verifiable steps |
 | [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) | Anti-bypass design: adversary tiers, every bypass vector → its mitigation, honest limits |
+| [`parent-app/`](parent-app/) | Cross-platform parent approval app (installable PWA) — on-device Ed25519 signing |
+| [`packaging/`](packaging/) | Deploy: systemd unit, pacman hook, nftables egress, fapolicyd allowlist, hardening audit |
 
 ## How it's built (workflow)
 

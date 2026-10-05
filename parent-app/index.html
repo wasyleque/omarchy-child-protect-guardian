@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Guardian — Parent Approvals</title>
+<meta name="description" content="Approve or deny your child's app installs, signed on-device (Ed25519)." />
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#0b1020" />
+<link rel="icon" href="icon.svg" />
+<style>
+  :root{
+    --bg:#f5f6fa; --card:#ffffff; --fg:#13151a; --muted:#5b6472; --line:#e4e7ee;
+    --accent:#2f6df6; --allow:#1f9d55; --deny:#d64545; --warn:#b4690e; --chip:#eef1f7;
+  }
+  :root:not([data-theme="light"]) { }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0b1020; --card:#151a2b; --fg:#eef1f7; --muted:#9aa4b8; --line:#242b40;
+      --accent:#5b8cff; --allow:#3ecf8e; --deny:#ff6b6b; --warn:#e0a94a; --chip:#1d2338;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0b1020; --card:#151a2b; --fg:#eef1f7; --muted:#9aa4b8; --line:#242b40;
+    --accent:#5b8cff; --allow:#3ecf8e; --deny:#ff6b6b; --warn:#e0a94a; --chip:#1d2338;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+       padding:max(16px,env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom))}
+  .wrap{max-width:560px;margin:0 auto}
+  header{display:flex;align-items:center;gap:10px;margin:4px 0 14px}
+  header .logo{width:30px;height:30px}
+  header h1{font-size:18px;margin:0;font-weight:650}
+  .status{margin-left:auto;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+  .dot.on{background:var(--allow)} .dot.err{background:var(--deny)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:12px 0}
+  .card h2{font-size:14px;margin:0 0 10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+  label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+  input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--fg);font-size:15px}
+  button{font:inherit;border:0;border-radius:10px;padding:11px 14px;font-weight:600;cursor:pointer;color:#fff;background:var(--accent)}
+  button.ghost{background:var(--chip);color:var(--fg);border:1px solid var(--line)}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .row>*{flex:1}
+  .pub{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;word-break:break-all;background:var(--chip);
+       padding:10px;border-radius:8px;border:1px solid var(--line)}
+  .req h3{margin:0 0 2px;font-size:17px}
+  .req .meta{color:var(--muted);font-size:13px;margin-bottom:4px}
+  .req .reason{background:var(--chip);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;margin:8px 0}
+  .req .buttons{display:flex;gap:10px;margin-top:12px}
+  .req .buttons button{flex:1}
+  .allow{background:var(--allow)} .deny{background:var(--deny)}
+  .empty{color:var(--muted);text-align:center;padding:26px 0}
+  .muted{color:var(--muted);font-size:13px}
+  .warn{color:var(--warn);font-size:13px}
+  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom));
+         background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:14px;opacity:0;
+         transition:opacity .2s;pointer-events:none;max-width:90vw}
+  .toast.show{opacity:1}
+  details summary{cursor:pointer;color:var(--muted);font-size:13px}
+  code{font-family:ui-monospace,Menlo,monospace;font-size:12px}
+  .hide{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><path fill="var(--accent)" d="M12 2 4 5v6c0 5 3.4 8.6 8 11 4.6-2.4 8-6 8-11V5l-8-3Z"/><path fill="#fff" d="m10.6 14.2-2.1-2.1-1.3 1.3 3.4 3.4 6-6-1.3-1.3-4.7 4.7Z"/></svg>
+    <h1>Guardian — Approvals</h1>
+    <div class="status"><span id="dot" class="dot"></span><span id="statusText">not connected</span></div>
+  </header>
+
+  <!-- SETUP -->
+  <section id="setup" class="card">
+    <h2>Setup</h2>
+    <div id="secureWarn" class="warn hide">⚠ This page is not in a secure context (HTTPS/localhost). On-device signing needs it — host over HTTPS.</div>
+    <label for="server">ntfy server</label>
+    <input id="server" value="https://ntfy.sh" inputmode="url" autocomplete="off" />
+    <label for="topic">Request topic (must match the daemon; keep it secret)</label>
+    <input id="topic" placeholder="guardian-…" autocomplete="off" autocapitalize="off" spellcheck="false" />
+    <div class="row" style="margin-top:12px">
+      <button id="save">Save & connect</button>
+      <button id="regen" class="ghost" title="Create a new device key">New key…</button>
+    </div>
+    <label style="margin-top:14px">This device's public key — paste into the daemon's <code>policy.toml</code> → <code>[ntfy].parent_pubkey</code></label>
+    <div id="pub" class="pub">(generating…)</div>
+    <div class="row" style="margin-top:8px">
+      <button id="copyPub" class="ghost">Copy public key</button>
+    </div>
+    <details style="margin-top:12px">
+      <summary>How it stays safe</summary>
+      <p class="muted">Your private key is created here and stored only on this device. The app ever sends
+      only <em>signatures</em>, never the key. Each approval is signed for one specific request + a one-time
+      number, so even someone who can read the topic cannot forge or replay your decision.</p>
+    </details>
+  </section>
+
+  <!-- REQUESTS -->
+  <section class="card">
+    <h2>Pending requests</h2>
+    <div id="list"><div class="empty">Waiting for requests…</div></div>
+  </section>
+</div>
+<div id="toast" class="toast"></div>
+
+<script type="module">
+import * as ed from "./vendor/noble-ed25519.js";
+
+const DOMAIN = "OCPG-v1";
+const $ = (id) => document.getElementById(id);
+const te = new TextEncoder();
+const b64 = (u8) => btoa(String.fromCharCode(...u8));
+const toast = (m) => { const t=$("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),2200); };
+
+// --- secure-context check (SubtleCrypto / signing needs it) ---
+if (!window.isSecureContext) $("secureWarn").classList.remove("hide");
+
+// --- IndexedDB: store the 32-byte private seed only (never leaves the device) ---
+function idb(){return new Promise((res,rej)=>{const r=indexedDB.open("ocpg",1);
+  r.onupgradeneeded=()=>r.result.createObjectStore("keys");r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
+async function kvGet(k){const db=await idb();return new Promise((res,rej)=>{const t=db.transaction("keys").objectStore("keys").get(k);t.onsuccess=()=>res(t.result);t.onerror=()=>rej(t.error);});}
+async function kvPut(k,v){const db=await idb();return new Promise((res,rej)=>{const t=db.transaction("keys","readwrite").objectStore("keys").put(v,k);t.onsuccess=()=>res();t.onerror=()=>rej(t.error);});}
+
+let seed = null, pubB64 = "";
+async function ensureKey(forceNew=false){
+  let s = forceNew ? null : await kvGet("seed");
+  if(!s){ s = new Uint8Array(32); crypto.getRandomValues(s); await kvPut("seed", s); }
+  seed = (s instanceof Uint8Array) ? s : new Uint8Array(s);
+  const pub = await ed.getPublicKeyAsync(seed);
+  pubB64 = b64(pub);
+  $("pub").textContent = pubB64;
+}
+
+async function sign(id, decision, nonce, ts){
+  const msg = te.encode(`${DOMAIN}|${id}|${decision}|${nonce}|${ts}`);
+  const sig = await ed.signAsync(msg, seed);
+  return { id, decision, nonce, ts, sig: b64(sig) };
+}
+
+// --- connection (SSE, auto-reconnecting via EventSource) ---
+let es = null;
+const seen = new Set();            // de-dupe request ids already shown/acted
+function setStatus(state, text){ const d=$("dot"); d.className="dot"+(state==="on"?" on":state==="err"?" err":""); $("statusText").textContent=text; }
+
+function connect(){
+  const server = ($("server").value||"https://ntfy.sh").replace(/\/+$/,"");
+  const topic = ($("topic").value||"").trim();
+  if(!topic){ setStatus("err","set a topic"); return; }
+  localStorage.setItem("ocpg.server", server);
+  localStorage.setItem("ocpg.topic", topic);
+  if(es){ es.close(); es=null; }
+  setStatus("", "connecting…");
+  es = new EventSource(`${server}/${encodeURIComponent(topic)}/sse`);
+  es.onopen = () => setStatus("on","connected");
+  es.onerror = () => setStatus("err","reconnecting…");   // EventSource retries automatically
+  es.onmessage = (e) => {
+    let ev; try { ev = JSON.parse(e.data); } catch { return; }
+    if (ev.event && ev.event !== "message") return;        // ignore open/keepalive
+    if (!ev.message) return;
+    let req; try { req = JSON.parse(ev.message); } catch { return; }
+    if (req && req.id && req.nonce && req.respond_to) addRequest(req);
+  };
+}
+
+// --- request cards ---
+function addRequest(req){
+  if(seen.has(req.id)) return; seen.add(req.id);
+  const list = $("list");
+  if(list.querySelector(".empty")) list.innerHTML = "";
+  const card = document.createElement("div");
+  card.className = "req";
+  card.dataset.id = req.id;
+  const reason = req.reason ? `<div class="reason">“${escapeHtml(req.reason)}”</div>` : "";
+  card.innerHTML = `
+    <h3>${escapeHtml(req.package||"(unknown package)")}</h3>
+    <div class="meta">install request · id ${String(req.id).slice(0,8)}…</div>
+    ${reason}
+    <div class="buttons">
+      <button class="deny">Deny</button>
+      <button class="allow">Allow</button>
+    </div>`;
+  card.querySelector(".allow").onclick = () => decide(card, req, "allow");
+  card.querySelector(".deny").onclick  = () => decide(card, req, "deny");
+  list.prepend(card);
+}
+
+async function decide(card, req, decision){
+  card.querySelectorAll("button").forEach(b=>b.disabled=true);
+  try{
+    const ts = Math.floor(Date.now()/1000);
+    const payload = await sign(req.id, decision, req.nonce, ts);
+    const r = await fetch(req.respond_to, { method:"POST", body: JSON.stringify(payload) });
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    toast(decision==="allow" ? "Allowed ✓" : "Denied");
+    card.remove();
+    if(!$("list").children.length) $("list").innerHTML = '<div class="empty">Waiting for requests…</div>';
+  }catch(err){
+    toast("Send failed — try again");
+    card.querySelectorAll("button").forEach(b=>b.disabled=false);
+  }
+}
+
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+
+// --- wire up ---
+$("save").onclick = connect;
+$("regen").onclick = async () => {
+  if(!confirm("Create a NEW device key? You'll have to re-pair its public key in the daemon; the old key stops working.")) return;
+  await ensureKey(true); toast("New key created — re-pair it");
+};
+$("copyPub").onclick = async () => { try{ await navigator.clipboard.writeText(pubB64); toast("Public key copied"); }catch{ toast("Copy failed"); } };
+
+(async function init(){
+  $("server").value = localStorage.getItem("ocpg.server") || "https://ntfy.sh";
+  $("topic").value  = localStorage.getItem("ocpg.topic")  || "";
+  try{ await ensureKey(); }catch(e){ $("pub").textContent = "key error: "+e.message; }
+  if($("topic").value) connect();
+})();
+
+// --- PWA offline shell ---
+if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js").catch(()=>{}); }
+</script>
+</body>
+</html>

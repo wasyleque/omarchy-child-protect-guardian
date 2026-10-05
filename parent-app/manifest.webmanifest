@@ -1,0 +1,14 @@
+{
+  "name": "Guardian — Parent Approvals",
+  "short_name": "Guardian",
+  "description": "Approve or deny your child's app installs, signed on-device with Ed25519.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b1020",
+  "theme_color": "#0b1020",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

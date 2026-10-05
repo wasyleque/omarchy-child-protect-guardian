@@ -60,9 +60,14 @@
   `packaging/fapolicyd/` (exec allowlist rules + trust-seeding + permissive rollout), read-only
   `packaging/harden-audit.sh` (UEFI/SecureBoot/LUKS/bootloader/guardian/account checks), and
   `packaging/README.md` (ordered deploy guide + rollback per layer).
+- **Parent app (PWA) DONE** in `parent-app/`: installable, cross-OS; generates+stores Ed25519 key in
+  IndexedDB (never leaves device), subscribes to ntfy via SSE, signs Allow/Deny on-device, POSTs the
+  signed decision. Vendored `@noble/ed25519` (no runtime CDN; offline shell via sw.js). Signing proven
+  byte-compatible with the Rust daemon end-to-end (JS-generated key+sig verified via live ntfy). JS
+  syntax + served-file smoke checked. Honest follow-ups: background push (iOS), QR pairing, key-at-rest.
 - P1 remaining: deploy+tune nftables/fapolicyd on a real host; guardiand→fapolicyd trust auto-add on
-  approved installs; NetworkManager polkit lockdown + browser DoH policies; the parent app (PWA)
-  holding the Ed25519 key (replaces guardian-sign); Flatpak coverage; L7 tamper-evidence/alert.
+  approved installs; NetworkManager polkit lockdown + browser DoH policies; Flatpak coverage;
+  L7 tamper-evidence/alert.
 
 ## Open decisions (need user)
 - (none blocking) — proceeding down the P1 hardening list; Ed25519 is the next big code piece.
