@@ -60,6 +60,10 @@ pub struct Server {
     pub default_on_timeout: Decision,
     /// Optional remote push-approval; when present, each held request is also pushed to the phone.
     pub ntfy: Option<Arc<crate::ntfy::Ntfy>>,
+    /// UIDs permitted to talk to the control socket (the daemon owner — root in production — plus
+    /// any explicitly configured parent uid). A child runs under a different uid and is refused,
+    /// regardless of the socket file's permissions. Closes the "connect and self-approve" vector.
+    pub allowed_uids: Vec<u32>,
 }
 
 impl Server {
@@ -89,6 +93,21 @@ impl Server {
                 .accept()
                 .await
                 .context("accepting a connection")?;
+            // Authenticate the peer by its uid before processing anything.
+            match stream.peer_cred() {
+                Ok(cred) if self.allowed_uids.contains(&cred.uid()) => {}
+                Ok(cred) => {
+                    eprintln!(
+                        "guardiand: refused connection from uid {} (not an authorized controller)",
+                        cred.uid()
+                    );
+                    continue;
+                }
+                Err(e) => {
+                    eprintln!("guardiand: refusing connection — cannot read peer credentials: {e}");
+                    continue;
+                }
+            }
             let server = Arc::clone(&self);
             tokio::spawn(async move {
                 if let Err(e) = server.handle(stream).await {

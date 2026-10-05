@@ -43,8 +43,19 @@
   test); `-Syu` new-dependency edge case; Flatpak mechanism (libflatpak, not libalpm); Intent Binding
   (frozen cache + Ed25519) for true zero-trust; parent app (PWA) replacing the raw ntfy app.
 
+## Security / anti-bypass (see docs/THREAT_MODEL.md)
+- Full threat model written (red-teamed with agy). KEY TRUTH: gating the installer is not enough —
+  kids run AppImage/`curl|sh`/flatpak --user from $HOME. Real coverage = layers, default-deny:
+  L1 install-intercept · L2 execution allowlist (fapolicyd) · L3 network egress deny (nftables,
+  DoH/DoT/VPN block) · L4 account/session · L5 Ed25519 signed approvals · L6 hardware baseline
+  (UEFI pw + Secure Boot + UKI/locked GRUB + LUKS) · L7 tamper-evidence/alert. No "zero gaps"
+  without L6 — stated honestly; CMOS reset / other devices are out of scope.
+- DONE hardenings: SO_PEERCRED on IPC (child uid refused); `guardian-hook` ignores GUARDIAN_SOCKET
+  in release (fixed path). Build + tests + e2e regression green.
+- P1 next: fapolicyd exec allowlist · nftables egress · Ed25519 approvals · hardware baseline+checklist.
+
 ## Open decisions (need user)
-- (none blocking) — ntfy MVP is next after interception is wired on a real machine.
+- (none blocking) — proceeding down the P1 hardening list; Ed25519 is the next big code piece.
 
 ## Workflow routing (this machine)
 - **Logic / architecture / integrations →** `agy`.

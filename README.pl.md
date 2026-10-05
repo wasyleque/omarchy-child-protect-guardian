@@ -54,6 +54,7 @@ Rzeczy, których konkurencja na Windows/macOS/Android **nie może** zrobić, a m
 | [`docs/KONCEPCJA.md`](docs/KONCEPCJA.md) | Pełna koncepcja, przewagi, scenariusze, nieoczywiste pomysły |
 | [`docs/ARCHITEKTURA.md`](docs/ARCHITEKTURA.md) | Architektura: demon, punkty przechwycenia, push-approval, bezpieczeństwo |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Etapy budowy (MVP → v1), podział na małe weryfikowalne kroki |
+| [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) | Projekt „nie do obejścia": poziomy przeciwnika, każdy wektor obejścia → obrona, uczciwe granice |
 
 ## Jak powstaje (workflow)
 

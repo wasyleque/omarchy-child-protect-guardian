@@ -29,6 +29,17 @@ async fn main() -> Result<()> {
         policy.default_on_timeout
     );
 
+    // Control socket is restricted to root plus the daemon's own uid (so a non-root dev run still
+    // works, while a child — a different uid — is always refused). See docs/THREAT_MODEL.md §5.4.
+    let own_uid = {
+        use std::os::unix::fs::MetadataExt;
+        std::fs::metadata("/proc/self").map(|m| m.uid()).unwrap_or(0)
+    };
+    let mut allowed_uids = vec![0u32];
+    if own_uid != 0 {
+        allowed_uids.push(own_uid);
+    }
+
     let queue = Arc::new(Queue::new());
 
     // Set up remote push-approval if configured and enabled.
@@ -46,6 +57,7 @@ async fn main() -> Result<()> {
         decision_timeout: std::time::Duration::from_secs(policy.decision_timeout_secs),
         default_on_timeout: policy.default_on_timeout,
         ntfy,
+        allowed_uids,
     });
 
     server.run(&policy.socket_path).await
