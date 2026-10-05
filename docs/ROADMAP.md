@@ -58,11 +58,14 @@ with `agy` for logic/integration stages). Each stage ends with something testabl
 Installer-gating alone is not enough; enforcement must be default-deny at execution + network.
 - [x] IPC peer-credential check (SO_PEERCRED) — only the daemon owner (root) may send control msgs.
 - [x] `guardian-hook` ignores `GUARDIAN_SOCKET` in release builds (fixed root-owned path).
-- [ ] **P1 — execution allowlisting** (fapolicyd + trust DB from pacman/approvals; noexec backstop).
-- [ ] **P1 — network egress default-deny** (nftables: force DNS, drop DoT, block DoH IP sets / VPN / Tor; NetworkManager polkit lockdown; browser managed policies).
+- [~] **P1 — execution allowlisting** (fapolicyd): rules + trust-seeding + safe permissive rollout
+  **shipped in `packaging/fapolicyd/`**; deploy & tune on host. (noexec backstop, guardiand→trust auto-add: TODO.)
+- [~] **P1 — network egress default-deny** (nftables): ruleset **shipped & syntax-validated** in
+  `packaging/nftables/guardian-egress.nft` (force DNS, drop DoT, block DoH v4/v6, kill UDP/QUIC/VPN,
+  default-deny). TODO: NetworkManager polkit lockdown; browser managed policies; SNI/DPI for 443 tunnels.
 - [x] **P1 — Ed25519 signed approvals** (challenge-response; private key stays on phone) — daemon-side
   done & verified e2e (flip + bogus-sig rejected → fail-closed); only the parent app that holds the key remains.
-- [ ] **P1 — hardware/boot baseline** (UEFI admin password, Secure Boot, signed UKI or locked GRUB, LUKS2 FDE) + a setup checklist that refuses to claim "protected" until it passes.
+- [~] **P1 — hardware/boot baseline** (UEFI admin password, Secure Boot, signed UKI or locked GRUB, LUKS2 FDE): read-only **audit script shipped** (`packaging/harden-audit.sh`) + deploy guide (`packaging/README.md`); firmware steps are the owner's to apply.
 - [ ] **P2 — tamper-evidence & self-healing** (chattr +i, watchdog re-asserting hook/unit, append-only audit, parent alert on tamper); AUR scriptlet / Intent-Binding safeguards.
 - [ ] **P3 — account/session hardening** (lock root, mask spare getty, no autologin/empty pw, single account); Flatpak/PackageKit coverage.
 

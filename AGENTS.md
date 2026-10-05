@@ -55,8 +55,14 @@
   `[ntfy].parent_pubkey` → accepts only signed decisions; `guardian-sign` dev helper simulates the
   phone). Verified e2e vs real ntfy.sh: legit allow works; broker decision-flip + bogus signature
   both rejected → fail-closed DENY. 7 unit tests (queue+crypto) + e2e green.
-- P1 next: fapolicyd exec allowlist · nftables egress (DoH/DoT/VPN block) · hardware baseline+checklist.
-  Ed25519 remaining piece = the parent app (PWA) holding the private key (replaces guardian-sign).
+- P1 config SHIPPED (validated, NOT applied to any host): `packaging/nftables/guardian-egress.nft`
+  (egress deny; force DNS; drop DoT; block DoH v4/v6; kill UDP/QUIC/VPN — validated via `unshare -rn nft -f`),
+  `packaging/fapolicyd/` (exec allowlist rules + trust-seeding + permissive rollout), read-only
+  `packaging/harden-audit.sh` (UEFI/SecureBoot/LUKS/bootloader/guardian/account checks), and
+  `packaging/README.md` (ordered deploy guide + rollback per layer).
+- P1 remaining: deploy+tune nftables/fapolicyd on a real host; guardiand→fapolicyd trust auto-add on
+  approved installs; NetworkManager polkit lockdown + browser DoH policies; the parent app (PWA)
+  holding the Ed25519 key (replaces guardian-sign); Flatpak coverage; L7 tamper-evidence/alert.
 
 ## Open decisions (need user)
 - (none blocking) — proceeding down the P1 hardening list; Ed25519 is the next big code piece.
