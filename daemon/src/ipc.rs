@@ -58,6 +58,8 @@ pub struct Server {
     pub queue: Arc<Queue>,
     pub decision_timeout: Duration,
     pub default_on_timeout: Decision,
+    /// Optional remote push-approval; when present, each held request is also pushed to the phone.
+    pub ntfy: Option<Arc<crate::ntfy::Ntfy>>,
 }
 
 impl Server {
@@ -135,6 +137,17 @@ impl Server {
                         "guardiand: HELD {:?} install '{}' (id {}) — awaiting parent decision",
                         req.source, req.package, req.id
                     );
+                    // Push to the parent's phone, if configured. A push failure is not fatal:
+                    // the request stays held for a local `guardian-ctl` decision.
+                    if let Some(ntfy) = &self.ntfy {
+                        let token = ntfy.register(req.id);
+                        if let Err(e) = ntfy.publish(&req, &token).await {
+                            eprintln!(
+                                "guardiand: ntfy push failed for {}: {e:#} — held for local decision",
+                                req.id
+                            );
+                        }
+                    }
                     let decision = match tokio::time::timeout(self.decision_timeout, rx).await {
                         Ok(Ok(d)) => d,
                         // Sender dropped without a decision: fall back to policy.
@@ -149,6 +162,10 @@ impl Server {
                             self.default_on_timeout
                         }
                     };
+                    // Drop any lingering one-time token for this request.
+                    if let Some(ntfy) = &self.ntfy {
+                        ntfy.forget(&req.id);
+                    }
                     send(&mut write_half, &ServerMessage::Decision {
                         id: req.id,
                         decision,

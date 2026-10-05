@@ -10,3 +10,13 @@ decision_timeout_secs = 300
 
 # Fallback decision when a request times out. "deny" = fail-closed (recommended).
 default_on_timeout = "deny"
+
+# Optional: remote push-approval from the parent's phone via ntfy.
+# Omit this whole section (or set enabled = false) for local-only decisions
+# (guardian-ctl). When enabled, each held request is pushed to the phone with
+# Allow/Deny buttons; the parent's phone subscribes to request_topic.
+# IMPORTANT: request_topic must be LONG and UNGUESSABLE (treat it like a secret).
+#[ntfy]
+#enabled = true
+#server = "https://ntfy.sh"      # or your self-hosted ntfy instance
+#request_topic = "guardian-REPLACE-WITH-LONG-RANDOM-STRING"

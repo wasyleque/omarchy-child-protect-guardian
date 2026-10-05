@@ -21,8 +21,8 @@ with `agy` for logic/integration stages). Each stage ends with something testabl
 - [ ] Clear child-facing message + timeout/offline handling.
 
 ## Stage 2 — Remote push-approval
-- [ ] Send push via ntfy with human-readable app description + *Allow/Deny* action buttons.
-- [ ] Listen (SSE/WebSocket) and apply the decision to the held request.
+- [x] Send push via ntfy with human-readable app description + *Allow/Deny* action buttons.
+- [x] Listen (NDJSON stream) and apply the decision to the held request (one-time token verified).
 - [ ] **AI-TL;DR:** parse AUR/Flathub metadata → plain-language summary (optional local Ollama).
 - [ ] Pairing phone↔PC via QR; per-request UUID + TTL + anti-replay.
 - [ ] **Intent Binding (scoped remote-root):** frozen root cache + SHA-256, Ed25519-signed grant bound

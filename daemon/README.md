@@ -69,7 +69,27 @@ export GUARDIAN_SOCKET=/run/guardian/guardian.sock   # or whatever policy.toml s
 ./target/release/guardian-ctl allow <id>                                     # terminal 1's request now prints ALLOW
 ```
 
+## Remote approval (ntfy)
+
+Add an `[ntfy]` section to the policy (see `../packaging/policy.example.toml`) to push each
+held request to the parent's phone with **Allow / Deny** buttons — no own server needed:
+
+```toml
+[ntfy]
+enabled = true
+server = "https://ntfy.sh"
+request_topic = "guardian-<long-random-string>"   # the phone subscribes to this; keep it secret
+```
+
+The parent installs the [ntfy app](https://ntfy.sh) (Android/iOS) and subscribes to `request_topic`.
+Tapping a button sends a one-time-token-signed decision back over a random response channel; the
+daemon verifies the token and resolves the request. `guardian-ctl` still works as a local override.
+On a timeout, or if a decision can't be trusted, the daemon **fails closed (denies)**.
+
+> MVP note: ntfy topics are a public broker, so the per-request token + unguessable topics are the
+> current guard. True zero-trust (Ed25519-signed decisions) lands in a later stage.
+
 ---
 
-See [../docs/ROADMAP.md](../docs/ROADMAP.md) for how Stage 1 fits the bigger plan.
+See [../docs/ROADMAP.md](../docs/ROADMAP.md) for how the stages fit the bigger plan.
 

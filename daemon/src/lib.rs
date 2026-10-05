@@ -8,5 +8,6 @@
 
 pub mod config;
 pub mod ipc;
+pub mod ntfy;
 pub mod queue;
 pub mod request;

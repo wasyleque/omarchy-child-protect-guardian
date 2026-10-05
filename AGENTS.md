@@ -34,9 +34,14 @@
   deny→1, multi-target join, no-daemon→1). Hook files in `packaging/` (`50-guardian.hook` +
   scoped `99-guardian-test.hook` for the safe `pacman -S sl` test). Arch docs corrected.
 - CAVEAT: with `Target = *`, if guardiand is down no new installs succeed (fail-closed by design).
+- DONE: **remote push-approval via ntfy** (design by agy; module written by me — integration/security,
+  not delegated). `guardiand` publishes Allow/Deny action buttons to `request_topic`; parent's tap
+  POSTs a one-time-token decision to a random response topic; daemon verifies token + resolves.
+  Tested end-to-end against real ntfy.sh (allow round-trip) and forged-token rejected → fail-closed DENY.
+  Config `[ntfy]` section; `reqwest`/rustls; `guardian-ctl` still a local override.
 - TODO: real `pacman -S sl` test on a machine (needs sudo — user runs the documented non-destructive
-  test); `-Syu` new-dependency edge case; Flatpak mechanism (libflatpak, not libalpm); then remote
-  push-approval (ntfy) + Intent Binding (frozen cache + Ed25519).
+  test); `-Syu` new-dependency edge case; Flatpak mechanism (libflatpak, not libalpm); Intent Binding
+  (frozen cache + Ed25519) for true zero-trust; parent app (PWA) replacing the raw ntfy app.
 
 ## Open decisions (need user)
 - (none blocking) — ntfy MVP is next after interception is wired on a real machine.

@@ -16,6 +16,8 @@ pub struct Policy {
     pub decision_timeout_secs: u64,
     /// Fallback decision applied when a request times out (fail-closed by default).
     pub default_on_timeout: Decision,
+    /// Optional remote push-approval via ntfy. Absent/`enabled = false` → local decisions only.
+    pub ntfy: Option<NtfyConfig>,
 }
 
 impl Default for Policy {
@@ -24,8 +26,26 @@ impl Default for Policy {
             socket_path: PathBuf::from("/run/guardian/guardian.sock"),
             decision_timeout_secs: 300,
             default_on_timeout: Decision::Deny,
+            ntfy: None,
         }
     }
+}
+
+/// Remote push-approval settings (ntfy). The parent's phone subscribes to `request_topic`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct NtfyConfig {
+    /// Master switch for the ntfy push path.
+    #[serde(default)]
+    pub enabled: bool,
+    /// ntfy server base URL (public `https://ntfy.sh` or a self-hosted instance).
+    #[serde(default = "default_ntfy_server")]
+    pub server: String,
+    /// Topic the parent's phone is subscribed to. MUST be long and unguessable.
+    pub request_topic: String,
+}
+
+fn default_ntfy_server() -> String {
+    "https://ntfy.sh".to_string()
 }
 
 impl Policy {
