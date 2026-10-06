@@ -74,8 +74,16 @@
   (forged signed decision → "FORGED approval blocked" push). chattr +i ops step documented in packaging/README.
 - REAL end-to-end test needs a CLEAN system on separate hardware (user will set this up): install hooks,
   nftables, fapolicyd, hardware baseline, pair the PWA. Everything so far verified in isolation/e2e-over-ntfy.
-- P1/P2 remaining: Flatpak coverage (libflatpak, not libalpm); nftables/fapolicyd deploy+tune on host;
-  NetworkManager polkit lockdown + browser DoH policies; watchdog + append-only audit; QR pairing / iOS bg push.
+- **IPC split DONE**: two sockets — `submit.sock` (0666, any uid may Submit, per-uid flood cap
+  `max_pending_per_uid`=5) and `guardian.sock` (0660, control List/Resolve, SO_PEERCRED owner-only).
+  guardian-hook + flatpak wrapper → submit; guardian-ctl request → submit, list/allow/deny → control.
+  Verified e2e incl. cross-socket rejection. config: submit_socket_path, max_pending_per_uid.
+- **Flatpak DONE**: `packaging/flatpak/guardian-flatpak-wrapper.sh` (/usr/local/bin/flatpak; gates
+  `flatpak install` via submit socket, verified allow/deny/passthrough with a stub) + polkit rule
+  `49-guardian-flatpak.rules` (blocks child system installs via GUI). Residual: direct /usr/bin/flatpak
+  + --user GUI → covered by fapolicyd backstop (documented). fapolicyd trust for flatpak apps = follow-up.
+- P1/P2 remaining: deploy+tune nftables/fapolicyd on a real host; NetworkManager polkit lockdown +
+  browser DoH policies; watchdog + append-only audit; QR pairing / iOS bg push; snap/nix/conda wrappers.
 
 ## Open decisions (need user)
 - (none blocking) — proceeding down the P1 hardening list; Ed25519 is the next big code piece.

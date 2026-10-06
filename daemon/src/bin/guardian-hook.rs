@@ -19,13 +19,12 @@ fn main() {
         process::exit(0);
     }
 
-    // Security: the socket path is FIXED and root-owned in production. We must not let a child
-    // override it via the environment (e.g. `GUARDIAN_SOCKET=/tmp/fake.sock yay -S game` pointing
-    // at a fake daemon that always answers "allow"). The env override is honored only in debug
-    // builds, for the test harness.
-    const DEFAULT_SOCKET: &str = "/run/guardian/guardian.sock";
+    // Security: the socket path is FIXED in production. We must not let a child override it via the
+    // environment (e.g. `GUARDIAN_SUBMIT_SOCKET=/tmp/fake.sock yay -S game` pointing at a fake daemon
+    // that always answers "allow"). The env override is honored only in debug builds, for tests.
+    const DEFAULT_SOCKET: &str = "/run/guardian/submit.sock";
     let socket_path = if cfg!(debug_assertions) {
-        std::env::var("GUARDIAN_SOCKET").unwrap_or_else(|_| DEFAULT_SOCKET.to_string())
+        std::env::var("GUARDIAN_SUBMIT_SOCKET").unwrap_or_else(|_| DEFAULT_SOCKET.to_string())
     } else {
         DEFAULT_SOCKET.to_string()
     };

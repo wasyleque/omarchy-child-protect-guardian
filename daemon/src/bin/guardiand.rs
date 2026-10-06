@@ -63,8 +63,9 @@ async fn main() -> Result<()> {
         decision_timeout: std::time::Duration::from_secs(policy.decision_timeout_secs),
         default_on_timeout: policy.default_on_timeout,
         ntfy,
-        allowed_uids,
+        control_uids: allowed_uids,
+        max_pending_per_uid: policy.max_pending_per_uid,
     });
 
-    server.run(&policy.socket_path).await
+    server.run(&policy.socket_path, &policy.submit_socket_path).await
 }

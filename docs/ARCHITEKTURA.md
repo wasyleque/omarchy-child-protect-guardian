@@ -38,7 +38,7 @@ Trzy ścieżki instalacji → trzy mechanizmy haka:
 | Ścieżka | Mechanizm przechwycenia |
 |---|---|
 | `pacman`, `yay`/`paru`, AUR (`pacman -U`), instalatory GUI | **Hook ALPM `PreTransaction`** (`/etc/pacman.d/hooks/`) uruchamiający mały `guardian-hook`, który łączy się z gniazdem i blokuje do decyzji. Zakres `Operation = Install`, więc aktualizacje systemu (`-Syu`) przechodzą bez blokady; kod wyjścia ≠ 0 anuluje całą transakcję, zanim cokolwiek zostanie zapisane (fail-closed). Wszystko, co instaluje pakiet, przechodzi przez `libalpm` — więc **nie da się tego obejść z konta użytkownika**, a w przeciwieństwie do reguły Polkit łapie też zwykłe `sudo pacman` w terminalu (którego Polkit nie pośredniczy). |
-| Flatpak (systemowy lub `--user`) | Cienki wrapper / mechanizm D-Bus przed `flatpak install`, bo Flatpak używa libflatpak, nie libalpm (projekt do ustalenia w pod-etapie Flatpak). |
+| Flatpak CLI (`flatpak install`, też `--user`) | **Wrapper** w `/usr/local/bin/flatpak` zgłasza na gniazdo submit i uruchamia prawdziwy flatpak dopiero po zgodzie. Instalacje systemowe z GUI (polkit) blokuje reguła polkit; instalacje `--user` z GUI łapie allowlista fapolicyd. Patrz `packaging/flatpak/`. |
 
 Budowanie pakietu AUR (jako user) jest nieszkodliwe — blokujemy dopiero *instalację* do systemu.
 Dla pełnej szczelności rozważamy też tryb, w którym dziecko w ogóle nie ma ścieżki `sudo`,

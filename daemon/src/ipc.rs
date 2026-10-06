@@ -1,13 +1,16 @@
-//! Local IPC: a Unix-domain socket speaking newline-delimited JSON.
+//! Local IPC over two Unix-domain sockets speaking newline-delimited JSON.
 //!
-//! Two kinds of client connect here:
-//!   * the **interception hook** sends one [`ClientMessage::Submit`] and blocks on the
-//!     connection until the daemon replies with a [`ServerMessage::Decision`];
-//!   * the **control client** (`guardian-ctl`) sends [`ClientMessage::List`] /
-//!     [`ClientMessage::Resolve`] and reads the matching reply.
+//! * **submit socket** (`submit.sock`, mode 0666) — anything that intercepts an install (the pacman
+//!   hook as root, or a user-space `flatpak` wrapper running as the child) sends one
+//!   [`ClientMessage::Submit`] and blocks until the daemon replies with a [`ServerMessage::Decision`].
+//!   It accepts *only* `Submit`, and enforces a per-uid cap so a local user can't flood it.
+//! * **control socket** (`guardian.sock`, mode 0660) — the parent's `guardian-ctl` sends
+//!   [`ClientMessage::List`] / [`ClientMessage::Resolve`]. This surface is **peer-credential checked**
+//!   (SO_PEERCRED): only the daemon-owner uid (root in production) may make decisions, so a child
+//!   cannot connect and approve their own request regardless of socket permissions.
 //!
-//! Stage 1 keeps the socket owner/group-only (mode 0660). Hardening (peer-credential
-//! checks, splitting the hook vs. control surfaces) comes in a later stage.
+//! Splitting the surfaces is what lets a child-run interceptor *submit* a request while the power to
+//! *decide* stays with root/the parent.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -22,109 +25,108 @@ use uuid::Uuid;
 use crate::queue::Queue;
 use crate::request::{Decision, InstallRequest, InstallSource};
 
-/// A message from a client to the daemon.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ClientMessage {
-    /// From the interception hook: register an install attempt and block for a decision.
     Submit {
         source: InstallSource,
         package: String,
         #[serde(default)]
         reason: Option<String>,
     },
-    /// From the control client: list currently-held requests.
     List,
-    /// From the control client: resolve a held request.
     Resolve { id: Uuid, decision: Decision },
 }
 
-/// A message from the daemon back to a client.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ServerMessage {
-    /// Final answer for a `Submit` (also used when a request times out).
     Decision { id: Uuid, decision: Decision },
-    /// Answer for a `List`.
     Pending { requests: Vec<InstallRequest> },
-    /// Answer for a `Resolve`; `ok` is false if the id was unknown.
     Resolved { id: Uuid, ok: bool },
-    /// A malformed or unprocessable request.
     Error { message: String },
 }
 
-/// The running IPC server and the policy it enforces for held requests.
 pub struct Server {
     pub queue: Arc<Queue>,
     pub decision_timeout: Duration,
     pub default_on_timeout: Decision,
     /// Optional remote push-approval; when present, each held request is also pushed to the phone.
     pub ntfy: Option<Arc<crate::ntfy::Ntfy>>,
-    /// UIDs permitted to talk to the control socket (the daemon owner — root in production — plus
-    /// any explicitly configured parent uid). A child runs under a different uid and is refused,
-    /// regardless of the socket file's permissions. Closes the "connect and self-approve" vector.
-    pub allowed_uids: Vec<u32>,
+    /// UIDs permitted to use the **control** socket (decide/list): the daemon owner (root) + parent.
+    pub control_uids: Vec<u32>,
+    /// Max concurrently-held requests per submitting uid (anti-flood).
+    pub max_pending_per_uid: usize,
+}
+
+fn bind(path: &Path, mode: u32) -> Result<UnixListener> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).ok();
+    }
+    if path.exists() {
+        let _ = std::fs::remove_file(path);
+    }
+    let listener =
+        UnixListener::bind(path).with_context(|| format!("binding unix socket at {}", path.display()))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode));
+    }
+    Ok(listener)
 }
 
 impl Server {
-    /// Bind the socket and serve connections until an accept error occurs.
-    pub async fn run(self: Arc<Self>, socket_path: &Path) -> Result<()> {
-        if let Some(parent) = socket_path.parent() {
-            std::fs::create_dir_all(parent).ok();
+    /// Bind both sockets and serve until a fatal accept error on either.
+    pub async fn run(self: Arc<Self>, control_path: &Path, submit_path: &Path) -> Result<()> {
+        let control = bind(control_path, 0o660)?;
+        let submit = bind(submit_path, 0o666)?;
+        eprintln!(
+            "guardiand: control socket {} (owner-only), submit socket {} (any uid, capped)",
+            control_path.display(),
+            submit_path.display()
+        );
+        tokio::select! {
+            r = Arc::clone(&self).accept_loop(control, true) => r,
+            r = Arc::clone(&self).accept_loop(submit, false) => r,
         }
-        // Remove a stale socket left by a previous run.
-        if socket_path.exists() {
-            let _ = std::fs::remove_file(socket_path);
-        }
-        let listener = UnixListener::bind(socket_path)
-            .with_context(|| format!("binding unix socket at {}", socket_path.display()))?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let _ = std::fs::set_permissions(
-                socket_path,
-                std::fs::Permissions::from_mode(0o660),
-            );
-        }
-        eprintln!("guardiand: listening on {}", socket_path.display());
+    }
 
+    async fn accept_loop(self: Arc<Self>, listener: UnixListener, is_control: bool) -> Result<()> {
         loop {
-            let (stream, _addr) = listener
-                .accept()
-                .await
-                .context("accepting a connection")?;
-            // Authenticate the peer by its uid before processing anything.
-            match stream.peer_cred() {
-                Ok(cred) if self.allowed_uids.contains(&cred.uid()) => {}
-                Ok(cred) => {
-                    eprintln!(
-                        "guardiand: refused connection from uid {} (not an authorized controller)",
-                        cred.uid()
-                    );
-                    if let Some(ntfy) = &self.ntfy {
-                        ntfy.alert(
-                            "ipc-blocked",
-                            "Guardian: blocked control attempt",
-                            &format!("A process (uid {}) tried to control Guardian on this computer and was blocked.", cred.uid()),
-                        );
+            let (stream, _addr) = listener.accept().await.context("accepting a connection")?;
+            let uid = stream.peer_cred().ok().map(|c| c.uid());
+            if is_control {
+                match uid {
+                    Some(u) if self.control_uids.contains(&u) => {}
+                    Some(u) => {
+                        eprintln!("guardiand: refused control connection from uid {u} (not authorized)");
+                        if let Some(ntfy) = &self.ntfy {
+                            ntfy.alert(
+                                "ipc-blocked",
+                                "Guardian: blocked control attempt",
+                                &format!("A process (uid {u}) tried to control Guardian on this computer and was blocked."),
+                            );
+                        }
+                        continue;
                     }
-                    continue;
-                }
-                Err(e) => {
-                    eprintln!("guardiand: refusing connection — cannot read peer credentials: {e}");
-                    continue;
+                    None => {
+                        eprintln!("guardiand: refused control connection (no peer credentials)");
+                        continue;
+                    }
                 }
             }
+            let uid = uid.unwrap_or(u32::MAX);
             let server = Arc::clone(&self);
             tokio::spawn(async move {
-                if let Err(e) = server.handle(stream).await {
+                if let Err(e) = server.handle(stream, is_control, uid).await {
                     eprintln!("guardiand: connection error: {e:#}");
                 }
             });
         }
     }
 
-    async fn handle(&self, stream: UnixStream) -> Result<()> {
+    async fn handle(&self, stream: UnixStream, is_control: bool, uid: u32) -> Result<()> {
         let (read_half, mut write_half) = stream.into_split();
         let mut lines = BufReader::new(read_half).lines();
 
@@ -136,68 +138,68 @@ impl Server {
             let msg: ClientMessage = match serde_json::from_str(line) {
                 Ok(m) => m,
                 Err(e) => {
-                    send(&mut write_half, &ServerMessage::Error {
-                        message: format!("bad request: {e}"),
-                    })
-                    .await?;
+                    send(&mut write_half, &ServerMessage::Error { message: format!("bad request: {e}") }).await?;
                     continue;
                 }
             };
 
-            match msg {
-                ClientMessage::List => {
+            match (is_control, msg) {
+                // ---- control socket: list / resolve only ----
+                (true, ClientMessage::List) => {
                     let requests = self.queue.list();
                     send(&mut write_half, &ServerMessage::Pending { requests }).await?;
                 }
-                ClientMessage::Resolve { id, decision } => {
+                (true, ClientMessage::Resolve { id, decision }) => {
                     let ok = self.queue.resolve(id, decision);
                     send(&mut write_half, &ServerMessage::Resolved { id, ok }).await?;
                 }
-                ClientMessage::Submit {
-                    source,
-                    package,
-                    reason,
-                } => {
-                    let (req, rx) = self.queue.submit(source, package, reason);
+                (true, ClientMessage::Submit { .. }) => {
+                    send(&mut write_half, &ServerMessage::Error {
+                        message: "submit not accepted on the control socket".into(),
+                    }).await?;
+                }
+
+                // ---- submit socket: submit only ----
+                (false, ClientMessage::Submit { source, package, reason }) => {
+                    let held = self.queue.try_submit(source, package, reason, uid, self.max_pending_per_uid);
+                    let (req, rx) = match held {
+                        Some(v) => v,
+                        None => {
+                            eprintln!("guardiand: refused submit from uid {uid} (per-uid cap reached) → deny");
+                            send(&mut write_half, &ServerMessage::Error {
+                                message: "too many pending requests".into(),
+                            }).await?;
+                            break;
+                        }
+                    };
                     eprintln!(
-                        "guardiand: HELD {:?} install '{}' (id {}) — awaiting parent decision",
-                        req.source, req.package, req.id
+                        "guardiand: HELD {:?} install '{}' (id {}, uid {}) — awaiting parent decision",
+                        req.source, req.package, req.id, uid
                     );
-                    // Push to the parent's phone, if configured. A push failure is not fatal:
-                    // the request stays held for a local `guardian-ctl` decision.
                     if let Some(ntfy) = &self.ntfy {
                         if let Err(e) = ntfy.push(&req).await {
-                            eprintln!(
-                                "guardiand: ntfy push failed for {}: {e:#} — held for local decision",
-                                req.id
-                            );
+                            eprintln!("guardiand: ntfy push failed for {}: {e:#} — held for local decision", req.id);
                         }
                     }
                     let decision = match tokio::time::timeout(self.decision_timeout, rx).await {
                         Ok(Ok(d)) => d,
-                        // Sender dropped without a decision: fall back to policy.
                         Ok(Err(_)) => self.default_on_timeout,
-                        // Timed out: clean up and fall back to policy.
                         Err(_) => {
                             self.queue.cancel(req.id);
-                            eprintln!(
-                                "guardiand: request {} timed out → {:?}",
-                                req.id, self.default_on_timeout
-                            );
+                            eprintln!("guardiand: request {} timed out → {:?}", req.id, self.default_on_timeout);
                             self.default_on_timeout
                         }
                     };
-                    // Drop any lingering one-time token for this request.
                     if let Some(ntfy) = &self.ntfy {
                         ntfy.forget(&req.id);
                     }
-                    send(&mut write_half, &ServerMessage::Decision {
-                        id: req.id,
-                        decision,
-                    })
-                    .await?;
-                    // A blocking hook connection is done after its single decision.
-                    break;
+                    send(&mut write_half, &ServerMessage::Decision { id: req.id, decision }).await?;
+                    break; // one blocking request per submit connection
+                }
+                (false, _) => {
+                    send(&mut write_half, &ServerMessage::Error {
+                        message: "only submit is accepted on the submit socket".into(),
+                    }).await?;
                 }
             }
         }

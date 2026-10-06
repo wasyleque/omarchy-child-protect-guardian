@@ -52,7 +52,8 @@ with the installer hook as one input among several.
 
 ### Layered model
 
-- **L1 — Install interception** *(done: pacman ALPM hook; planned: Flatpak, PackageKit/D-Bus).*
+- **L1 — Install interception** *(done: pacman ALPM hook; Flatpak CLI wrapper + polkit rule for GUI
+  Flatpak installs; remaining: other GUI/PackageKit paths).*
 - **L2 — Execution allowlisting** *(planned, top priority).* Only trusted binaries may `execve`.
   Everything in user-writable paths (`/home`, `/tmp`, removable media) is **deny-by-default**.
   Mechanism: **fapolicyd** with a trust database seeded from pacman's local DB **plus** Guardian's
@@ -85,7 +86,9 @@ with the installer hook as one input among several.
 |---|---|---|
 | AppImage / static ELF / tarball into `$HOME`; run from `/tmp` or USB | L2 execution allowlist (fapolicyd), noexec backstop | planned (P1) |
 | `curl \| sh`, `pip/npm/cargo/gem install --user`, language scripts | L2 (deny non-trusted ELF) + L3 (egress allowlist throttles fetching) | planned (P1) |
-| `flatpak --user`, snap, nix, conda | per-manager hook/wrapper + L2 covers the eventual exec | planned |
+| `flatpak install` / `--user` (CLI) | **wrapper** at `/usr/local/bin/flatpak` submits + waits for approval (done, verified) | **done (CLI)** |
+| Flatpak via GUI stores (polkit) | **polkit rule** forces admin auth for system Flatpak installs (done); `--user` GUI falls back to L2 | **done (system)** |
+| snap, nix, conda | per-manager wrapper + L2 covers the eventual exec | planned |
 | GUI stores via PackageKit/D-Bus (Discover, Pamac, GNOME Software) | they still hit `libalpm` → L1 hook fires; lock their polkit actions | partly done |
 | Web apps / PWAs in the browser | content/DNS policy (L3) + browser managed policy | planned |
 

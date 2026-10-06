@@ -1,8 +1,14 @@
 # Example policy for guardiand. Install to /etc/guardian/policy.toml.
 # Any missing key falls back to the built-in default shown here.
 
-# Unix-domain control socket the daemon listens on.
+# Control socket (list/resolve; owner/root only, peer-credential checked).
 socket_path = "/run/guardian/guardian.sock"
+
+# Submit socket (install requests from the pacman hook / flatpak wrapper; any uid may submit).
+submit_socket_path = "/run/guardian/submit.sock"
+
+# Max install requests a single uid may have pending at once (anti-flood). Default 5.
+max_pending_per_uid = 5
 
 # How long a held install request waits for a parent's decision (seconds)
 # before the fallback below is applied.

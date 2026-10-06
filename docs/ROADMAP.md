@@ -31,7 +31,10 @@ with `agy` for logic/integration stages). Each stage ends with something testabl
 ## Stage 3 — Enforcement that can't be bypassed
 - [ ] Network policy: `nftables` + eBPF (DNS enforcement, VPN/proxy/Tor blocking).
 - [ ] Time budget & schedule via cgroups v2 (`SIGSTOP`/`SIGCONT`), Hyprland idle hooks.
-- [ ] Interception paths #2 & #3: PAM hook (`sudo`/AUR) + `flatpak --user` wrapper.
+- [x] Interception path #2: **Flatpak** — CLI wrapper (`/usr/local/bin/flatpak`) submits + waits for
+  approval, + polkit rule blocking child system installs via GUI stores (`packaging/flatpak/`). Verified.
+- [x] IPC hardening: **two sockets** — submit (any uid, per-uid flood cap) vs control (owner-only,
+  SO_PEERCRED) — so a child-run interceptor can submit but can't decide.
 - [ ] Daemon self-protection (unkillable by child, read-only policies).
 
 ## Stage 4 — Differentiators

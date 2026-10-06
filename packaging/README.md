@@ -39,6 +39,13 @@ sudo cp 50-guardian.hook /etc/pacman.d/hooks/
 ```
 Rollback: `sudo rm /etc/pacman.d/hooks/{50-guardian,99-guardian-test}.hook`.
 
+**Flatpak** (not libalpm — covered separately, see [`flatpak/README.md`](flatpak/README.md)):
+```bash
+sudo install -Dm755 flatpak/guardian-flatpak-wrapper.sh /usr/local/bin/flatpak   # must precede /usr/bin on PATH
+sudo install -Dm644 flatpak/49-guardian-flatpak.rules /etc/polkit-1/rules.d/49-guardian-flatpak.rules
+```
+Rollback: `sudo rm /usr/local/bin/flatpak /etc/polkit-1/rules.d/49-guardian-flatpak.rules`.
+
 ## 2. Remote approval (optional)
 Add an `[ntfy]` section to `/etc/guardian/policy.toml` (see `policy.example.toml`). Prefer **signed
 mode** (`parent_pubkey`) over the token MVP — it's immune to broker eavesdropping. `guardian-ctl`

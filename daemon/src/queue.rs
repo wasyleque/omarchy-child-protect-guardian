@@ -1,8 +1,8 @@
 //! In-memory store of install requests that are held awaiting a decision.
 //!
-//! Each held request keeps a [`oneshot::Sender`] so that whichever connection is
-//! blocking on the decision (the interception hook) is woken the instant a decision
-//! arrives from the control client (Stage 1) or the remote approval layer (later).
+//! Each held request keeps a [`oneshot::Sender`] so that whichever connection is blocking on the
+//! decision (the interception hook / wrapper) is woken the instant a decision arrives from the
+//! control client (Stage 1) or the remote approval layer (ntfy).
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -16,12 +16,14 @@ use crate::request::{Decision, InstallRequest, InstallSource};
 struct Pending {
     request: InstallRequest,
     responder: oneshot::Sender<Decision>,
+    /// uid of the process that submitted this request (for per-uid flood limiting).
+    submitter_uid: u32,
 }
 
 /// Thread-safe store of currently-held requests.
 ///
-/// The critical sections only touch the map (never `.await` while holding the lock),
-/// so a plain `std::sync::Mutex` is correct and cheaper than an async mutex here.
+/// The critical sections only touch the map (never `.await` while holding the lock), so a plain
+/// `std::sync::Mutex` is correct and cheaper than an async mutex here.
 #[derive(Default)]
 pub struct Queue {
     pending: Mutex<HashMap<Uuid, Pending>>,
@@ -32,37 +34,41 @@ impl Queue {
         Self::default()
     }
 
-    /// Register a new held request. Returns the created request (for logging) and a
-    /// receiver that resolves when a decision is made (or `Err` if the entry is
-    /// dropped, e.g. on timeout cleanup).
+    /// Register a new held request, enforcing a per-uid cap so a malicious local user can't flood
+    /// the queue (and the parent's phone) with requests. Returns `None` if `submitter_uid` already
+    /// has `max_per_uid` requests pending.
+    pub fn try_submit(
+        &self,
+        source: InstallSource,
+        package: String,
+        reason: Option<String>,
+        submitter_uid: u32,
+        max_per_uid: usize,
+    ) -> Option<(InstallRequest, oneshot::Receiver<Decision>)> {
+        let mut map = self.pending.lock().unwrap();
+        if map.values().filter(|p| p.submitter_uid == submitter_uid).count() >= max_per_uid {
+            return None;
+        }
+        let id = Uuid::new_v4();
+        let requested_at = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let request = InstallRequest { id, source, package, reason, requested_at };
+        let (tx, rx) = oneshot::channel();
+        map.insert(id, Pending { request: request.clone(), responder: tx, submitter_uid });
+        Some((request, rx))
+    }
+
+    /// Convenience for tests / internal callers: submit with no per-uid cap.
+    #[cfg(test)]
     pub fn submit(
         &self,
         source: InstallSource,
         package: String,
         reason: Option<String>,
     ) -> (InstallRequest, oneshot::Receiver<Decision>) {
-        let id = Uuid::new_v4();
-        let requested_at = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or(0);
-        let request = InstallRequest {
-            id,
-            source,
-            package,
-            reason,
-            requested_at,
-        };
-        let (tx, rx) = oneshot::channel();
-        let mut map = self.pending.lock().unwrap();
-        map.insert(
-            id,
-            Pending {
-                request: request.clone(),
-                responder: tx,
-            },
-        );
-        (request, rx)
+        self.try_submit(source, package, reason, 0, usize::MAX).unwrap()
     }
 
     /// Snapshot of all currently-held requests, oldest first.
@@ -127,5 +133,18 @@ mod tests {
         let (req, rx) = q.submit(InstallSource::Flatpak, "org.gimp.GIMP".into(), None);
         q.cancel(req.id);
         assert!(rx.await.is_err(), "cancelled request's receiver must error");
+    }
+
+    #[test]
+    fn per_uid_cap_is_enforced() {
+        let q = Queue::new();
+        let uid = 1001;
+        let a = q.try_submit(InstallSource::Aur, "a".into(), None, uid, 2);
+        let b = q.try_submit(InstallSource::Aur, "b".into(), None, uid, 2);
+        let c = q.try_submit(InstallSource::Aur, "c".into(), None, uid, 2);
+        assert!(a.is_some() && b.is_some(), "first two under the cap succeed");
+        assert!(c.is_none(), "third over the cap is refused");
+        // a different uid is unaffected
+        assert!(q.try_submit(InstallSource::Aur, "d".into(), None, 0, 2).is_some());
     }
 }

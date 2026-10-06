@@ -1,0 +1,21 @@
+// Guardian — block the child from SYSTEM Flatpak installs/updates via any frontend (CLI, GNOME
+// Software, Discover, Pamac — they all go through Flatpak's polkit actions). Install to
+// /etc/polkit-1/rules.d/49-guardian-flatpak.rules. Requires admin auth, which the child doesn't have.
+//
+// NOTE: `flatpak --user` installs do NOT use polkit (no root) — those are covered by the
+// guardian-flatpak-wrapper (CLI) and by fapolicyd (the app still can't execute unless approved).
+// EDIT the uid to match the child (id -u <child>).
+
+polkit.addRule(function(action, subject) {
+    if (action.id.indexOf("org.freedesktop.Flatpak.") === 0) {
+        var a = action.id;
+        var isInstallish = a.indexOf("install") !== -1 ||
+                           a.indexOf("update")  !== -1 ||
+                           a.indexOf("modify")  !== -1 ||
+                           a.indexOf("override") !== -1;
+        if (isInstallish && subject.user !== "root") {
+            // Force an admin password the child cannot provide.
+            return polkit.Result.AUTH_ADMIN;
+        }
+    }
+});

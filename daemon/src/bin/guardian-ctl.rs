@@ -21,10 +21,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         exit(2);
     }
     
-    let socket_path = env::var("GUARDIAN_SOCKET").unwrap_or_else(|_| "/run/guardian/guardian.sock".to_string());
-    
+    // `request` submits an install → goes to the SUBMIT socket (any uid). Everything else is a
+    // control action → the owner-only CONTROL socket.
+    let socket_path = if args[1] == "request" {
+        env::var("GUARDIAN_SUBMIT_SOCKET").unwrap_or_else(|_| "/run/guardian/submit.sock".to_string())
+    } else {
+        env::var("GUARDIAN_SOCKET").unwrap_or_else(|_| "/run/guardian/guardian.sock".to_string())
+    };
+
     let mut stream = UnixStream::connect(socket_path)?;
-    
+
     match args[1].as_str() {
         "list" => {
             send_message(&mut stream, ClientMessage::List)?;

@@ -10,12 +10,16 @@ use crate::request::Decision;
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
 pub struct Policy {
-    /// Path of the Unix-domain control socket.
+    /// Path of the Unix-domain CONTROL socket (list/resolve; owner-only).
     pub socket_path: PathBuf,
+    /// Path of the Unix-domain SUBMIT socket (install requests; any uid, capped).
+    pub submit_socket_path: PathBuf,
     /// How long a held request waits for a decision before the fallback applies.
     pub decision_timeout_secs: u64,
     /// Fallback decision applied when a request times out (fail-closed by default).
     pub default_on_timeout: Decision,
+    /// Max concurrently-held requests per submitting uid (anti-flood).
+    pub max_pending_per_uid: usize,
     /// Optional remote push-approval via ntfy. Absent/`enabled = false` → local decisions only.
     pub ntfy: Option<NtfyConfig>,
 }
@@ -24,8 +28,10 @@ impl Default for Policy {
     fn default() -> Self {
         Self {
             socket_path: PathBuf::from("/run/guardian/guardian.sock"),
+            submit_socket_path: PathBuf::from("/run/guardian/submit.sock"),
             decision_timeout_secs: 300,
             default_on_timeout: Decision::Deny,
+            max_pending_per_uid: 5,
             ntfy: None,
         }
     }

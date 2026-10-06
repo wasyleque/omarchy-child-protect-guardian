@@ -37,7 +37,7 @@ Three install paths → three hook mechanisms:
 | Path | Interception mechanism |
 |---|---|
 | `pacman`, `yay`/`paru`, AUR (`pacman -U`), GUI installers | **ALPM `PreTransaction` hook** (`/etc/pacman.d/hooks/`) running a small `guardian-hook` that connects to the socket and blocks for a decision. Scoped to `Operation = Install`, so system upgrades (`-Syu`) pass through untouched; a non-zero exit aborts the whole transaction before anything is written (fail-closed). Everything that installs a package goes through `libalpm`, so this is **not bypassable from a user account** — and unlike a Polkit rule it also catches plain `sudo pacman` in a terminal (which Polkit does not mediate). |
-| Flatpak (system or `--user`) | A thin wrapper / D-Bus mechanism in front of `flatpak install`, since Flatpak uses libflatpak rather than libalpm (design TBD in the Flatpak sub-stage). |
+| Flatpak CLI (`flatpak install`, incl. `--user`) | **Wrapper** at `/usr/local/bin/flatpak` submits to the daemon's submit socket and runs the real flatpak only on approval. GUI-store (polkit) system installs are blocked by a polkit rule; `--user` GUI installs fall back to the fapolicyd exec allowlist. See `packaging/flatpak/`. |
 
 Building an AUR package (as a user) is harmless — we block only the *install* into the system. For
 full tightness we also consider a mode where the child has no `sudo` path at all, and installs go
