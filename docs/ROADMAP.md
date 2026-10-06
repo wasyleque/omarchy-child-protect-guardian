@@ -60,7 +60,8 @@ Installer-gating alone is not enough; enforcement must be default-deny at execut
 - [x] IPC peer-credential check (SO_PEERCRED) — only the daemon owner (root) may send control msgs.
 - [x] `guardian-hook` ignores `GUARDIAN_SOCKET` in release builds (fixed root-owned path).
 - [~] **P1 — execution allowlisting** (fapolicyd): rules + trust-seeding + safe permissive rollout
-  **shipped in `packaging/fapolicyd/`**; deploy & tune on host. (noexec backstop, guardiand→trust auto-add: TODO.)
+  **shipped in `packaging/fapolicyd/`**, plus **auto-trust of approved installs** (PostTransaction
+  hook `60-guardian-trust.hook` + `guardian-trust.sh`, logic verified). Deploy & tune on host; noexec backstop: TODO.
 - [~] **P1 — network egress default-deny** (nftables): ruleset **shipped & syntax-validated** in
   `packaging/nftables/guardian-egress.nft` (force DNS, drop DoT, block DoH v4/v6, kill UDP/QUIC/VPN,
   default-deny). TODO: NetworkManager polkit lockdown; browser managed policies; SNI/DPI for 443 tunnels.

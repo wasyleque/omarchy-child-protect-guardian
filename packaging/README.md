@@ -54,7 +54,9 @@ sudo nft delete table inet guardian          # <-- instant rollback
 
 ## 4. Execution allowlist (fapolicyd) — the big one
 See [`fapolicyd/README.md`](fapolicyd/README.md). Seed trust from pacman, run **permissive** until the
-log is clean, only then enforce. Rollback: `sudo systemctl stop fapolicyd`.
+log is clean, only then enforce. Rollback: `sudo systemctl stop fapolicyd`. Also install the
+auto-trust hook (`60-guardian-trust.hook` + `guardian-trust.sh`) so parent-approved installs become
+executable automatically while everything the child fetches stays non-executable.
 
 ## 5. Account & session hygiene
 Single unprivileged child account; not in `wheel`/`sudo`; lock `root` login; no autologin/empty

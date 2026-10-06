@@ -65,9 +65,12 @@
   signed decision. Vendored `@noble/ed25519` (no runtime CDN; offline shell via sw.js). Signing proven
   byte-compatible with the Rust daemon end-to-end (JS-generated key+sig verified via live ntfy). JS
   syntax + served-file smoke checked. Honest follow-ups: background push (iOS), QR pairing, key-at-rest.
-- P1 remaining: deploy+tune nftables/fapolicyd on a real host; guardiand→fapolicyd trust auto-add on
-  approved installs; NetworkManager polkit lockdown + browser DoH policies; Flatpak coverage;
-  L7 tamper-evidence/alert.
+- fapolicyd **auto-trust DONE** (design): PostTransaction pacman hook `packaging/60-guardian-trust.hook`
+  + `packaging/fapolicyd/guardian-trust.sh` trust the files of any approved install (PreTransaction
+  already blocked the rest); logic verified non-destructively with a stub fapolicyd-cli. No daemon change.
+- Parent app hosted via GitHub Pages (.nojekyll at root) — URL under wasyleque.github.io/.../parent-app/.
+- P1 remaining: deploy+tune nftables/fapolicyd on a real host; NetworkManager polkit lockdown +
+  browser DoH policies; Flatpak coverage; L7 tamper-evidence/alert; background push (iOS) / QR pairing.
 
 ## Open decisions (need user)
 - (none blocking) — proceeding down the P1 hardening list; Ed25519 is the next big code piece.

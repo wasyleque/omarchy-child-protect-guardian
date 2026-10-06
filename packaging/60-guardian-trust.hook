@@ -1,0 +1,19 @@
+# Omarchy Child Protect Guardian — trust approved installs (pairs with fapolicyd execution allowlist).
+# Install to /etc/pacman.d/hooks/60-guardian-trust.hook (needs packaging/fapolicyd/guardian-trust.sh
+# installed at /usr/lib/guardian/guardian-trust, and fapolicyd set up — see packaging/fapolicyd/README.md).
+#
+# Runs AFTER a successful install. Because the PreTransaction guardian-hook already denied everything
+# the parent didn't approve, any Install reaching here was approved — so we add its files to fapolicyd
+# trust and the approved app can run, while anything the child fetches themselves stays non-executable.
+# Upgrades of already-installed packages don't trigger this (Operation = Install only).
+
+[Trigger]
+Operation = Install
+Type = Package
+Target = *
+
+[Action]
+Description = Omarchy Child Protect Guardian: trusting approved files...
+When = PostTransaction
+Exec = /usr/lib/guardian/guardian-trust
+NeedsTargets

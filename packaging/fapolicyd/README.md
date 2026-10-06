@@ -29,9 +29,18 @@ sudo fapolicyd-cli --file add --from-file /etc/fapolicyd/trust.d/pacman.list 2>/
 sudo fapolicyd-cli --update
 ```
 
-Re-run (or let a pacman hook re-run) this after legitimate, parent-approved installs so the new files
-become trusted. **Integration goal:** `guardiand` adds a parent-approved package's files to trust
-automatically right after it allows the install, so approved software runs and nothing else does.
+**Auto-trust of approved installs (implemented):** install the PostTransaction hook
+`../60-guardian-trust.hook` and its helper `guardian-trust.sh`:
+
+```bash
+sudo install -Dm755 guardian-trust.sh /usr/lib/guardian/guardian-trust
+sudo cp ../60-guardian-trust.hook /etc/pacman.d/hooks/
+```
+
+Because the PreTransaction `guardian-hook` already denied everything the parent didn't approve, any
+package that reaches a PostTransaction *Install* was approved — so the helper adds exactly those
+files to fapolicyd trust (and runs `fapolicyd-cli --update`). The approved app runs; anything the
+child downloads themselves stays non-executable. No daemon involvement; upgrades (`-Syu`) don't trigger it.
 
 ## 3. Rules
 
