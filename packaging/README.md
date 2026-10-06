@@ -58,7 +58,16 @@ log is clean, only then enforce. Rollback: `sudo systemctl stop fapolicyd`. Also
 auto-trust hook (`60-guardian-trust.hook` + `guardian-trust.sh`) so parent-approved installs become
 executable automatically while everything the child fetches stays non-executable.
 
-## 5. Account & session hygiene
+## 5. Tamper-resistance (recommended)
+The daemon already pushes a **priority alert to the parent's phone** when it blocks an unauthorized
+control attempt or rejects a forged approval. Make its files hard to remove even by a root install
+scriptlet, and ensure it auto-restarts:
+```bash
+sudo chattr +i /usr/lib/guardian/guardian-hook /usr/bin/guardiand /etc/pacman.d/hooks/50-guardian.hook
+# (the systemd unit already has Restart=always). To update Guardian later: chattr -i first, then re-install.
+```
+
+## 6. Account & session hygiene
 Single unprivileged child account; not in `wheel`/`sudo`; lock `root` login; no autologin/empty
 passwords; `sudo systemctl mask getty@tty2.service …` to cut spare-VT logins. Re-run `harden-audit.sh`
 until it is clean.

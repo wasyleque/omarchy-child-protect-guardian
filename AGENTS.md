@@ -69,8 +69,13 @@
   + `packaging/fapolicyd/guardian-trust.sh` trust the files of any approved install (PreTransaction
   already blocked the rest); logic verified non-destructively with a stub fapolicyd-cli. No daemon change.
 - Parent app hosted via GitHub Pages (.nojekyll at root) — URL under wasyleque.github.io/.../parent-app/.
-- P1 remaining: deploy+tune nftables/fapolicyd on a real host; NetworkManager polkit lockdown +
-  browser DoH policies; Flatpak coverage; L7 tamper-evidence/alert; background push (iOS) / QR pairing.
+- **L7 parent alerts DONE**: daemon pushes a rate-limited priority-5 ntfy alert on a blocked IPC
+  control attempt (unauthorized uid) or a rejected/forged approval (bad token/sig/nonce). Verified e2e
+  (forged signed decision → "FORGED approval blocked" push). chattr +i ops step documented in packaging/README.
+- REAL end-to-end test needs a CLEAN system on separate hardware (user will set this up): install hooks,
+  nftables, fapolicyd, hardware baseline, pair the PWA. Everything so far verified in isolation/e2e-over-ntfy.
+- P1/P2 remaining: Flatpak coverage (libflatpak, not libalpm); nftables/fapolicyd deploy+tune on host;
+  NetworkManager polkit lockdown + browser DoH policies; watchdog + append-only audit; QR pairing / iOS bg push.
 
 ## Open decisions (need user)
 - (none blocking) — proceeding down the P1 hardening list; Ed25519 is the next big code piece.

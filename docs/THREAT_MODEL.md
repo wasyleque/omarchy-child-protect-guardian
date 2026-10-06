@@ -159,8 +159,14 @@ can read the token and self-approve in ~50 ms — before the phone even buzzes. 
   accepts decisions signed by the parent's key over `OCPG-v1‖id‖decision‖nonce‖ts`; the push carries
   no approval secret, nonces are one-time, and timestamps must be fresh. Verified end-to-end over
   real ntfy.sh: a legitimate signed approval succeeds; a broker decision-flip and a fabricated
-  signature are both rejected → fail-closed DENY. The remaining piece is the parent app holding the
-  private key (today a dev `guardian-sign` helper stands in for it).
+  signature are both rejected → fail-closed DENY. The parent app (`parent-app/`) now holds the private
+  key and signs on-device; its signing is proven byte-compatible with the daemon.
+- **Parent alerts (L7 tamper-evidence)**: the daemon pushes a high-priority alert to the parent when a
+  control attempt from an unauthorized uid is blocked, or a forged/stale approval is rejected
+  (rate-limited per kind so it can't be used to flood). Verified e2e: a forged approval produced a
+  priority-5 "FORGED approval blocked" push. Ops hardening to pair with it (apply on the host):
+  `chattr +i` on the hook/daemon/policy so even a root install scriptlet can't remove them, plus the
+  unit's `Restart=always`. A watchdog that re-asserts the hook/unit and an append-only audit log are follow-ups.
 
 ## 9. Honestly out of scope (no false promises)
 

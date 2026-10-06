@@ -13,12 +13,16 @@
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context, Result};
 use ed25519_dalek::VerifyingKey;
 use serde::Deserialize;
+use tokio::sync::mpsc;
 use uuid::Uuid;
+
+/// Minimum spacing between alerts of the same kind (anti-spam + stays well under ntfy.sh's daily cap).
+const ALERT_COOLDOWN: Duration = Duration::from_secs(900);
 
 use crate::config::NtfyConfig;
 use crate::crypto::{self, SignedDecision};
@@ -46,6 +50,9 @@ pub struct Ntfy {
     response_topic: String,
     mode: Mode,
     pending: Mutex<HashMap<Uuid, PendingAuth>>,
+    /// Fire-and-forget tamper/security alerts to the parent: (dedupe-key, title, body).
+    alert_tx: mpsc::UnboundedSender<(String, String, String)>,
+    alert_rx: Mutex<Option<mpsc::UnboundedReceiver<(String, String, String)>>>,
 }
 
 #[derive(Deserialize)]
@@ -98,13 +105,54 @@ impl Ntfy {
             .build()
             .context("building reqwest client")?;
 
+        let (alert_tx, alert_rx) = mpsc::unbounded_channel();
         Ok(Arc::new(Self {
             cfg,
             client,
             response_topic: format!("guardian-resp-{}", random_hex()),
             mode,
             pending: Mutex::new(HashMap::new()),
+            alert_tx,
+            alert_rx: Mutex::new(Some(alert_rx)),
         }))
+    }
+
+    /// Queue a tamper/security alert to the parent (non-blocking, safe from any context). Alerts of
+    /// the same `key` are rate-limited by the worker so an attacker can't flood the phone / the broker.
+    pub fn alert(&self, key: &str, title: &str, body: &str) {
+        let _ = self.alert_tx.send((key.to_string(), title.to_string(), body.to_string()));
+    }
+
+    /// Long-lived task that delivers queued alerts, de-duped per key by [`ALERT_COOLDOWN`].
+    pub async fn alert_worker(self: Arc<Self>) {
+        let mut rx = match self.alert_rx.lock().unwrap().take() {
+            Some(r) => r,
+            None => return, // already running
+        };
+        let mut last: HashMap<String, Instant> = HashMap::new();
+        while let Some((key, title, body)) = rx.recv().await {
+            let now = Instant::now();
+            if let Some(t) = last.get(&key) {
+                if now.duration_since(*t) < ALERT_COOLDOWN {
+                    continue;
+                }
+            }
+            last.insert(key, now);
+            if let Err(e) = self.publish_alert(&title, &body).await {
+                eprintln!("guardiand: alert publish failed: {e:#}");
+            }
+        }
+    }
+
+    async fn publish_alert(&self, title: &str, body: &str) -> Result<()> {
+        let payload = serde_json::json!({
+            "topic": self.cfg.request_topic,
+            "title": title,
+            "message": body,
+            "priority": 5,
+            "tags": ["rotating_light", "warning"],
+        });
+        self.post_publish(payload).await
     }
 
     fn base(&self) -> &str {
@@ -270,6 +318,11 @@ impl Ntfy {
                 "guardiand: ntfy rejected a token decision for {} (unknown id or bad/stale token)",
                 payload.id
             );
+            self.alert(
+                "approval-rejected",
+                "Guardian: rejected approval attempt",
+                "A decision with a wrong or stale credential was rejected. Someone may be trying to approve installs without your phone.",
+            );
             return;
         }
         if queue.resolve(payload.id, payload.decision) {
@@ -289,6 +342,11 @@ impl Ntfy {
         };
         if !nonce_ok {
             eprintln!("guardiand: ntfy rejected signed decision for {} (unknown id or stale nonce)", sd.id);
+            self.alert(
+                "approval-rejected",
+                "Guardian: rejected approval attempt",
+                "A signed decision referenced an unknown or stale request. Someone may be replaying or probing approvals.",
+            );
             return;
         }
         // 2) Timestamp freshness (defends against very old captured signatures).
@@ -300,6 +358,11 @@ impl Ntfy {
         // 3) The signature must verify against the paired parent key.
         if !crypto::verify(vk, &sd) {
             eprintln!("guardiand: ntfy rejected signed decision for {} (bad signature)", sd.id);
+            self.alert(
+                "approval-forged",
+                "Guardian: FORGED approval blocked",
+                "A decision with an invalid signature was rejected — someone tried to forge an approval. The install was denied.",
+            );
             return;
         }
         // Consume the nonce so a replay can't reuse it.

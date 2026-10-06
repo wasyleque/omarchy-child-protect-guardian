@@ -47,6 +47,7 @@ async fn main() -> Result<()> {
         Some(cfg) if cfg.enabled => match Ntfy::new(cfg.clone()) {
             Ok(ntfy) => {
                 tokio::spawn(Arc::clone(&ntfy).subscribe_loop(Arc::clone(&queue)));
+                tokio::spawn(Arc::clone(&ntfy).alert_worker());
                 Some(ntfy)
             }
             Err(e) => {

@@ -101,6 +101,13 @@ impl Server {
                         "guardiand: refused connection from uid {} (not an authorized controller)",
                         cred.uid()
                     );
+                    if let Some(ntfy) = &self.ntfy {
+                        ntfy.alert(
+                            "ipc-blocked",
+                            "Guardian: blocked control attempt",
+                            &format!("A process (uid {}) tried to control Guardian on this computer and was blocked.", cred.uid()),
+                        );
+                    }
                     continue;
                 }
                 Err(e) => {
