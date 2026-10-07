@@ -52,7 +52,8 @@ with `agy` for logic/integration stages). Each stage ends with something testabl
 - [x] Parent client on **every leading OS** (Android, iOS, Windows, macOS, Linux) from one shared
   core — an installable **PWA** in `parent-app/` with on-device **Ed25519** signing (vendored
   `@noble/ed25519`, key in IndexedDB, SSE from ntfy). Signing proven byte-compatible with the daemon
-  end-to-end. Follow-ups: background push (Web Push/VAPID or the native ntfy app), QR pairing.
+  end-to-end. **QR pairing done** (`guardian-ctl pair` prints a QR of a `#pair=` link → phone scans →
+  app pre-configured with server+topic). Follow-up: background push (Web Push/VAPID or the native ntfy app).
 - [ ] One-glance request card: app name, AI-TL;DR, who/where, *Allow / Deny / Sandbox 1h*.
 - [ ] Delivery guarantees: retries, fallback channel, "decision confirmed on PC" receipt.
 - [ ] Multi-parent / multi-child; optional "both parents must approve" for sensitive categories.

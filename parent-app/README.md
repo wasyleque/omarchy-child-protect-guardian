@@ -15,8 +15,12 @@ app's exact logic (`@noble/ed25519`, vendored in `vendor/`) verifies in the Rust
    - GitHub Pages (serve this `parent-app/` folder), any static host, or `localhost` for testing.
    - A quick local test: `cd parent-app && python3 -m http.server 8080` then open `http://localhost:8080`.
 2. Open it on the parent's phone and **Add to Home Screen** (it installs as a standalone app).
-3. It generates a device key on first run. **Copy the public key** and paste it into the daemon's
-   `/etc/guardian/policy.toml` → `[ntfy].parent_pubkey`. Set the same `request_topic` in both.
+3. **Easy pairing (QR):** on the PC run
+   `guardian-ctl pair --server <url> --topic <request_topic>` — it prints a QR. Scan it with the
+   phone's camera; the app opens already configured with the server + topic (no typing the long
+   random topic). Then **copy the public key** the app shows into the daemon's
+   `/etc/guardian/policy.toml` → `[ntfy].parent_pubkey` (the one short value that still goes PC-ward).
+   Without a QR you can instead type the server/topic by hand — same result.
 4. When the child triggers an install, the daemon pushes `{id, package, nonce, respond_to}`; the app
    shows a card; **Allow/Deny** signs the decision and posts it back. The daemon verifies and acts.
 

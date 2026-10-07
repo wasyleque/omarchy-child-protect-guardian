@@ -110,6 +110,7 @@ const DOMAIN = "OCPG-v1";
 const $ = (id) => document.getElementById(id);
 const te = new TextEncoder();
 const b64 = (u8) => btoa(String.fromCharCode(...u8));
+const fromB64url = (s) => { s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; return atob(s); };
 const toast = (m) => { const t=$("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),2200); };
 
 // --- secure-context check (SubtleCrypto / signing needs it) ---
@@ -211,10 +212,25 @@ $("regen").onclick = async () => {
 $("copyPub").onclick = async () => { try{ await navigator.clipboard.writeText(pubB64); toast("Public key copied"); }catch{ toast("Copy failed"); } };
 
 (async function init(){
+  // Easy pairing: scanning the QR from `guardian-ctl pair` opens .../#pair=<base64url {server,topic}>,
+  // so the phone arrives pre-configured with no typing of the long random topic.
+  let paired = false;
+  try{
+    if(location.hash.startsWith("#pair=")){
+      const data = JSON.parse(fromB64url(location.hash.slice(6)));
+      if(data.server) localStorage.setItem("ocpg.server", data.server);
+      if(data.topic)  localStorage.setItem("ocpg.topic", data.topic);
+      // don't leave the topic sitting in the URL / history
+      history.replaceState(null, "", location.pathname + location.search);
+      paired = true;
+    }
+  }catch(e){ /* ignore a malformed pairing link */ }
+
   $("server").value = localStorage.getItem("ocpg.server") || "https://ntfy.sh";
   $("topic").value  = localStorage.getItem("ocpg.topic")  || "";
   try{ await ensureKey(); }catch(e){ $("pub").textContent = "key error: "+e.message; }
   if($("topic").value) connect();
+  if(paired) toast("Paired — now share the public key below with the PC");
 })();
 
 // --- PWA offline shell ---

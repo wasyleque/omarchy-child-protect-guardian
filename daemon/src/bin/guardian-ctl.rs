@@ -5,6 +5,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::process::exit;
 
+use base64::Engine as _;
 use guardian::ipc::{ClientMessage, ServerMessage};
 use guardian::request::{Decision, InstallSource};
 
@@ -18,6 +19,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("  allow <id>        - Allow a request");
         eprintln!("  deny <id>         - Deny a request");
         eprintln!("  request <source> <package> [reason] - Submit a new request");
+        eprintln!("  pair --topic <t> [--server <u>] [--app <u>]  - Show a pairing QR");
         eprintln!("  audit-verify <path>   - Verify the audit log chain");
         exit(2);
     }
@@ -42,6 +44,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 exit(1);
             }
         }
+    }
+    
+    // Handle pair command early
+    if args[1] == "pair" {
+        let flag = |name: &str| args.iter().position(|a| a == name).and_then(|i| args.get(i + 1)).cloned();
+        let server = flag("--server").unwrap_or_else(|| "https://ntfy.sh".to_string());
+        let app = flag("--app").unwrap_or_else(|| "https://wasyleque.github.io/omarchy-child-protect-guardian/parent-app/".to_string());
+        let topic = match flag("--topic") {
+            Some(t) => t,
+            None => { eprintln!("Usage: guardian-ctl pair --topic <request_topic> [--server <url>] [--app <url>]"); exit(2); }
+        };
+        let payload = serde_json::json!({"server": server, "topic": topic}).to_string();
+        let enc = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(payload.as_bytes());
+        let url = format!("{}#pair={}", app, enc);
+        match qrcode::QrCode::new(url.as_bytes()) {
+            Ok(code) => { println!("{}", code.render::<qrcode::render::unicode::Dense1x2>().quiet_zone(true).build()); }
+            Err(e) => eprintln!("QR error: {}", e),
+        }
+        println!("Scan with the parent phone, or open:\n{}", url);
+        return Ok(());
     }
     
     // `request` submits an install → goes to the SUBMIT socket (any uid). Everything else is a
@@ -146,6 +168,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             eprintln!("  allow <id>        - Allow a request");
             eprintln!("  deny <id>         - Deny a request");
             eprintln!("  request <source> <package> [reason] - Submit a new request");
+            eprintln!("  pair --topic <t> [--server <u>] [--app <u>]  - Show a pairing QR");
             eprintln!("  audit-verify <path>   - Verify the audit log chain");
             exit(2);
         }

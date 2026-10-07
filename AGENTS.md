@@ -87,8 +87,12 @@
   `guardian-ctl audit-verify <path>` detects edits/deletions. config `audit_path`. 11 unit tests + e2e
   incl. tamper. (audit-verify was the Ollama micro-task; aider again wrote to a wrong `guardian/` path →
   moved into place & stray removed. Lesson: run aider from daemon/ and re-check the target path.)
+- **QR PAIRING DONE**: `guardian-ctl pair --topic <t> [--server][--app]` prints a terminal QR of
+  `<app>#pair=<base64url {server,topic}>`; phone scans → PWA auto-configures (index.html parses #pair=).
+  qrcode crate; verified (payload round-trips). (Ollama micro-task; aider pathed correctly this time.)
 - P1/P2 remaining: deploy+tune nftables/fapolicyd on a real host; NetworkManager polkit lockdown +
-  browser DoH policies; watchdog re-asserting hook/unit; QR pairing / iOS bg push; snap/nix/conda wrappers.
+  browser DoH policies; watchdog re-asserting hook/unit; iOS background push; snap/nix/conda wrappers;
+  one-scan pubkey return (app→daemon) is still a manual paste.
 
 ## Open decisions (need user)
 - (none blocking) — proceeding down the P1 hardening list; Ed25519 is the next big code piece.
