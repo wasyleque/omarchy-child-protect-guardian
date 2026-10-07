@@ -47,6 +47,20 @@ impl std::str::FromStr for Decision {
     }
 }
 
+/// Where a decision came from (recorded in the audit log).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DecisionVia {
+    /// Local `guardian-ctl` on the control socket.
+    LocalCtl,
+    /// Remote ntfy, one-time token (MVP mode).
+    NtfyToken,
+    /// Remote ntfy, Ed25519-signed (zero-trust mode).
+    NtfySigned,
+    /// No decision arrived in time; policy fallback applied.
+    Timeout,
+}
+
 /// A single install attempt that is being held pending a decision.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InstallRequest {

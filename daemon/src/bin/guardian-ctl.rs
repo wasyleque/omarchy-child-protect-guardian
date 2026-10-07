@@ -18,7 +18,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("  allow <id>        - Allow a request");
         eprintln!("  deny <id>         - Deny a request");
         eprintln!("  request <source> <package> [reason] - Submit a new request");
+        eprintln!("  audit-verify <path>   - Verify the audit log chain");
         exit(2);
+    }
+    
+    // Handle audit-verify command early
+    if args[1] == "audit-verify" {
+        let path = match args.get(2) {
+            Some(p) => p,
+            None => {
+                eprintln!("Usage: guardian-ctl audit-verify <path>");
+                exit(2);
+            }
+        };
+        
+        match guardian::audit::verify(std::path::Path::new(path)) {
+            Ok(n) => {
+                println!("audit OK: {} entries", n);
+                return Ok(());
+            }
+            Err(e) => {
+                eprintln!("audit FAILED: {}", e);
+                exit(1);
+            }
+        }
     }
     
     // `request` submits an install → goes to the SUBMIT socket (any uid). Everything else is a
@@ -123,6 +146,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             eprintln!("  allow <id>        - Allow a request");
             eprintln!("  deny <id>         - Deny a request");
             eprintln!("  request <source> <package> [reason] - Submit a new request");
+            eprintln!("  audit-verify <path>   - Verify the audit log chain");
             exit(2);
         }
     }

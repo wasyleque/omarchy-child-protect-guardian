@@ -169,7 +169,12 @@ can read the token and self-approve in ~50 ms — before the phone even buzzes. 
   (rate-limited per kind so it can't be used to flood). Verified e2e: a forged approval produced a
   priority-5 "FORGED approval blocked" push. Ops hardening to pair with it (apply on the host):
   `chattr +i` on the hook/daemon/policy so even a root install scriptlet can't remove them, plus the
-  unit's `Restart=always`. A watchdog that re-asserts the hook/unit and an append-only audit log are follow-ups.
+  unit's `Restart=always`. A watchdog that re-asserts the hook/unit is a follow-up.
+- **Append-only hash-chained audit log (L7)**: the daemon records every held request, its decision and
+  origin (local-ctl / ntfy-token / ntfy-signed / timeout), refused submits and blocked control attempts
+  as one JSON line each, chained by SHA-256 so deleting or editing any entry breaks the chain.
+  `guardian-ctl audit-verify <path>` reports the first break. Verified e2e incl. tamper detection. On
+  the host, `chattr +i` / off-box shipping makes the record durable; the chain makes edits *evident* regardless.
 
 ## 9. Honestly out of scope (no false promises)
 

@@ -71,10 +71,11 @@ Installer-gating alone is not enough; enforcement must be default-deny at execut
 - [x] **P1 — Ed25519 signed approvals** (challenge-response; private key stays on phone) — daemon-side
   done & verified e2e (flip + bogus-sig rejected → fail-closed); only the parent app that holds the key remains.
 - [~] **P1 — hardware/boot baseline** (UEFI admin password, Secure Boot, signed UKI or locked GRUB, LUKS2 FDE): read-only **audit script shipped** (`packaging/harden-audit.sh`) + deploy guide (`packaging/README.md`); firmware steps are the owner's to apply.
-- [~] **P2 — tamper-evidence & self-healing**: **parent alert on tamper DONE** (daemon pushes a
-  priority-5 alert on a blocked control attempt or a rejected/forged approval, rate-limited; verified e2e).
-  TODO: `chattr +i` ops step (documented), a watchdog re-asserting hook/unit, append-only audit,
-  AUR scriptlet / Intent-Binding safeguards.
+- [~] **P2 — tamper-evidence & self-healing**: **parent alert on tamper DONE** (priority-5 push on a
+  blocked control attempt or rejected/forged approval, rate-limited; verified e2e) and
+  **append-only hash-chained audit log DONE** (every request/decision+origin & blocked attempt;
+  `guardian-ctl audit-verify` detects any edit/deletion; verified e2e incl. tamper). TODO: `chattr +i`
+  ops step (documented), a watchdog re-asserting hook/unit, AUR scriptlet / Intent-Binding safeguards.
 - [ ] **P3 — account/session hardening** (lock root, mask spare getty, no autologin/empty pw, single account); Flatpak/PackageKit coverage.
 
 ## Stage 6 — Polish & release

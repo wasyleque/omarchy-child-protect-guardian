@@ -22,8 +22,9 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
 use uuid::Uuid;
 
+use crate::audit::{Audit, AuditEvent};
 use crate::queue::Queue;
-use crate::request::{Decision, InstallRequest, InstallSource};
+use crate::request::{Decision, DecisionVia, InstallRequest, InstallSource};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -57,6 +58,8 @@ pub struct Server {
     pub control_uids: Vec<u32>,
     /// Max concurrently-held requests per submitting uid (anti-flood).
     pub max_pending_per_uid: usize,
+    /// Optional append-only audit log.
+    pub audit: Option<Arc<Audit>>,
 }
 
 fn bind(path: &Path, mode: u32) -> Result<UnixListener> {
@@ -108,6 +111,9 @@ impl Server {
                                 &format!("A process (uid {u}) tried to control Guardian on this computer and was blocked."),
                             );
                         }
+                        if let Some(audit) = &self.audit {
+                            audit.record(AuditEvent::ControlBlocked { uid: u });
+                        }
                         continue;
                     }
                     None => {
@@ -150,7 +156,7 @@ impl Server {
                     send(&mut write_half, &ServerMessage::Pending { requests }).await?;
                 }
                 (true, ClientMessage::Resolve { id, decision }) => {
-                    let ok = self.queue.resolve(id, decision);
+                    let ok = self.queue.resolve(id, decision, DecisionVia::LocalCtl);
                     send(&mut write_half, &ServerMessage::Resolved { id, ok }).await?;
                 }
                 (true, ClientMessage::Submit { .. }) => {
@@ -161,11 +167,20 @@ impl Server {
 
                 // ---- submit socket: submit only ----
                 (false, ClientMessage::Submit { source, package, reason }) => {
+                    let pkg_label = package.clone();
                     let held = self.queue.try_submit(source, package, reason, uid, self.max_pending_per_uid);
                     let (req, rx) = match held {
                         Some(v) => v,
                         None => {
                             eprintln!("guardiand: refused submit from uid {uid} (per-uid cap reached) → deny");
+                            if let Some(a) = &self.audit {
+                                a.record(AuditEvent::SubmitRefused {
+                                    uid,
+                                    source,
+                                    package: pkg_label,
+                                    why: "per-uid cap reached".into(),
+                                });
+                            }
                             send(&mut write_half, &ServerMessage::Error {
                                 message: "too many pending requests".into(),
                             }).await?;
@@ -176,22 +191,34 @@ impl Server {
                         "guardiand: HELD {:?} install '{}' (id {}, uid {}) — awaiting parent decision",
                         req.source, req.package, req.id, uid
                     );
+                    if let Some(a) = &self.audit {
+                        a.record(AuditEvent::Submitted {
+                            id: req.id,
+                            uid,
+                            source: req.source,
+                            package: req.package.clone(),
+                            reason: req.reason.clone(),
+                        });
+                    }
                     if let Some(ntfy) = &self.ntfy {
                         if let Err(e) = ntfy.push(&req).await {
                             eprintln!("guardiand: ntfy push failed for {}: {e:#} — held for local decision", req.id);
                         }
                     }
-                    let decision = match tokio::time::timeout(self.decision_timeout, rx).await {
-                        Ok(Ok(d)) => d,
-                        Ok(Err(_)) => self.default_on_timeout,
+                    let (decision, via) = match tokio::time::timeout(self.decision_timeout, rx).await {
+                        Ok(Ok((d, v))) => (d, v),
+                        Ok(Err(_)) => (self.default_on_timeout, DecisionVia::Timeout),
                         Err(_) => {
                             self.queue.cancel(req.id);
                             eprintln!("guardiand: request {} timed out → {:?}", req.id, self.default_on_timeout);
-                            self.default_on_timeout
+                            (self.default_on_timeout, DecisionVia::Timeout)
                         }
                     };
                     if let Some(ntfy) = &self.ntfy {
                         ntfy.forget(&req.id);
+                    }
+                    if let Some(a) = &self.audit {
+                        a.record(AuditEvent::Decided { id: req.id, decision, via });
                     }
                     send(&mut write_half, &ServerMessage::Decision { id: req.id, decision }).await?;
                     break; // one blocking request per submit connection

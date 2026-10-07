@@ -10,6 +10,10 @@ submit_socket_path = "/run/guardian/submit.sock"
 # Max install requests a single uid may have pending at once (anti-flood). Default 5.
 max_pending_per_uid = 5
 
+# Append-only, hash-chained audit log (every request/decision + blocked attempts). Verify with
+# `guardian-ctl audit-verify <path>`. On the host, `chattr +i` it / ship it off-box for durability.
+audit_path = "/var/log/guardian/audit.log"
+
 # How long a held install request waits for a parent's decision (seconds)
 # before the fallback below is applied.
 decision_timeout_secs = 300

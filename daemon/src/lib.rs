@@ -6,6 +6,7 @@
 //! remote, cryptographically-signed push-approval from the parent's phone, and add the
 //! real pacman/flatpak interception hooks.
 
+pub mod audit;
 pub mod config;
 pub mod crypto;
 pub mod ipc;

@@ -27,7 +27,7 @@ const ALERT_COOLDOWN: Duration = Duration::from_secs(900);
 use crate::config::NtfyConfig;
 use crate::crypto::{self, SignedDecision};
 use crate::queue::Queue;
-use crate::request::{Decision, InstallRequest};
+use crate::request::{Decision, DecisionVia, InstallRequest};
 
 /// How far a signed decision's timestamp may drift from the daemon clock (seconds).
 const MAX_TS_SKEW_SECS: u64 = 600;
@@ -325,7 +325,7 @@ impl Ntfy {
             );
             return;
         }
-        if queue.resolve(payload.id, payload.decision) {
+        if queue.resolve(payload.id, payload.decision, DecisionVia::NtfyToken) {
             eprintln!("guardiand: ntfy (token) {} → {:?}", payload.id, payload.decision);
         }
     }
@@ -367,7 +367,7 @@ impl Ntfy {
         }
         // Consume the nonce so a replay can't reuse it.
         self.pending.lock().unwrap().remove(&sd.id);
-        if queue.resolve(sd.id, sd.decision) {
+        if queue.resolve(sd.id, sd.decision, DecisionVia::NtfySigned) {
             eprintln!("guardiand: ntfy (signed) {} → {:?}", sd.id, sd.decision);
         }
     }

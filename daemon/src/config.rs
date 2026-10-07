@@ -20,6 +20,8 @@ pub struct Policy {
     pub default_on_timeout: Decision,
     /// Max concurrently-held requests per submitting uid (anti-flood).
     pub max_pending_per_uid: usize,
+    /// Append-only, hash-chained audit log path.
+    pub audit_path: PathBuf,
     /// Optional remote push-approval via ntfy. Absent/`enabled = false` → local decisions only.
     pub ntfy: Option<NtfyConfig>,
 }
@@ -32,6 +34,7 @@ impl Default for Policy {
             decision_timeout_secs: 300,
             default_on_timeout: Decision::Deny,
             max_pending_per_uid: 5,
+            audit_path: PathBuf::from("/var/log/guardian/audit.log"),
             ntfy: None,
         }
     }

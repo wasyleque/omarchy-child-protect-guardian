@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 
+use guardian::audit::{Audit, AuditEvent};
 use guardian::config::Policy;
 use guardian::ipc::Server;
 use guardian::ntfy::Ntfy;
@@ -40,6 +41,20 @@ async fn main() -> Result<()> {
         allowed_uids.push(own_uid);
     }
 
+    // Open the append-only, hash-chained audit log (disabled gracefully if the path isn't writable).
+    let audit = match Audit::open(&policy.audit_path) {
+        Ok(a) => {
+            let a = Arc::new(a);
+            a.record(AuditEvent::Started);
+            eprintln!("guardiand: audit log at {}", policy.audit_path.display());
+            Some(a)
+        }
+        Err(e) => {
+            eprintln!("guardiand: audit disabled — {e:#}");
+            None
+        }
+    };
+
     let queue = Arc::new(Queue::new());
 
     // Set up remote push-approval if configured and enabled.
@@ -65,6 +80,7 @@ async fn main() -> Result<()> {
         ntfy,
         control_uids: allowed_uids,
         max_pending_per_uid: policy.max_pending_per_uid,
+        audit,
     });
 
     server.run(&policy.socket_path, &policy.submit_socket_path).await

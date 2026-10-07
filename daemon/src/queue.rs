@@ -11,11 +11,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::oneshot;
 use uuid::Uuid;
 
-use crate::request::{Decision, InstallRequest, InstallSource};
+use crate::request::{Decision, DecisionVia, InstallRequest, InstallSource};
 
 struct Pending {
     request: InstallRequest,
-    responder: oneshot::Sender<Decision>,
+    responder: oneshot::Sender<(Decision, DecisionVia)>,
     /// uid of the process that submitted this request (for per-uid flood limiting).
     submitter_uid: u32,
 }
@@ -44,7 +44,7 @@ impl Queue {
         reason: Option<String>,
         submitter_uid: u32,
         max_per_uid: usize,
-    ) -> Option<(InstallRequest, oneshot::Receiver<Decision>)> {
+    ) -> Option<(InstallRequest, oneshot::Receiver<(Decision, DecisionVia)>)> {
         let mut map = self.pending.lock().unwrap();
         if map.values().filter(|p| p.submitter_uid == submitter_uid).count() >= max_per_uid {
             return None;
@@ -67,7 +67,7 @@ impl Queue {
         source: InstallSource,
         package: String,
         reason: Option<String>,
-    ) -> (InstallRequest, oneshot::Receiver<Decision>) {
+    ) -> (InstallRequest, oneshot::Receiver<(Decision, DecisionVia)>) {
         self.try_submit(source, package, reason, 0, usize::MAX).unwrap()
     }
 
@@ -79,12 +79,12 @@ impl Queue {
         v
     }
 
-    /// Resolve a held request with a decision. Returns `true` if the id existed.
-    pub fn resolve(&self, id: Uuid, decision: Decision) -> bool {
+    /// Resolve a held request with a decision and its origin. Returns `true` if the id existed.
+    pub fn resolve(&self, id: Uuid, decision: Decision, via: DecisionVia) -> bool {
         let mut map = self.pending.lock().unwrap();
         if let Some(p) = map.remove(&id) {
             // Ignore a send error: the waiter may have already timed out and gone away.
-            let _ = p.responder.send(decision);
+            let _ = p.responder.send((decision, via));
             true
         } else {
             false
@@ -116,15 +116,17 @@ mod tests {
         let q = Queue::new();
         let (req, rx) = q.submit(InstallSource::Pacman, "firefox".into(), None);
         assert_eq!(q.len(), 1);
-        assert!(q.resolve(req.id, Decision::Allow));
-        assert_eq!(rx.await.unwrap(), Decision::Allow);
+        assert!(q.resolve(req.id, Decision::Allow, DecisionVia::LocalCtl));
+        let (decision, via) = rx.await.unwrap();
+        assert_eq!(decision, Decision::Allow);
+        assert_eq!(via, DecisionVia::LocalCtl);
         assert!(q.is_empty(), "resolved request must be removed");
     }
 
     #[test]
     fn resolve_unknown_id_is_false() {
         let q = Queue::new();
-        assert!(!q.resolve(Uuid::new_v4(), Decision::Deny));
+        assert!(!q.resolve(Uuid::new_v4(), Decision::Deny, DecisionVia::LocalCtl));
     }
 
     #[tokio::test]

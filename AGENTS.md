@@ -82,8 +82,13 @@
   `flatpak install` via submit socket, verified allow/deny/passthrough with a stub) + polkit rule
   `49-guardian-flatpak.rules` (blocks child system installs via GUI). Residual: direct /usr/bin/flatpak
   + --user GUI → covered by fapolicyd backstop (documented). fapolicyd trust for flatpak apps = follow-up.
+- **Append-only hash-chained AUDIT LOG DONE** (daemon/src/audit.rs): records started/submitted/
+  decided(+via: local_ctl|ntfy_token|ntfy_signed|timeout)/submit_refused/control_blocked; SHA-256 chain;
+  `guardian-ctl audit-verify <path>` detects edits/deletions. config `audit_path`. 11 unit tests + e2e
+  incl. tamper. (audit-verify was the Ollama micro-task; aider again wrote to a wrong `guardian/` path →
+  moved into place & stray removed. Lesson: run aider from daemon/ and re-check the target path.)
 - P1/P2 remaining: deploy+tune nftables/fapolicyd on a real host; NetworkManager polkit lockdown +
-  browser DoH policies; watchdog + append-only audit; QR pairing / iOS bg push; snap/nix/conda wrappers.
+  browser DoH policies; watchdog re-asserting hook/unit; QR pairing / iOS bg push; snap/nix/conda wrappers.
 
 ## Open decisions (need user)
 - (none blocking) — proceeding down the P1 hardening list; Ed25519 is the next big code piece.
