@@ -101,6 +101,9 @@
   gate `snap install` / `nix-env -i…` / `nix profile install|add` via the submit socket; InstallSource
   gained Snap+Nix. Stub-verified (allow/deny/passthrough; option-skipping fixed in the snap one after
   Ollama's version broke on `--classic code`). snap wrapper was the Ollama micro-task; nix I wrote.
+- **INSTALLER DONE**: `packaging/install.sh` (guided; safe-by-default: daemon+wrappers+watchdog+scoped
+  `sl` test hook; `--enforce` switches in the real hook; prints host-specific next steps) + `uninstall.sh`
+  (full rollback incl. chattr -i). bash -n clean. For the user's clean-system test tomorrow.
 - P1/P2 remaining: deploy+tune on a real host (user, tomorrow); account/session hardening polish; iOS
   background push; conda/other wrappers; AUR-scriptlet/Intent-Binding; one-scan pubkey return (manual paste).
 

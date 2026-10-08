@@ -1,5 +1,19 @@
 # Deploying Omarchy Child Protect Guardian
 
+**Quick start (guided):**
+```bash
+cd daemon && cargo build --release && cd ..
+sudo packaging/install.sh            # safe: daemon + wrappers + watchdog + SCOPED test hook (pacman -S sl)
+# verify the test hook, pair the phone, then:
+sudo packaging/install.sh --enforce  # switch in the real system-wide pacman hook
+sudo packaging/uninstall.sh          # full rollback
+```
+`install.sh` auto-applies only the safe layers and prints the host-specific steps (nftables, fapolicyd,
+browser/NM policies, hardware baseline) to do by hand. The manual walkthrough below explains each.
+
+---
+
+
 Everything here changes a real system. Deploy **in this order**, test each layer, and keep a root
 shell open. Each layer has an instant rollback. Read [`../docs/THREAT_MODEL.md`](../docs/THREAT_MODEL.md)
 first — the layers only add up to "no bypass" together, on top of the hardware baseline.
