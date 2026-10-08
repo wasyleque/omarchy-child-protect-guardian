@@ -60,7 +60,7 @@ with the installer hook as one input among several.
   approvals; a parent-approved install adds its files to the trust DB, nothing else runs. Backstop:
   `noexec` on user-writable mounts where compatible, and blocking the dynamic loader
   (`ld-linux.so`) as an interpreter trick to run non-trusted ELF.
-- **L3 — Network egress, default-deny** *(planned).* Kernel `nftables` per the child's uid:
+- **L3 — Network egress, default-deny** *(config shipped: `packaging/nftables/` + `packaging/network/`; deploy on host).* Kernel `nftables` per the child's uid:
   - force all DNS (UDP/TCP 53) to the local filtering resolver; **drop DoT (853)**; block known
     **DoH** resolver IP sets on 443; block unexpected outbound UDP (kills userspace WireGuard/QUIC
     smuggling); default-deny egress with an allowlist.
@@ -68,7 +68,7 @@ with the installer hook as one input among several.
     add a VPN profile, tether, or randomize MAC; deny new connections/USB-tether interfaces.
   - **browser managed policies**: Firefox `DNSOverHTTPS {Enabled:false, Locked:true}`, Chromium
     `DnsOverHttpsMode:"off"`, and disable installing VPN extensions.
-- **L4 — Account & session hardening** *(planned).* Single child account; lock `root` login; no
+- **L4 — Account & session hardening** *(NetworkManager polkit lockdown shipped in `packaging/network/`; account/session steps documented).* Single child account; lock `root` login; no
   autologin; `systemctl mask getty@tty2..ttyN` + disable VT switch to a shell; no empty passwords;
   no second/guest account; polkit `allow_any/allow_active` for install/network actions set to auth-admin.
 - **L5 — Remote-approval cryptography** *(MVP token now; Ed25519 required next).* See §7.
@@ -95,9 +95,9 @@ with the installer hook as one input among several.
 ### 5.2 Network
 | Vector | Mitigation | Status |
 |---|---|---|
-| Browser DoH / system DoT | L3: drop 853, block DoH IP sets, browser policy locks DoH off | planned (P1) |
-| Tor / obfs4, userspace VPN (Shadowsocks, v2ray, `ssh -D`, wireguard-go/slirp4netns) | L3 default-deny egress + block unexpected UDP; L2 stops the binary running at all | planned (P1) |
-| USB tethering / second NIC / MAC randomization | L4 NetworkManager polkit lockdown; nftables bound to known uplinks | planned |
+| Browser DoH / system DoT | nftables drops 853 + DoH IP sets; Firefox/Chromium DoH forced off+locked (`packaging/network/`) | **config shipped** |
+| Tor / obfs4, userspace VPN (Shadowsocks, v2ray, `ssh -D`, wireguard-go/slirp4netns) | nftables default-deny egress + block unexpected UDP; L2 stops the binary running at all | **config shipped** |
+| USB tethering / second NIC / MAC randomization | NetworkManager polkit lockdown (child can't add/activate/tether); nftables bound to known uplinks | **config shipped** |
 | `/etc/hosts` edit | already root-only (child can't) | done (by perms) |
 
 ### 5.3 Boot / physical (T3)
@@ -113,7 +113,7 @@ with the installer hook as one input among several.
 |---|---|---|
 | Child connects to IPC socket and sends `Resolve{allow}` for their own request | **SO_PEERCRED**: only the daemon-owner uid (root in prod) may send control msgs; split hook vs admin sockets | **done (SO_PEERCRED)**, split planned |
 | `GUARDIAN_SOCKET=/tmp/fake.sock` → fake daemon that always allows | hook ignores the env var in release builds; path is hard-coded | **done** |
-| Malicious AUR/pkg `post_install` scriptlet runs as root and disables Guardian | Intent Binding (SHA-256 of approved artifact), flag packages carrying install scriptlets for explicit parent consent, L7 immutability + watchdog + tamper alert | planned (P2) |
+| Malicious AUR/pkg `post_install` scriptlet runs as root and disables Guardian | `chattr +i` + **watchdog restores files & alerts the parent** (shipped); still TODO: Intent Binding (SHA-256 of approved artifact) + consent for scriptlet-carrying packages | **partly (watchdog shipped)** |
 | TTY switch `Ctrl+Alt+F2` to a login | L4: mask extra getty, no empty/autologin | planned |
 | Starve the daemon so the hook fails | hook **fails closed** (deny) on no-daemon; watchdog + tamper alert | done (fail-closed) |
 
@@ -175,6 +175,10 @@ can read the token and self-approve in ~50 ms — before the phone even buzzes. 
   as one JSON line each, chained by SHA-256 so deleting or editing any entry breaks the chain.
   `guardian-ctl audit-verify <path>` reports the first break. Verified e2e incl. tamper detection. On
   the host, `chattr +i` / off-box shipping makes the record durable; the chain makes edits *evident* regardless.
+- **Integrity watchdog (L7 self-healing)**: a systemd timer (`packaging/guardian-watchdog.*`) restores
+  Guardian's hook/daemon/unit from a read-only backup if they're removed or altered, restarts the
+  daemon if it's down, re-verifies the audit chain, and raises a parent alert (via a new control-only
+  `guardian-ctl alert` → the daemon's ntfy alert path) whenever it had to act. Verified e2e.
 
 ## 9. Honestly out of scope (no false promises)
 
@@ -190,5 +194,6 @@ can read the token and self-approve in ~50 ms — before the phone even buzzes. 
 - **P1:** execution allowlisting (fapolicyd) · network egress default-deny (nftables + DoH/DoT/VPN
   block) · hardware baseline (UEFI/SecureBoot/UKI/LUKS). *(SO_PEERCRED, the env-var fix, and
   **Ed25519 signed approvals (daemon side)** are already done; signed mode awaits only the parent app.)*
-- **P2:** scriptlet/Intent-Binding safeguards · L7 tamper-evidence, watchdog, audit log & parent alert.
+- **P2:** *(L7 done: parent alerts, hash-chained audit log, and the integrity watchdog all shipped.)*
+  Remaining: AUR-scriptlet / Intent-Binding safeguards.
 - **P3:** account/session hardening polish · Flatpak/PackageKit coverage · browser managed policies.

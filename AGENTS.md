@@ -90,9 +90,16 @@
 - **QR PAIRING DONE**: `guardian-ctl pair --topic <t> [--server][--app]` prints a terminal QR of
   `<app>#pair=<base64url {server,topic}>`; phone scans → PWA auto-configures (index.html parses #pair=).
   qrcode crate; verified (payload round-trips). (Ollama micro-task; aider pathed correctly this time.)
-- P1/P2 remaining: deploy+tune nftables/fapolicyd on a real host; NetworkManager polkit lockdown +
-  browser DoH policies; watchdog re-asserting hook/unit; iOS background push; snap/nix/conda wrappers;
-  one-scan pubkey return (app→daemon) is still a manual paste.
+- **WATCHDOG DONE**: `packaging/guardian-watchdog.{sh,service,timer}` (systemd timer) restores
+  hook/daemon/unit from /usr/lib/guardian/backup if missing/altered, restarts guardiand if down,
+  runs `audit-verify`, and alerts the parent via a new control-only `guardian-ctl alert` →
+  daemon ClientMessage::Alert → ntfy (+audit WatchdogAlert). Verified e2e (push + audit entry).
+- **NETWORK LOCKDOWN DONE (config)**: `packaging/network/` — polkit `49-guardian-nm.rules` (child can't
+  add/activate/tether NM connections), Firefox `firefox-policies.json` + Chromium `chromium-dns-policy.json`
+  (DoH off+locked). JSON validated. Pairs with nftables egress.
+- P1/P2 remaining: deploy+tune nftables/fapolicyd/network/watchdog on a real host; account/session
+  hardening polish; iOS background push; snap/nix/conda wrappers; AUR-scriptlet/Intent-Binding;
+  one-scan pubkey return (app→daemon) still a manual paste.
 
 ## Open decisions (need user)
 - (none blocking) — proceeding down the P1 hardening list; Ed25519 is the next big code piece.

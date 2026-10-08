@@ -49,6 +49,10 @@ pub enum AuditEvent {
     ControlBlocked {
         uid: u32,
     },
+    /// Raised by the watchdog (via the control socket) when it detects/repairs tampering.
+    WatchdogAlert {
+        message: String,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize)]

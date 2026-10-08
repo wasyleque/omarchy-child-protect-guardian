@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the Omarchy Child Protect Guardian watchdog periodically
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=3min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

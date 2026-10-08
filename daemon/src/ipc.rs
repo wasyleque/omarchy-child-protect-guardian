@@ -37,6 +37,8 @@ pub enum ClientMessage {
     },
     List,
     Resolve { id: Uuid, decision: Decision },
+    /// Control-only: forward a tamper/integrity alert to the parent (used by the watchdog).
+    Alert { message: String },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -45,6 +47,8 @@ pub enum ServerMessage {
     Decision { id: Uuid, decision: Decision },
     Pending { requests: Vec<InstallRequest> },
     Resolved { id: Uuid, ok: bool },
+    /// Ack for `Alert`; `ok` is false when no remote (ntfy) is configured to deliver it.
+    Alerted { ok: bool },
     Error { message: String },
 }
 
@@ -158,6 +162,19 @@ impl Server {
                 (true, ClientMessage::Resolve { id, decision }) => {
                     let ok = self.queue.resolve(id, decision, DecisionVia::LocalCtl);
                     send(&mut write_half, &ServerMessage::Resolved { id, ok }).await?;
+                }
+                (true, ClientMessage::Alert { message }) => {
+                    eprintln!("guardiand: watchdog alert: {message}");
+                    if let Some(a) = &self.audit {
+                        a.record(AuditEvent::WatchdogAlert { message: message.clone() });
+                    }
+                    let delivered = if let Some(ntfy) = &self.ntfy {
+                        ntfy.alert("watchdog", "Guardian: integrity alert", &message);
+                        true
+                    } else {
+                        false
+                    };
+                    send(&mut write_half, &ServerMessage::Alerted { ok: delivered }).await?;
                 }
                 (true, ClientMessage::Submit { .. }) => {
                     send(&mut write_half, &ServerMessage::Error {

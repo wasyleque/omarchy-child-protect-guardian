@@ -19,6 +19,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("  allow <id>        - Allow a request");
         eprintln!("  deny <id>         - Deny a request");
         eprintln!("  request <source> <package> [reason] - Submit a new request");
+        eprintln!("  alert <message>   - Send a tamper/integrity alert to the parent");
         eprintln!("  pair --topic <t> [--server <u>] [--app <u>]  - Show a pairing QR");
         eprintln!("  audit-verify <path>   - Verify the audit log chain");
         exit(2);
@@ -160,6 +161,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 exit(1);
             }
         }
+        "alert" => {
+            let message = if args.len() > 2 {
+                args[2..].join(" ")
+            } else {
+                eprintln!("Usage: guardian-ctl alert <message>");
+                exit(2);
+            };
+            send_message(&mut stream, ClientMessage::Alert { message })?;
+            match read_response(&mut stream)? {
+                ServerMessage::Alerted { ok } => {
+                    println!("{}", if ok { "alert sent" } else { "alert recorded (no remote configured)" });
+                }
+                _ => {
+                    eprintln!("Unexpected response");
+                    exit(1);
+                }
+            }
+        }
         _ => {
             eprintln!("Unknown command: {}", args[1]);
             eprintln!("Usage: guardian-ctl <command> [arguments...]");
@@ -168,6 +187,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             eprintln!("  allow <id>        - Allow a request");
             eprintln!("  deny <id>         - Deny a request");
             eprintln!("  request <source> <package> [reason] - Submit a new request");
+        eprintln!("  alert <message>   - Send a tamper/integrity alert to the parent");
             eprintln!("  pair --topic <t> [--server <u>] [--app <u>]  - Show a pairing QR");
             eprintln!("  audit-verify <path>   - Verify the audit log chain");
             exit(2);

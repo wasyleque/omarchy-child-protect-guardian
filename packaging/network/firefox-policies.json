@@ -1,0 +1,9 @@
+{
+  "policies": {
+    "DNSOverHTTPS": {
+      "Enabled": false,
+      "Locked": true
+    },
+    "NetworkPrediction": false
+  }
+}

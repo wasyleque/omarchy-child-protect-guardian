@@ -68,7 +68,8 @@ Installer-gating alone is not enough; enforcement must be default-deny at execut
   hook `60-guardian-trust.hook` + `guardian-trust.sh`, logic verified). Deploy & tune on host; noexec backstop: TODO.
 - [~] **P1 — network egress default-deny** (nftables): ruleset **shipped & syntax-validated** in
   `packaging/nftables/guardian-egress.nft` (force DNS, drop DoT, block DoH v4/v6, kill UDP/QUIC/VPN,
-  default-deny). TODO: NetworkManager polkit lockdown; browser managed policies; SNI/DPI for 443 tunnels.
+  default-deny). **NetworkManager polkit lockdown + browser DoH policies shipped** in
+  `packaging/network/` (child can't add VPN/tether; Firefox/Chromium DoH forced off+locked). TODO: SNI/DPI for 443 tunnels.
 - [x] **P1 — Ed25519 signed approvals** (challenge-response; private key stays on phone) — daemon-side
   done & verified e2e (flip + bogus-sig rejected → fail-closed); only the parent app that holds the key remains.
 - [~] **P1 — hardware/boot baseline** (UEFI admin password, Secure Boot, signed UKI or locked GRUB, LUKS2 FDE): read-only **audit script shipped** (`packaging/harden-audit.sh`) + deploy guide (`packaging/README.md`); firmware steps are the owner's to apply.
@@ -76,7 +77,10 @@ Installer-gating alone is not enough; enforcement must be default-deny at execut
   blocked control attempt or rejected/forged approval, rate-limited; verified e2e) and
   **append-only hash-chained audit log DONE** (every request/decision+origin & blocked attempt;
   `guardian-ctl audit-verify` detects any edit/deletion; verified e2e incl. tamper). TODO: `chattr +i`
-  ops step (documented), a watchdog re-asserting hook/unit, AUR scriptlet / Intent-Binding safeguards.
+  ops step (documented). **Watchdog shipped** (`packaging/guardian-watchdog.*`): a systemd timer
+  restores missing/altered Guardian files from a backup, restarts the daemon if down, verifies the
+  audit chain, and alerts the parent (`guardian-ctl alert` → ntfy) — verified e2e. TODO: AUR
+  scriptlet / Intent-Binding safeguards.
 - [ ] **P3 — account/session hardening** (lock root, mask spare getty, no autologin/empty pw, single account); Flatpak/PackageKit coverage.
 
 ## Stage 6 — Polish & release

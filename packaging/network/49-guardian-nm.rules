@@ -1,0 +1,19 @@
+// Guardian — stop the child from reconfiguring the network to escape filtering (Threat model §4 L4).
+// Install to /etc/polkit-1/rules.d/49-guardian-nm.rules.
+//
+// Blocks a non-root user from ADDING/EDITING connections (VPN profiles, USB/Wi-Fi tethering, MAC
+// spoofing live editing) and from activating arbitrary connections. Connecting to an already-saved
+// Wi-Fi the admin set up still works. The daemon/parent (root) are unaffected. Pairs with the
+// nftables egress policy (which blocks DoH/DoT/VPN at the kernel regardless of NM).
+
+polkit.addRule(function(action, subject) {
+    if (action.id.indexOf("org.freedesktop.NetworkManager.") === 0 && subject.user !== "root") {
+        var a = action.id;
+        if (a.indexOf("settings.modify") !== -1 ||   // add/edit/delete connections (VPN, tether, …)
+            a.indexOf("network-control")  !== -1 ||   // activate/deactivate arbitrary connections
+            a.indexOf("wifi.share")        !== -1) {   // create a hotspot
+            // Require an admin password the child does not have.
+            return polkit.Result.AUTH_ADMIN;
+        }
+    }
+});

@@ -59,6 +59,14 @@ sudo nft -f nftables/guardian-egress.nft     # non-persistent: test now
 sudo nft delete table inet guardian          # <-- instant rollback
 ```
 
+## 3b. Browser & NetworkManager lockdown
+Close the user-space DNS/VPN escapes (see [`network/README.md`](network/README.md)):
+```bash
+sudo install -Dm644 network/49-guardian-nm.rules /etc/polkit-1/rules.d/49-guardian-nm.rules
+sudo install -Dm644 network/firefox-policies.json /etc/firefox/policies/policies.json
+sudo install -Dm644 network/chromium-dns-policy.json /etc/chromium/policies/managed/guardian-dns.json
+```
+
 ## 4. Execution allowlist (fapolicyd) — the big one
 See [`fapolicyd/README.md`](fapolicyd/README.md). Seed trust from pacman, run **permissive** until the
 log is clean, only then enforce. Rollback: `sudo systemctl stop fapolicyd`. Also install the
@@ -73,6 +81,18 @@ scriptlet, and ensure it auto-restarts:
 sudo chattr +i /usr/lib/guardian/guardian-hook /usr/bin/guardiand /etc/pacman.d/hooks/50-guardian.hook
 # (the systemd unit already has Restart=always). To update Guardian later: chattr -i first, then re-install.
 ```
+Add the **watchdog** so missing/altered files are auto-restored and you get an alert:
+```bash
+# keep known-good copies for the watchdog to restore from
+sudo install -Dm755 /usr/bin/guardiand                  /usr/lib/guardian/backup/guardiand
+sudo install -Dm755 /usr/lib/guardian/guardian-hook      /usr/lib/guardian/backup/guardian-hook
+sudo install -Dm644 /etc/pacman.d/hooks/50-guardian.hook /usr/lib/guardian/backup/50-guardian.hook
+sudo install -Dm755 guardian-watchdog.sh /usr/lib/guardian/guardian-watchdog
+sudo install -Dm644 guardian-watchdog.service /etc/systemd/system/guardian-watchdog.service
+sudo install -Dm644 guardian-watchdog.timer   /etc/systemd/system/guardian-watchdog.timer
+sudo systemctl enable --now guardian-watchdog.timer
+```
+Rollback: `sudo systemctl disable --now guardian-watchdog.timer`.
 
 ## 6. Account & session hygiene
 Single unprivileged child account; not in `wheel`/`sudo`; lock `root` login; no autologin/empty

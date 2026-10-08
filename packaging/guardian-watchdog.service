@@ -1,0 +1,9 @@
+[Unit]
+Description=Omarchy Child Protect Guardian — integrity watchdog
+Documentation=https://github.com/wasyleque/omarchy-child-protect-guardian
+After=guardiand.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/guardian/guardian-watchdog
+User=root
