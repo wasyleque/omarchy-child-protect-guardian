@@ -55,7 +55,8 @@ Things competitors on Windows/macOS/Android **can't** do, but we can:
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Build stages (MVP → v1), split into small verifiable steps |
 | [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) | Anti-bypass design: adversary tiers, every bypass vector → its mitigation, honest limits |
 | [`parent-app/`](parent-app/) | Cross-platform parent approval app (installable PWA) — on-device Ed25519 signing |
-| [`packaging/`](packaging/) | Deploy: systemd unit, pacman hook, nftables egress, fapolicyd allowlist, hardening audit |
+| [`packaging/`](packaging/) | Deploy: installer, systemd unit, pacman hook, nftables egress, fapolicyd allowlist, hardening audit |
+| [`docs/TESTING.md`](docs/TESTING.md) | Step-by-step test plan for a clean system (layer-by-layer + red-team bypass attempts) |
 
 ## How it's built (workflow)
 

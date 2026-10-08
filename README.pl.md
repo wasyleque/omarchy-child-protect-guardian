@@ -56,7 +56,8 @@ Rzeczy, których konkurencja na Windows/macOS/Android **nie może** zrobić, a m
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Etapy budowy (MVP → v1), podział na małe weryfikowalne kroki |
 | [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) | Projekt „nie do obejścia": poziomy przeciwnika, każdy wektor obejścia → obrona, uczciwe granice |
 | [`parent-app/`](parent-app/) | Wieloplatformowa apka rodzica (instalowalna PWA) — podpis Ed25519 na urządzeniu |
-| [`packaging/`](packaging/) | Wdrożenie: unit systemd, hook pacman, egress nftables, allowlista fapolicyd, audyt hardeningu |
+| [`packaging/`](packaging/) | Wdrożenie: instalator, unit systemd, hook pacman, egress nftables, allowlista fapolicyd, audyt hardeningu |
+| [`docs/TESTING.md`](docs/TESTING.md) | Plan testów na czystym systemie (warstwa po warstwie + próby obejścia / czerwony zespół) |
 
 ## Jak powstaje (workflow)
 
