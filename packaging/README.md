@@ -46,6 +46,12 @@ sudo install -Dm644 flatpak/49-guardian-flatpak.rules /etc/polkit-1/rules.d/49-g
 ```
 Rollback: `sudo rm /usr/local/bin/flatpak /etc/polkit-1/rules.d/49-guardian-flatpak.rules`.
 
+**Snap / Nix** (optional — only if those managers are in use; see `snap/README.md`, `nix/README.md`):
+```bash
+sudo install -Dm755 snap/guardian-snap-wrapper.sh /usr/local/bin/snap
+sudo install -Dm755 nix/guardian-nix-wrapper.sh /usr/local/bin/nix-env && sudo ln -sf /usr/local/bin/nix-env /usr/local/bin/nix
+```
+
 ## 2. Remote approval (optional)
 Add an `[ntfy]` section to `/etc/guardian/policy.toml` (see `policy.example.toml`). Prefer **signed
 mode** (`parent_pubkey`) over the token MVP — it's immune to broker eavesdropping. `guardian-ctl`

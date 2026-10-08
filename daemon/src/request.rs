@@ -14,6 +14,10 @@ pub enum InstallSource {
     Flatpak,
     /// AUR helper (e.g. `yay`) installing a built package.
     Aur,
+    /// Snap package (`snap install`).
+    Snap,
+    /// Nix package (`nix-env -i` / `nix profile install`).
+    Nix,
 }
 
 impl std::str::FromStr for InstallSource {
@@ -23,6 +27,8 @@ impl std::str::FromStr for InstallSource {
             "pacman" => Ok(Self::Pacman),
             "flatpak" => Ok(Self::Flatpak),
             "aur" => Ok(Self::Aur),
+            "snap" => Ok(Self::Snap),
+            "nix" => Ok(Self::Nix),
             other => Err(format!("unknown install source: {other}")),
         }
     }

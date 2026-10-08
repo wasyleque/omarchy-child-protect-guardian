@@ -88,7 +88,7 @@ with the installer hook as one input among several.
 | `curl \| sh`, `pip/npm/cargo/gem install --user`, language scripts | L2 (deny non-trusted ELF) + L3 (egress allowlist throttles fetching) | planned (P1) |
 | `flatpak install` / `--user` (CLI) | **wrapper** at `/usr/local/bin/flatpak` submits + waits for approval (done, verified) | **done (CLI)** |
 | Flatpak via GUI stores (polkit) | **polkit rule** forces admin auth for system Flatpak installs (done); `--user` GUI falls back to L2 | **done (system)** |
-| snap, nix, conda | per-manager wrapper + L2 covers the eventual exec | planned |
+| snap, nix (CLI) | **wrappers** at `/usr/local/bin/{snap,nix,nix-env}` gate installs via the daemon (done, stub-verified); conda & others fall back to L2 | **done (snap/nix CLI)** |
 | GUI stores via PackageKit/D-Bus (Discover, Pamac, GNOME Software) | they still hit `libalpm` → L1 hook fires; lock their polkit actions | partly done |
 | Web apps / PWAs in the browser | content/DNS policy (L3) + browser managed policy | planned |
 

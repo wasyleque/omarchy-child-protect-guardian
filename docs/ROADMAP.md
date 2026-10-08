@@ -35,6 +35,8 @@ with `agy` for logic/integration stages). Each stage ends with something testabl
   approval, + polkit rule blocking child system installs via GUI stores (`packaging/flatpak/`). Verified.
 - [x] IPC hardening: **two sockets** — submit (any uid, per-uid flood cap) vs control (owner-only,
   SO_PEERCRED) — so a child-run interceptor can submit but can't decide.
+- [x] Interception path #3: **Snap & Nix** CLI wrappers (`packaging/snap/`, `packaging/nix/`) gate
+  `snap install` / `nix-env -i` / `nix profile install|add`; stub-verified (InstallSource gained Snap/Nix).
 - [ ] Daemon self-protection (unkillable by child, read-only policies).
 
 ## Stage 4 — Differentiators

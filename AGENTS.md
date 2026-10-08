@@ -97,9 +97,12 @@
 - **NETWORK LOCKDOWN DONE (config)**: `packaging/network/` — polkit `49-guardian-nm.rules` (child can't
   add/activate/tether NM connections), Firefox `firefox-policies.json` + Chromium `chromium-dns-policy.json`
   (DoH off+locked). JSON validated. Pairs with nftables egress.
-- P1/P2 remaining: deploy+tune nftables/fapolicyd/network/watchdog on a real host; account/session
-  hardening polish; iOS background push; snap/nix/conda wrappers; AUR-scriptlet/Intent-Binding;
-  one-scan pubkey return (app→daemon) still a manual paste.
+- **SNAP/NIX wrappers DONE**: `packaging/snap/guardian-snap-wrapper.sh` + `packaging/nix/guardian-nix-wrapper.sh`
+  gate `snap install` / `nix-env -i…` / `nix profile install|add` via the submit socket; InstallSource
+  gained Snap+Nix. Stub-verified (allow/deny/passthrough; option-skipping fixed in the snap one after
+  Ollama's version broke on `--classic code`). snap wrapper was the Ollama micro-task; nix I wrote.
+- P1/P2 remaining: deploy+tune on a real host (user, tomorrow); account/session hardening polish; iOS
+  background push; conda/other wrappers; AUR-scriptlet/Intent-Binding; one-scan pubkey return (manual paste).
 
 ## Open decisions (need user)
 - (none blocking) — proceeding down the P1 hardening list; Ed25519 is the next big code piece.
