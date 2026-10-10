@@ -43,3 +43,11 @@ default_on_timeout = "deny"
 # Optional off-box audit durability: mirror every signed audit entry + a heartbeat to this separate
 # (secret, random) topic the moment it's written, so a later local root rewrite can't hide history.
 #audit_topic = "guardian-audit-REPLACE-WITH-LONG-RANDOM-STRING"
+
+# Optional screen-time schedule (enforcement wiring — Wayland lock/freeze — is a later slice; the
+# engine + its logic are implemented and unit-tested now). Minutes are from local midnight.
+#[schedule]
+#enabled = true
+#daily_budget_minutes = 120        # 2 h/day; omit for unlimited (a window may still apply)
+#window_start_min = 420            # 07:00
+#window_end_min = 1230             # 20:30

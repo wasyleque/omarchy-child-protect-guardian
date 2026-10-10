@@ -132,8 +132,13 @@ Reviewer verdict: do NOT use that commit as a child's sole protection. All 7 fin
 - POST-REVIEW: **off-box audit mirror DONE** (agy: local HMAC = theater vs root). `[ntfy].audit_topic` →
   daemon publishes every audit entry signed by its key + a daily Heartbeat (dead-man's-switch) the moment
   written. Verified e2e (heartbeat+submitted+decided arrived signed off-box). Remaining: parent app
-  retains mirrored entries + alarms on heartbeat gap; SNI/DPI for 443 tunnels; product features
-  (DNS filter/SafeSearch/time schedule) — design with agy, simple bits to Ollama.
+  retains mirrored entries + alarms on heartbeat gap; SNI/DPI for 443 tunnels.
+- PRODUCT FEATURES (design via agy, order: schedule → DNS/SafeSearch → Wayland enforcer):
+  **schedule engine DONE** (daemon/src/schedule.rs: window + daily budget + grant + day rollover +
+  idle-aware; 6 unit tests; config `[schedule]`, not yet enforced). NEXT: DNS filter + SafeSearch =
+  dnsmasq on :5353 + per-uid nftables redirect + guardiand generates StevenBlack blocklist + SafeSearch
+  address-map (config-gen → Ollama micro-task); then Wayland enforcer (logind idle + loginctl lock /
+  systemctl freeze user-<uid>.slice) + grant_time over the signed channel. 18 unit tests total.
 
 ## Workflow routing (this machine)
 - **Logic / architecture / integrations →** `agy`.

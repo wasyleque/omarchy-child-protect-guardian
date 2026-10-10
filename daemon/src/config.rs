@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 
 use crate::request::Decision;
+use crate::schedule::Schedule;
 
 /// Runtime policy for the daemon.
 #[derive(Debug, Clone, Deserialize)]
@@ -27,6 +28,9 @@ pub struct Policy {
     pub daemon_key_path: PathBuf,
     /// Optional remote push-approval via ntfy. Absent/`enabled = false` → local decisions only.
     pub ntfy: Option<NtfyConfig>,
+    /// Optional screen-time schedule (window + daily budget). Enforcement wiring is a later slice.
+    #[serde(default)]
+    pub schedule: Option<Schedule>,
 }
 
 impl Default for Policy {
@@ -40,6 +44,7 @@ impl Default for Policy {
             audit_path: PathBuf::from("/var/log/guardian/audit.log"),
             daemon_key_path: PathBuf::from("/etc/guardian/daemon.key"),
             ntfy: None,
+            schedule: None,
         }
     }
 }

@@ -85,6 +85,16 @@ Installer-gating alone is not enough; enforcement must be default-deny at execut
   scriptlet / Intent-Binding safeguards.
 - [ ] **P3 — account/session hardening** (lock root, mask spare getty, no autologin/empty pw, single account); Flatpak/PackageKit coverage.
 
+## Content-safety features (design via agy)
+- [~] **Screen-time schedule**: engine (`daemon/src/schedule.rs`) — allowed window + daily budget +
+  parent-granted extra, day rollover, idle-aware — DONE & unit-tested (6 tests). TODO: daemon tick
+  loop feeding local day/minute, `grant_time` over the signed channel, and Wayland enforcement
+  (logind idle + `loginctl lock-session`/`systemctl freeze user-<uid>.slice`).
+- [ ] **DNS filter + SafeSearch**: run `dnsmasq` on `:5353` (upstream 1.1.1.3), per-uid nftables
+  redirect of the child's `:53`; guardiand generates the StevenBlack blocklist `hosts` + a SafeSearch
+  `address=` map (Google/YouTube/Bing/DuckDuckGo) and reloads on update. (Config-gen = Ollama task.)
+- [ ] **Wayland enforcer**: the screen-time slice above, live on Hyprland.
+
 ## Stage 6 — Polish & release
 - [ ] Omarchy-native install (AUR package, `omarchy`-style setup), docs, threat model review.
 - [ ] License finalized; public release.

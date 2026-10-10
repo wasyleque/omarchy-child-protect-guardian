@@ -13,3 +13,4 @@ pub mod ipc;
 pub mod ntfy;
 pub mod queue;
 pub mod request;
+pub mod schedule;
