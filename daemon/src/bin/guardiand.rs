@@ -15,6 +15,14 @@ use guardian::ipc::Server;
 use guardian::ntfy::Ntfy;
 use guardian::queue::Queue;
 
+/// Fire a host-side screen-time hook (session lock / unlock). Spawned detached; never blocks the tick.
+fn run_hook(kind: &str, cmd: &str) {
+    match std::process::Command::new("sh").arg("-c").arg(cmd).spawn() {
+        Ok(_) => eprintln!("guardiand: ran screen-time {kind} hook"),
+        Err(e) => eprintln!("guardiand: screen-time {kind} hook failed to start: {e}"),
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Optional first argument: path to the policy file.
@@ -121,23 +129,34 @@ async fn main() -> Result<()> {
                     }
                 });
             }
+            let tick_secs = s.tick_secs.max(1);
+            let lock_cmd = s.lock_command.clone();
+            let unlock_cmd = s.unlock_command.clone();
             let e = Arc::clone(&eng);
             let aud = audit.clone();
             tokio::spawn(async move {
                 let mut last_blocked = false;
-                let mut tick = tokio::time::interval(std::time::Duration::from_secs(30));
+                let mut tick = tokio::time::interval(std::time::Duration::from_secs(tick_secs));
                 loop {
                     tick.tick().await;
                     let (day, minute) = guardian::schedule::local_day_minute();
                     // active=true is a stub until the logind idle hook lands (host-side).
-                    let st = e.lock().unwrap().on_tick(day, minute, true, 30);
+                    let st = e.lock().unwrap().on_tick(day, minute, true, tick_secs);
                     let blocked = !matches!(st, guardian::schedule::Status::Allowed { .. });
                     if blocked && !last_blocked {
                         let reason = format!("{st:?}");
                         if let Some(a) = &aud {
                             a.record(AuditEvent::ScheduleBlocked { reason: reason.clone() });
                         }
-                        eprintln!("guardiand: screen-time blocking ({reason}) — invoke the lock hook (host-side)");
+                        eprintln!("guardiand: screen-time BLOCKING ({reason})");
+                        if let Some(c) = &lock_cmd {
+                            run_hook("lock", c);
+                        }
+                    } else if !blocked && last_blocked {
+                        eprintln!("guardiand: screen-time UNBLOCKED");
+                        if let Some(c) = &unlock_cmd {
+                            run_hook("unlock", c);
+                        }
                     }
                     last_blocked = blocked;
                 }

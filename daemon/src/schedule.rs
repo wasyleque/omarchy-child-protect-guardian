@@ -34,6 +34,19 @@ pub struct Schedule {
     /// Allowed window end, minutes from local midnight (e.g. 20*60+30 = 1230). `None` = no upper bound.
     #[serde(default)]
     pub window_end_min: Option<u32>,
+    /// Shell command the daemon runs when the session transitions to BLOCKED (host-side lock hook).
+    #[serde(default)]
+    pub lock_command: Option<String>,
+    /// Shell command run when the session transitions back to ALLOWED (e.g. after a grant).
+    #[serde(default)]
+    pub unlock_command: Option<String>,
+    /// How often (seconds) the daemon ticks usage/status. Default 30.
+    #[serde(default = "default_tick_secs")]
+    pub tick_secs: u64,
+}
+
+fn default_tick_secs() -> u64 {
+    30
 }
 
 /// What the enforcer should do right now.
@@ -133,7 +146,15 @@ mod tests {
     use super::*;
 
     fn sched(enabled: bool, budget: Option<u32>, start: Option<u32>, end: Option<u32>) -> Schedule {
-        Schedule { enabled, daily_budget_minutes: budget, window_start_min: start, window_end_min: end }
+        Schedule {
+            enabled,
+            daily_budget_minutes: budget,
+            window_start_min: start,
+            window_end_min: end,
+            lock_command: None,
+            unlock_command: None,
+            tick_secs: 30,
+        }
     }
 
     #[test]

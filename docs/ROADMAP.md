@@ -89,9 +89,11 @@ Installer-gating alone is not enough; enforcement must be default-deny at execut
 - [~] **Screen-time schedule**: engine (`daemon/src/schedule.rs`, 6 tests) + **daemon wiring DONE** —
   local-time tick loop (libc), `guardian-ctl schedule` status, and **`grant_time` over the signed ntfy
   channel** (parent grants +X min from the phone; Ed25519-verified, nonce anti-replay; verified e2e:
-  99→129 min, replay rejected, audited). TODO (host-side): idle detection + the actual session lock
-  (`loginctl lock-session` / `systemctl freeze user-<uid>.slice`) — the daemon currently logs/audits the
-  block transition and calls for the lock hook. `active=true` is a stub until the logind idle hook lands.
+  99→129 min, replay rejected, audited). **Lock-hook mechanism DONE**: on block/unblock transitions the daemon runs configurable
+  `lock_command`/`unlock_command` (verified e2e with touch/rm + a signed grant unblocking); example
+  `packaging/schedule/guardian-lock.sh`/`guardian-unlock.sh` do `loginctl lock-sessions` +
+  `systemctl freeze/thaw user-<uid>.slice`. TODO (host-side, live Hyprland): confirm the real lock/freeze
+  + logind idle detection (`active=true` is still a stub).
 - [~] **DNS filter + SafeSearch**: **config shipped** in `packaging/dns/` — dnsmasq on `:5353`
   (upstream 1.1.1.3 Families), SafeSearch `address=` map (Google/YouTube/Bing/DuckDuckGo, v4+v6),
   per-uid nftables `:53→:5353` redirect (validated), StevenBlack blocklist updater + daily timer,

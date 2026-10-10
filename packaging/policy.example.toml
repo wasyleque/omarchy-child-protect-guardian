@@ -51,3 +51,7 @@ default_on_timeout = "deny"
 #daily_budget_minutes = 120        # 2 h/day; omit for unlimited (a window may still apply)
 #window_start_min = 420            # 07:00
 #window_end_min = 1230             # 20:30
+# Host-side lock/unlock hooks run on block/unblock transitions (see packaging/schedule/README.md):
+#lock_command   = "GUARDIAN_CHILD=kid /usr/lib/guardian/guardian-lock"
+#unlock_command = "GUARDIAN_CHILD=kid /usr/lib/guardian/guardian-unlock"
+#tick_secs = 30                    # lower only for testing
