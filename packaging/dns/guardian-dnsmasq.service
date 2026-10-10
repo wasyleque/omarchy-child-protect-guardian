@@ -1,0 +1,14 @@
+[Unit]
+Description=Omarchy Child Protect Guardian — filtering DNS resolver (dnsmasq on :5353)
+Documentation=https://github.com/wasyleque/omarchy-child-protect-guardian
+After=network.target
+
+[Service]
+# Dedicated dnsmasq instance for the child; does not touch the system resolver.
+ExecStart=/usr/bin/dnsmasq -k --conf-file=/etc/dnsmasq-guardian.conf
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

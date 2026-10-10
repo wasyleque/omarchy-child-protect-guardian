@@ -90,9 +90,10 @@ Installer-gating alone is not enough; enforcement must be default-deny at execut
   parent-granted extra, day rollover, idle-aware — DONE & unit-tested (6 tests). TODO: daemon tick
   loop feeding local day/minute, `grant_time` over the signed channel, and Wayland enforcement
   (logind idle + `loginctl lock-session`/`systemctl freeze user-<uid>.slice`).
-- [ ] **DNS filter + SafeSearch**: run `dnsmasq` on `:5353` (upstream 1.1.1.3), per-uid nftables
-  redirect of the child's `:53`; guardiand generates the StevenBlack blocklist `hosts` + a SafeSearch
-  `address=` map (Google/YouTube/Bing/DuckDuckGo) and reloads on update. (Config-gen = Ollama task.)
+- [~] **DNS filter + SafeSearch**: **config shipped** in `packaging/dns/` — dnsmasq on `:5353`
+  (upstream 1.1.1.3 Families), SafeSearch `address=` map (Google/YouTube/Bing/DuckDuckGo, v4+v6),
+  per-uid nftables `:53→:5353` redirect (validated), StevenBlack blocklist updater + daily timer,
+  systemd units, README with `dig` tests. Deploy + live-resolve test on host (no dnsmasq/dig in sandbox).
 - [ ] **Wayland enforcer**: the screen-time slice above, live on Hyprland.
 
 ## Stage 6 — Polish & release

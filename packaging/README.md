@@ -87,6 +87,10 @@ sudo install -Dm644 network/firefox-policies.json /etc/firefox/policies/policies
 sudo install -Dm644 network/chromium-dns-policy.json /etc/chromium/policies/managed/guardian-dns.json
 ```
 
+## 3c. Filtering DNS + SafeSearch
+A dnsmasq instance on `:5353` filters the child's DNS (category blocklist + SafeSearch), with the
+child's `:53` redirected to it. Full steps in [`dns/README.md`](dns/README.md).
+
 ## 4. Execution allowlist (fapolicyd) — the big one
 See [`fapolicyd/README.md`](fapolicyd/README.md). Seed trust from pacman, run **permissive** until the
 log is clean, only then enforce. Rollback: `sudo systemctl stop fapolicyd`. Also install the

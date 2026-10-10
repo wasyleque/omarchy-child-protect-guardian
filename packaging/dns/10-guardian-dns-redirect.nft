@@ -1,0 +1,27 @@
+#!/usr/sbin/nft -f
+#
+# Redirect the CHILD's DNS (:53) to the local filtering dnsmasq on :5353, so it cannot bypass the
+# category blocklist / SafeSearch by querying another resolver directly. root/parent keep their
+# normal resolver (the rules match only the child's uid). Pairs with ../nftables/guardian-egress.nft
+# (which already blocks DoT/DoH/UDP-VPN escapes). nat chains require ip/ip6 families (not inet).
+#
+# Test:  sudo nft -f 10-guardian-dns-redirect.nft ; dig @8.8.8.8 example.com   (as the child → answered by :5353)
+# Roll back:  sudo nft delete table ip guardian_dns ; sudo nft delete table ip6 guardian_dns
+
+define CHILD_UID = 1001
+
+table ip guardian_dns {
+    chain dns_out {
+        type nat hook output priority -100; policy accept;
+        meta skuid $CHILD_UID udp dport 53 redirect to :5353
+        meta skuid $CHILD_UID tcp dport 53 redirect to :5353
+    }
+}
+
+table ip6 guardian_dns {
+    chain dns_out {
+        type nat hook output priority -100; policy accept;
+        meta skuid $CHILD_UID udp dport 53 redirect to :5353
+        meta skuid $CHILD_UID tcp dport 53 redirect to :5353
+    }
+}

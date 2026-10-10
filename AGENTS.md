@@ -135,10 +135,16 @@ Reviewer verdict: do NOT use that commit as a child's sole protection. All 7 fin
   retains mirrored entries + alarms on heartbeat gap; SNI/DPI for 443 tunnels.
 - PRODUCT FEATURES (design via agy, order: schedule → DNS/SafeSearch → Wayland enforcer):
   **schedule engine DONE** (daemon/src/schedule.rs: window + daily budget + grant + day rollover +
-  idle-aware; 6 unit tests; config `[schedule]`, not yet enforced). NEXT: DNS filter + SafeSearch =
-  dnsmasq on :5353 + per-uid nftables redirect + guardiand generates StevenBlack blocklist + SafeSearch
-  address-map (config-gen → Ollama micro-task); then Wayland enforcer (logind idle + loginctl lock /
-  systemctl freeze user-<uid>.slice) + grant_time over the signed channel. 18 unit tests total.
+  idle-aware; 6 unit tests; config `[schedule]`, not yet enforced).
+- **DNS filter + SafeSearch config SHIPPED** in packaging/dns/: dnsmasq-guardian.conf (:5353, upstream
+  1.1.1.3), safesearch.conf (exact IPs from agy, v4+v6, only search hosts), 10-guardian-dns-redirect.nft
+  (per-uid :53→:5353, ip+ip6, validated via unshare — note: chain can't be named `redirect`, nft keyword),
+  guardian-blocklist-update.sh (StevenBlack, validated+atomic+HUP; logic-tested via file://), systemd
+  dnsmasq+updater+timer, README with dig tests. (Ollama was asked for the update script but refused —
+  returned prose describing the blocklist instead of code — so I wrote it; lesson: adult-content-adjacent
+  prompts derail the local model.) No dnsmasq/dig in sandbox → live resolve test is on-host.
+- NEXT: Wayland enforcer (logind idle + loginctl lock / systemctl freeze user-<uid>.slice) + grant_time
+  over the signed channel; SNI/DPI for 443. 18 unit tests total.
 
 ## Workflow routing (this machine)
 - **Logic / architecture / integrations →** `agy`.
