@@ -157,13 +157,30 @@ function connect(){
   es = new EventSource(`${server}/${encodeURIComponent(topic)}/sse`);
   es.onopen = () => setStatus("on","connected");
   es.onerror = () => setStatus("err","reconnecting…");   // EventSource retries automatically
-  es.onmessage = (e) => {
+  es.onmessage = async (e) => {
     let ev; try { ev = JSON.parse(e.data); } catch { return; }
     if (ev.event && ev.event !== "message") return;        // ignore open/keepalive
     if (!ev.message) return;
     let req; try { req = JSON.parse(ev.message); } catch { return; }
-    if (req && req.id && req.nonce && req.respond_to) addRequest(req);
+    if (!(req && req.id && req.nonce && req.respond_to)) return;
+    // If paired with the daemon's public key, show ONLY challenges it actually signed (reject fakes).
+    const dpub = localStorage.getItem("ocpg.dpub");
+    if (dpub) {
+      const ok = await verifyChallenge(req, dpub);
+      if (!ok) { console.warn("Guardian: rejected an unsigned/forged challenge", req.id); return; }
+    }
+    addRequest(req);
   };
+}
+
+const CHALLENGE_DOMAIN = "OCPG-CH-v1";
+function u8FromB64(s){ const bin = atob(s); const u = new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return u; }
+async function verifyChallenge(req, dpubB64){
+  try{
+    if(!req.csig) return false;
+    const msg = te.encode(`${CHALLENGE_DOMAIN}|${req.id}|${req.source||""}|${req.package||""}|${req.nonce}`);
+    return await ed.verifyAsync(u8FromB64(req.csig), msg, u8FromB64(dpubB64));
+  }catch{ return false; }
 }
 
 // --- request cards ---
@@ -223,6 +240,7 @@ $("copyPub").onclick = async () => { try{ await navigator.clipboard.writeText(pu
       const data = JSON.parse(fromB64url(location.hash.slice(6)));
       if(data.server) localStorage.setItem("ocpg.server", data.server);
       if(data.topic)  localStorage.setItem("ocpg.topic", data.topic);
+      if(data.dpub)   localStorage.setItem("ocpg.dpub", data.dpub);   // daemon pubkey → verify challenges
       // don't leave the topic sitting in the URL / history
       history.replaceState(null, "", location.pathname + location.search);
       paired = true;

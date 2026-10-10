@@ -124,7 +124,12 @@ Reviewer verdict: do NOT use that commit as a child's sole protection. All 7 fin
 - STILL NEEDS ON-HOST VERIFY (sandbox can't): real pacman AbortOnFail, fapolicyd enforce, systemd unit start. 12 unit tests green.
 
 ## Open decisions (need user)
-- (none blocking) — on-host test (user) will confirm #1/#2/#6; then SNI/DPI, keyed/off-box audit, daemon-signed challenge.
+- (none blocking) — on-host test (user) will confirm #1/#2/#6.
+- POST-REVIEW: **daemon-signed challenge DONE** (closes #4 residual): daemon has its own Ed25519 key
+  (crypto::load_or_create_daemon_key, config daemon_key_path=/etc/guardian/daemon.key, writes daemon.pub),
+  signs each challenge (OCPG-CH-v1, `csig`); pairing QR carries `dpub`; PWA verifies & shows only genuine
+  cards. Verified e2e (noble verifies genuine=true, swapped=false). Remaining: SNI/DPI for 443 tunnels;
+  keyed/off-box audit durability.
 
 ## Workflow routing (this machine)
 - **Logic / architecture / integrations →** `agy`.

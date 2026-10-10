@@ -55,11 +55,19 @@ async fn main() -> Result<()> {
         }
     };
 
+    // Daemon identity key (signs published challenges so the app can reject fake cards).
+    let daemon_key = guardian::crypto::load_or_create_daemon_key(&policy.daemon_key_path)?;
+    let daemon_pub = guardian::crypto::pubkey_b64(&daemon_key);
+    eprintln!("guardiand: daemon public key (pair into the app) = {daemon_pub}");
+    if let Some(parent) = policy.daemon_key_path.parent() {
+        let _ = std::fs::write(parent.join("daemon.pub"), format!("{daemon_pub}\n"));
+    }
+
     let queue = Arc::new(Queue::new());
 
     // Set up remote push-approval if configured and enabled.
     let ntfy = match &policy.ntfy {
-        Some(cfg) if cfg.enabled => match Ntfy::new(cfg.clone()) {
+        Some(cfg) if cfg.enabled => match Ntfy::new(cfg.clone(), daemon_key.clone()) {
             Ok(ntfy) => {
                 tokio::spawn(Arc::clone(&ntfy).subscribe_loop(Arc::clone(&queue)));
                 tokio::spawn(Arc::clone(&ntfy).alert_worker());

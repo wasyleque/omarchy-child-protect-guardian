@@ -56,7 +56,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(t) => t,
             None => { eprintln!("Usage: guardian-ctl pair --topic <request_topic> [--server <url>] [--app <url>]"); exit(2); }
         };
-        let payload = serde_json::json!({"server": server, "topic": topic}).to_string();
+        // Include the daemon's public key so the app can verify published challenges (reject fakes).
+        let dpub = flag("--daemon-pubkey")
+            .or_else(|| std::fs::read_to_string("/etc/guardian/daemon.pub").ok().map(|s| s.trim().to_string()))
+            .filter(|s| !s.is_empty());
+        let payload = match &dpub {
+            Some(d) => serde_json::json!({"server": server, "topic": topic, "dpub": d}).to_string(),
+            None => serde_json::json!({"server": server, "topic": topic}).to_string(),
+        };
         let enc = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(payload.as_bytes());
         let url = format!("{}#pair={}", app, enc);
         match qrcode::QrCode::new(url.as_bytes()) {

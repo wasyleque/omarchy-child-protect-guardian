@@ -163,7 +163,9 @@ can read the token and self-approve in ~50 ms — before the phone even buzzes. 
   no approval secret, nonces are one-time, and timestamps must be fresh. Verified end-to-end over
   real ntfy.sh: a legitimate signed approval succeeds; a broker decision-flip and a fabricated
   signature are both rejected → fail-closed DENY. The parent app (`parent-app/`) now holds the private
-  key and signs on-device; its signing is proven byte-compatible with the daemon.
+  key and signs on-device; its signing is proven byte-compatible with the daemon. Post-review (#4):
+  the signed decision binds **source+package** (`OCPG-v2`, daemon rejects a mismatch) and the daemon
+  **signs each challenge** (`OCPG-CH-v1`) so the app shows only genuine cards — both verified e2e.
 - **Parent alerts (L7 tamper-evidence)**: the daemon pushes a high-priority alert to the parent when a
   control attempt from an unauthorized uid is blocked, or a forged/stale approval is rejected
   (rate-limited per kind so it can't be used to flood). Verified e2e: a forged approval produced a

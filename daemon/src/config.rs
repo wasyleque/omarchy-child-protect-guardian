@@ -22,6 +22,9 @@ pub struct Policy {
     pub max_pending_per_uid: usize,
     /// Append-only, hash-chained audit log path.
     pub audit_path: PathBuf,
+    /// The daemon's own Ed25519 signing key (base64 seed), created on first run. Used to sign the
+    /// challenges it publishes so the parent app rejects fake/injected approval cards.
+    pub daemon_key_path: PathBuf,
     /// Optional remote push-approval via ntfy. Absent/`enabled = false` → local decisions only.
     pub ntfy: Option<NtfyConfig>,
 }
@@ -35,6 +38,7 @@ impl Default for Policy {
             default_on_timeout: Decision::Deny,
             max_pending_per_uid: 5,
             audit_path: PathBuf::from("/var/log/guardian/audit.log"),
+            daemon_key_path: PathBuf::from("/etc/guardian/daemon.key"),
             ntfy: None,
         }
     }

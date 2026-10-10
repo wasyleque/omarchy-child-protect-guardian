@@ -5,8 +5,12 @@
 //! the request id, the decision, the nonce and a timestamp. Even an attacker who controls the
 //! network and the broker and sees the nonce cannot forge a valid signature without the private key.
 
+use std::io::Read;
+use std::path::Path;
+
+use anyhow::{Context, Result};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
-use ed25519_dalek::{Signature, VerifyingKey};
+use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -15,6 +19,53 @@ use crate::request::{Decision, InstallSource};
 /// Domain-separation tag so a signature here can never be replayed into another protocol.
 /// v2 binds the install source + package name, so a broker can't swap what the parent approved.
 pub const DOMAIN: &str = "OCPG-v2";
+
+/// Domain tag for the daemon's signature over the *challenge* it publishes, so the parent app can
+/// reject any approval card the real daemon did not issue (fake/injected cards).
+pub const CHALLENGE_DOMAIN: &str = "OCPG-CH-v1";
+
+/// The bytes the daemon signs (and the app verifies) to authenticate a published challenge.
+pub fn challenge_message(id: &Uuid, source: InstallSource, package: &str, nonce: &str) -> String {
+    format!("{CHALLENGE_DOMAIN}|{id}|{}|{package}|{nonce}", source.as_str())
+}
+
+/// Load the daemon's Ed25519 signing key from `path` (base64 of a 32-byte seed), creating a fresh
+/// one (0600) on first run. The matching public key is what the parent app pairs to verify challenges.
+pub fn load_or_create_daemon_key(path: &Path) -> Result<SigningKey> {
+    if let Ok(contents) = std::fs::read_to_string(path) {
+        let seed: [u8; 32] = STANDARD
+            .decode(contents.trim())
+            .context("decoding daemon key")?
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("daemon key must be 32 bytes"))?;
+        return Ok(SigningKey::from_bytes(&seed));
+    }
+    // Create a new key from the OS CSPRNG.
+    let mut seed = [0u8; 32];
+    std::fs::File::open("/dev/urandom")
+        .and_then(|mut f| f.read_exact(&mut seed))
+        .context("reading /dev/urandom for daemon key")?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).ok();
+    }
+    std::fs::write(path, STANDARD.encode(seed)).with_context(|| format!("writing daemon key {}", path.display()))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+    }
+    Ok(SigningKey::from_bytes(&seed))
+}
+
+/// base64 of a signing key's public half (for pairing / logging).
+pub fn pubkey_b64(key: &SigningKey) -> String {
+    STANDARD.encode(key.verifying_key().to_bytes())
+}
+
+/// Sign an arbitrary message with the daemon key; returns base64 of the 64-byte signature.
+pub fn sign_b64(key: &SigningKey, msg: &str) -> String {
+    STANDARD.encode(key.sign(msg.as_bytes()).to_bytes())
+}
 
 /// The exact bytes both the phone and the daemon sign/verify. Unambiguous and deterministic.
 /// Binds the decision to the full displayed intent: id, decision, nonce, timestamp, source, package.

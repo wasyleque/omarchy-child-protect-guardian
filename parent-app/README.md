@@ -28,8 +28,11 @@ app's exact logic (`@noble/ed25519`, vendored in `vendor/`) verifies in the Rust
 
 - The push carries **no secret** — only the request, a package name and a one-time nonce. Approval
   power is the private key, which never leaves the device; the app only ever transmits a signature.
-- Each signature is bound to `OCPG-v1|id|decision|nonce|ts`, so it can't be edited, reused for another
-  request, or replayed (the daemon enforces one-time nonce + a fresh-timestamp window).
+- Each signature is bound to `OCPG-v2|id|decision|nonce|ts|source|package`, so the decision can't be
+  edited, reused for another request, or have its app swapped (the daemon rejects a mismatch), and
+  can't be replayed (one-time nonce + fresh-timestamp window).
+- The daemon **signs every challenge** with its own key; the app has the daemon's public key (from the
+  pairing QR) and shows **only** challenges the real daemon issued, rejecting fake/injected cards.
 - The library is **vendored locally** (no runtime CDN) → no supply-chain or offline gap. The app works
   offline except for the live ntfy stream/post.
 

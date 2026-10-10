@@ -14,6 +14,11 @@ max_pending_per_uid = 5
 # `guardian-ctl audit-verify <path>`. On the host, `chattr +i` it / ship it off-box for durability.
 audit_path = "/var/log/guardian/audit.log"
 
+# The daemon's own Ed25519 signing key (base64 seed), created on first run (0600). It signs every
+# challenge it pushes, so the parent app rejects fake/injected approval cards. Its public key is
+# written next to it as daemon.pub and carried into the pairing QR.
+daemon_key_path = "/etc/guardian/daemon.key"
+
 # How long a held install request waits for a parent's decision (seconds)
 # before the fallback below is applied.
 decision_timeout_secs = 300

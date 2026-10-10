@@ -16,7 +16,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context, Result};
-use ed25519_dalek::VerifyingKey;
+use ed25519_dalek::{SigningKey, VerifyingKey};
 use serde::Deserialize;
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -55,6 +55,8 @@ pub struct Ntfy {
     /// Random, per-daemon-run topic the parent's response is POSTed to.
     response_topic: String,
     mode: Mode,
+    /// The daemon's own key — used to sign each published challenge so the app can reject fake cards.
+    daemon_key: SigningKey,
     pending: Mutex<HashMap<Uuid, PendingAuth>>,
     /// Fire-and-forget tamper/security alerts to the parent: (dedupe-key, title, body).
     alert_tx: mpsc::UnboundedSender<(String, String, String)>,
@@ -90,7 +92,7 @@ fn random_hex() -> String {
 impl Ntfy {
     /// Build the ntfy handle. Returns an error (so the caller can run without ntfy) if a
     /// `parent_pubkey` is configured but cannot be parsed — we never silently downgrade.
-    pub fn new(cfg: NtfyConfig) -> Result<Arc<Self>> {
+    pub fn new(cfg: NtfyConfig, daemon_key: SigningKey) -> Result<Arc<Self>> {
         let mode = match cfg.parent_pubkey.as_deref() {
             Some(pk) => {
                 let vk = crypto::parse_pubkey(pk)
@@ -125,6 +127,7 @@ impl Ntfy {
             client,
             response_topic: format!("guardian-resp-{}", random_hex()),
             mode,
+            daemon_key,
             pending: Mutex::new(HashMap::new()),
             alert_tx,
             alert_rx: Mutex::new(Some(alert_rx)),
@@ -233,6 +236,11 @@ impl Ntfy {
     /// app reads this, signs, and POSTs the signed decision to the response topic.
     async fn publish_challenge(&self, req: &InstallRequest, nonce: &str) -> Result<()> {
         // Machine-readable payload for the parent app to consume and sign.
+        // Sign the challenge so the app can reject any card the real daemon did not issue.
+        let csig = crypto::sign_b64(
+            &self.daemon_key,
+            &crypto::challenge_message(&req.id, req.source, &req.package, nonce),
+        );
         let data = serde_json::json!({
             "id": req.id,
             "source": req.source,
@@ -240,6 +248,7 @@ impl Ntfy {
             "nonce": nonce,
             "reason": req.reason,
             "respond_to": format!("{}/{}", self.base(), self.response_topic),
+            "csig": csig,
         })
         .to_string();
         let payload = serde_json::json!({
