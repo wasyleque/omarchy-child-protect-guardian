@@ -45,7 +45,7 @@ fi
 
 if [ "$is_install" = 1 ]; then
   [ -n "$label" ] || label="(unspecified)"
-  decision="$(guardian-ctl request nix "nix: $label" 2>/dev/null)"
+  decision="$(/usr/bin/guardian-ctl request nix "nix: $label" 2>/dev/null)"
   if [ "$decision" != "ALLOW" ]; then
     echo "guardian: nix install of '$label' was not approved - aborting." >&2
     exit 1

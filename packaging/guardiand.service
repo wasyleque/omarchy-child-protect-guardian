@@ -9,8 +9,13 @@ ExecStart=/usr/bin/guardiand /etc/guardian/policy.toml
 Restart=always
 RestartSec=2
 User=root
+# /run/guardian must be traversable by the child so it can reach submit.sock (0666). The control
+# socket stays 0660 + SO_PEERCRED, so decisions remain root-only regardless of directory mode.
 RuntimeDirectory=guardian
-RuntimeDirectoryMode=0750
+RuntimeDirectoryMode=0755
+# /var/log/guardian, writable under ProtectSystem=strict, so the audit log can actually be written.
+LogsDirectory=guardian
+LogsDirectoryMode=0750
 
 ProtectHome=read-only
 ProtectSystem=strict

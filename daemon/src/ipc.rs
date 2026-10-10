@@ -18,9 +18,15 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
+use tokio::sync::Semaphore;
 use uuid::Uuid;
+
+/// Hard caps so a local process can't exhaust the daemon (review finding #7).
+const MAX_CONNECTIONS: usize = 64; // concurrent in-flight connections across both sockets
+const MAX_MSG_BYTES: u64 = 64 * 1024; // bytes a single connection may feed before EOF
+const READ_TIMEOUT: Duration = Duration::from_secs(30); // max wait for the next request line
 
 use crate::audit::{Audit, AuditEvent};
 use crate::queue::Queue;
@@ -93,13 +99,14 @@ impl Server {
             control_path.display(),
             submit_path.display()
         );
+        let conns = Arc::new(Semaphore::new(MAX_CONNECTIONS));
         tokio::select! {
-            r = Arc::clone(&self).accept_loop(control, true) => r,
-            r = Arc::clone(&self).accept_loop(submit, false) => r,
+            r = Arc::clone(&self).accept_loop(control, true, Arc::clone(&conns)) => r,
+            r = Arc::clone(&self).accept_loop(submit, false, Arc::clone(&conns)) => r,
         }
     }
 
-    async fn accept_loop(self: Arc<Self>, listener: UnixListener, is_control: bool) -> Result<()> {
+    async fn accept_loop(self: Arc<Self>, listener: UnixListener, is_control: bool, conns: Arc<Semaphore>) -> Result<()> {
         loop {
             let (stream, _addr) = listener.accept().await.context("accepting a connection")?;
             let uid = stream.peer_cred().ok().map(|c| c.uid());
@@ -127,20 +134,39 @@ impl Server {
                 }
             }
             let uid = uid.unwrap_or(u32::MAX);
+            // Cap concurrent connections; if we're at the limit, drop this one rather than pile up.
+            let permit = match Arc::clone(&conns).try_acquire_owned() {
+                Ok(p) => p,
+                Err(_) => {
+                    eprintln!("guardiand: connection limit reached — dropping a connection");
+                    continue;
+                }
+            };
             let server = Arc::clone(&self);
             tokio::spawn(async move {
                 if let Err(e) = server.handle(stream, is_control, uid).await {
                     eprintln!("guardiand: connection error: {e:#}");
                 }
+                drop(permit);
             });
         }
     }
 
     async fn handle(&self, stream: UnixStream, is_control: bool, uid: u32) -> Result<()> {
         let (read_half, mut write_half) = stream.into_split();
-        let mut lines = BufReader::new(read_half).lines();
+        // Bound total bytes a connection may feed, so a never-terminated line can't exhaust memory.
+        let mut lines = BufReader::new(read_half.take(MAX_MSG_BYTES)).lines();
 
-        while let Some(line) = lines.next_line().await? {
+        loop {
+            // Bound how long we wait for each request line.
+            let next = match tokio::time::timeout(READ_TIMEOUT, lines.next_line()).await {
+                Ok(r) => r?,
+                Err(_) => break, // read timed out
+            };
+            let line = match next {
+                Some(l) => l,
+                None => break,
+            };
             let line = line.trim();
             if line.is_empty() {
                 continue;

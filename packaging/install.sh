@@ -26,7 +26,8 @@ install -Dm755 "$BIN/guardian-sign" /usr/bin/guardian-sign
 install -Dm755 "$BIN/guardian-hook" /usr/lib/guardian/guardian-hook
 
 echo "==> policy + unit"
-[ -f /etc/guardian/policy.toml ] || install -Dm644 "$HERE/policy.example.toml" /etc/guardian/policy.toml
+[ -f /etc/guardian/policy.toml ] || install -Dm600 "$HERE/policy.example.toml" /etc/guardian/policy.toml
+chmod 600 /etc/guardian/policy.toml   # may hold the (secret) ntfy request_topic; root-only
 install -Dm644 "$HERE/guardiand.service" /etc/systemd/system/guardiand.service
 systemctl daemon-reload
 systemctl enable --now guardiand

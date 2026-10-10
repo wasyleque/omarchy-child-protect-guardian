@@ -14,7 +14,8 @@ set -u
 BACKUP=/usr/lib/guardian/backup
 AUDIT=/var/log/guardian/audit.log   # keep in sync with policy.toml audit_path
 
-alert() { guardian-ctl alert "$1" 2>/dev/null || logger -t guardian-watchdog -- "$1"; }
+CTL=/usr/bin/guardian-ctl
+alert() { "$CTL" alert "$1" 2>/dev/null || logger -t guardian-watchdog -- "$1"; }
 
 # target path -> backup filename
 check_file() {
@@ -40,7 +41,9 @@ if ! systemctl is-active --quiet guardiand; then
   alert "Integrity: guardiand was not running; restarted it."
 fi
 
-if [ -f "$AUDIT" ] && ! guardian-ctl audit-verify "$AUDIT" >/dev/null 2>&1; then
+if [ ! -f "$AUDIT" ]; then
+  alert "Integrity: audit log is MISSING (possible tampering/deletion)."
+elif ! "$CTL" audit-verify "$AUDIT" >/dev/null 2>&1; then
   alert "Integrity: audit log failed chain verification (possible tampering)."
 fi
 

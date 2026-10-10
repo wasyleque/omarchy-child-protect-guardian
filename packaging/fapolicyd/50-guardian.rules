@@ -1,31 +1,28 @@
 # Omarchy Child Protect Guardian — execution allowlist for the child (Threat model §4 L2).
 # Drop into /etc/fapolicyd/rules.d/50-guardian.rules then: sudo fapolicyd-cli --update && sudo systemctl restart fapolicyd
 #
-# PURPOSE: the pacman hook only guards *installs*. This stops the far more common bypass — the child
-# downloading an AppImage / static ELF / portable app and just running it from $HOME, /tmp or a USB
-# stick. Only files fapolicyd TRUSTS (see ../fapolicyd/README.md for seeding trust from pacman) may be
-# executed by the child; everything else is denied.
+# PURPOSE: stop the child running a downloaded AppImage / static ELF / portable binary from $HOME,
+# /tmp or a USB stick. Only files fapolicyd TRUSTS (seeded from pacman-owned files + guardian-approved
+# installs — see README.md) may be executed by the child.
+#
+# Rule grammar is `decision perm subject : object`. Trust must be asserted on the OBJECT (the file
+# being executed), NOT on the subject (the calling process) — a trusted shell launching an untrusted
+# binary must still be denied. First match wins, top to bottom.
 #
 # !!! DANGER: fapolicyd in enforcing mode can lock the machine out of running programs. ALWAYS test in
-# permissive mode first (README) and keep a root shell open. Rules are first-match-wins, top to bottom.
+# permissive mode first (README) and keep a root shell open. Replace 1001 with `id -u <child>`.
 
-# ---- EDIT: the child account's uid ----
-# (fapolicyd rules don't take a `define`; replace 1001 below with `id -u <child>`.)
-
-# 1) Root is unrestricted (so updates, guardiand, recovery all work).
+# 1) Root is unrestricted (updates, guardiand, recovery).
 allow perm=any uid=0 : all
 
-# 2) Anyone may execute files in the trust database (seeded from pacman-owned files + guardian-approved
-#    installs). This is the allowlist.
-allow perm=execute trust=1 : all
+# 2) The child may execute a file ONLY if that file (the object) is trusted. Untrusted object → deny.
+#    This also stops the loader-laundering trick: `ld-linux.so <untrusted-elf>` opens the untrusted
+#    object for execute, which this rule denies.
+deny_audit perm=execute uid=1001 : all trust=0
+allow      perm=execute uid=1001 : all trust=1
 
-# 3) Block the dynamic-loader laundering trick (`/lib/ld-linux.so <untrusted-binary>`): the loader is
-#    trusted, but refuse it an untrusted ELF argument.
-deny_audit perm=execute trust=1 : ftype=application/x-executable trust=0
+# 3) Deny the child opening untrusted ELF shared libraries for execution-mapping (defence in depth).
+deny_audit perm=open uid=1001 : all ftype=application/x-sharedlib trust=0
 
-# 4) The child may NOT execute anything untrusted — AppImages, downloaded ELF, scripts' interpreters
-#    pointed at untrusted files, binaries in /tmp, $HOME or removable media.
-deny_audit perm=execute uid=1001 : all
-
-# 5) Everyone else: allow for now (tighten per-account later).
+# 4) Everyone else: allow for now (tighten per-account later).
 allow perm=any all : all

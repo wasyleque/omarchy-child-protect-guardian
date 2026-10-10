@@ -17,3 +17,4 @@ Description = Omarchy Child Protect Guardian: waiting for parent approval...
 When = PreTransaction
 Exec = /usr/lib/guardian/guardian-hook
 NeedsTargets
+AbortOnFail

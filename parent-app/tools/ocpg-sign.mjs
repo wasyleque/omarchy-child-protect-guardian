@@ -7,10 +7,10 @@ import * as ed from "../vendor/noble-ed25519.js";
 
 const b64 = (u8) => Buffer.from(u8).toString("base64");
 const unb64 = (s) => new Uint8Array(Buffer.from(s, "base64"));
-const DOMAIN = "OCPG-v1";
+const DOMAIN = "OCPG-v2";
 
-function canonical(id, decision, nonce, ts) {
-  return `${DOMAIN}|${id}|${decision}|${nonce}|${ts}`;
+function canonical(id, decision, nonce, ts, source, pkg) {
+  return `${DOMAIN}|${id}|${decision}|${nonce}|${ts}|${source}|${pkg}`;
 }
 function flag(args, name) {
   const i = args.indexOf(name);
@@ -30,12 +30,15 @@ if (cmd === "keygen") {
   const id = flag(args, "--id");
   const decision = flag(args, "--decision");
   const nonce = flag(args, "--nonce");
+  const source = flag(args, "--source");
+  const pkg = flag(args, "--package");
   const ts = Number(flag(args, "--ts") ?? Math.floor(Date.now() / 1000));
   if (!["allow", "deny"].includes(decision)) throw new Error("decision must be allow|deny");
-  const msg = new TextEncoder().encode(canonical(id, decision, nonce, ts));
+  if (!source || !pkg) throw new Error("--source and --package are required");
+  const msg = new TextEncoder().encode(canonical(id, decision, nonce, ts, source, pkg));
   const sig = await ed.signAsync(msg, seed);
-  console.log(JSON.stringify({ id, decision, nonce, ts, sig: b64(sig) }));
+  console.log(JSON.stringify({ id, decision, nonce, ts, source, package: pkg, sig: b64(sig) }));
 } else {
-  console.error("usage: keygen | sign --privkey <b64> --id <uuid> --decision allow|deny --nonce <hex> [--ts <unix>]");
+  console.error("usage: keygen | sign --privkey <b64> --id <uuid> --decision allow|deny --nonce <hex> --source <src> --package <name> [--ts <unix>]");
   process.exit(2);
 }

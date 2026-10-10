@@ -14,7 +14,7 @@ use ed25519_dalek::{Signer, SigningKey};
 use uuid::Uuid;
 
 use guardian::crypto::canonical_message;
-use guardian::request::Decision;
+use guardian::request::{Decision, InstallSource};
 
 fn urandom_seed() -> [u8; 32] {
     let mut f = std::fs::File::open("/dev/urandom").expect("open /dev/urandom");
@@ -46,6 +46,11 @@ fn main() {
                 .parse()
                 .expect("invalid --decision");
             let nonce = flag(&args, "--nonce").expect("--nonce <hex> required");
+            let source: InstallSource = flag(&args, "--source")
+                .expect("--source <pacman|flatpak|aur|snap|nix> required")
+                .parse()
+                .expect("invalid --source");
+            let package = flag(&args, "--package").expect("--package <name> required");
             let ts = flag(&args, "--ts")
                 .and_then(|v| v.parse::<u64>().ok())
                 .unwrap_or_else(|| SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs());
@@ -57,7 +62,7 @@ fn main() {
                 .expect("privkey must be 32 bytes");
             let sk = SigningKey::from_bytes(&seed);
 
-            let msg = canonical_message(&id, decision, &nonce, ts);
+            let msg = canonical_message(&id, decision, &nonce, ts, source, &package);
             let sig = sk.sign(msg.as_bytes());
 
             let d = match decision {
@@ -69,6 +74,8 @@ fn main() {
                 "decision": d,
                 "nonce": nonce,
                 "ts": ts,
+                "source": source.as_str(),
+                "package": package,
                 "sig": STANDARD.encode(sig.to_bytes()),
             });
             // Print the exact JSON the parent app POSTs to the response topic.
@@ -77,7 +84,7 @@ fn main() {
         _ => {
             eprintln!("usage:");
             eprintln!("  guardian-sign keygen");
-            eprintln!("  guardian-sign sign --privkey <b64> --id <uuid> --decision allow|deny --nonce <hex> [--ts <unix>]");
+            eprintln!("  guardian-sign sign --privkey <b64> --id <uuid> --decision allow|deny --nonce <hex> --source <src> --package <name> [--ts <unix>]");
             std::process::exit(2);
         }
     }

@@ -107,8 +107,24 @@
 - P1/P2 remaining: deploy+tune on a real host (user, tomorrow); account/session hardening polish; iOS
   background push; conda/other wrappers; AUR-scriptlet/Intent-Binding; one-scan pubkey return (manual paste).
 
+## External security review (2026-10-09, commit bdd62cf) — see docs/REVIEW-RESPONSE.md
+Reviewer verdict: do NOT use that commit as a child's sole protection. All 7 findings addressed:
+- #1 CRITICAL hooks lacked `AbortOnFail` (denials didn't abort pacman) → FIXED (added; needs on-host pacman verify).
+- #2 fapolicyd checked SUBJECT trust not OBJECT → FIXED (rewrote rules; needs on-host permissive validation).
+- #3 token mode silent-default + secret in broker + policy 0644 → FIXED (token now opt-in `allow_insecure_token`,
+  else remote disabled; installer policy 0600).
+- #4 signature didn't bind package/source (broker could swap the card) → FIXED (OCPG-v2 binds source+package;
+  daemon rejects mismatch; verified e2e). Residual: challenge itself not yet daemon-signed.
+- #5 guardian-ctl honored socket env in release; wrappers used PATH → FIXED (release ignores env; absolute
+  /usr/bin/guardian-ctl; verified release-ignores vs debug-honors).
+- #6 ProtectSystem blocked audit; /run 0750 blocked child submit → FIXED (LogsDirectory + RuntimeDirectoryMode 0755).
+- #7 unbounded conns/line/read/stream → FIXED (64-conn semaphore, 64KiB take, 30s read timeout, 1MiB stream cap).
+- Audit: added `.head` truncation anchor + watchdog alerts on MISSING log; still tamper-evident not -proof vs root.
+- README now marks status = experimental prototype; content/DNS filter, SafeSearch, screen-time = PLANNED not built.
+- STILL NEEDS ON-HOST VERIFY (sandbox can't): real pacman AbortOnFail, fapolicyd enforce, systemd unit start. 12 unit tests green.
+
 ## Open decisions (need user)
-- (none blocking) — proceeding down the P1 hardening list; Ed25519 is the next big code piece.
+- (none blocking) — on-host test (user) will confirm #1/#2/#6; then SNI/DPI, keyed/off-box audit, daemon-signed challenge.
 
 ## Workflow routing (this machine)
 - **Logic / architecture / integrations →** `agy`.

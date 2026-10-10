@@ -27,7 +27,7 @@ const ALERT_COOLDOWN: Duration = Duration::from_secs(900);
 use crate::config::NtfyConfig;
 use crate::crypto::{self, SignedDecision};
 use crate::queue::Queue;
-use crate::request::{Decision, DecisionVia, InstallRequest};
+use crate::request::{Decision, DecisionVia, InstallRequest, InstallSource};
 
 /// How far a signed decision's timestamp may drift from the daemon clock (seconds).
 const MAX_TS_SKEW_SECS: u64 = 600;
@@ -40,7 +40,13 @@ enum Mode {
 /// Per-request secret awaiting a matching response.
 enum PendingAuth {
     Token(String),
-    Challenge(String),
+    /// Signed mode: the one-time nonce plus the exact source+package we asked the parent to approve,
+    /// so a broker-swapped display is caught by comparing against the signed fields.
+    Challenge {
+        nonce: String,
+        source: InstallSource,
+        package: String,
+    },
 }
 
 pub struct Ntfy {
@@ -92,9 +98,17 @@ impl Ntfy {
                 eprintln!("guardiand: ntfy running in SIGNED mode (Ed25519 parent key paired)");
                 Mode::Signed(vk)
             }
-            None => {
-                eprintln!("guardiand: ntfy running in TOKEN mode (MVP; pair an Ed25519 key for zero-trust)");
+            None if cfg.allow_insecure_token => {
+                eprintln!("guardiand: WARNING ntfy running in INSECURE TOKEN mode (allow_insecure_token=true) — \
+                           the token crosses a public broker and can be forged. Pair an Ed25519 key for real security.");
                 Mode::Token
+            }
+            None => {
+                bail!(
+                    "ntfy is enabled but no parent_pubkey is paired. Refusing the insecure token mode; \
+                     remote approval is DISABLED (local guardian-ctl still works). Pair the parent app \
+                     and set [ntfy].parent_pubkey, or set allow_insecure_token=true only for throwaway testing."
+                );
             }
         };
 
@@ -177,10 +191,14 @@ impl Ntfy {
             }
             Mode::Signed(_) => {
                 let nonce = random_hex();
-                self.pending
-                    .lock()
-                    .unwrap()
-                    .insert(req.id, PendingAuth::Challenge(nonce.clone()));
+                self.pending.lock().unwrap().insert(
+                    req.id,
+                    PendingAuth::Challenge {
+                        nonce: nonce.clone(),
+                        source: req.source,
+                        package: req.package.clone(),
+                    },
+                );
                 self.publish_challenge(req, &nonce).await
             }
         }
@@ -217,6 +235,7 @@ impl Ntfy {
         // Machine-readable payload for the parent app to consume and sign.
         let data = serde_json::json!({
             "id": req.id,
+            "source": req.source,
             "package": req.package,
             "nonce": nonce,
             "reason": req.reason,
@@ -270,9 +289,13 @@ impl Ntfy {
             .send()
             .await
             .context("connecting to ntfy stream")?;
+        const MAX_STREAM_LINE: usize = 1024 * 1024; // drop the connection if a line never terminates
         let mut buf: Vec<u8> = Vec::new();
         while let Some(chunk) = resp.chunk().await.context("reading ntfy stream")? {
             buf.extend_from_slice(&chunk);
+            if buf.len() > MAX_STREAM_LINE {
+                anyhow::bail!("ntfy stream line exceeded {MAX_STREAM_LINE} bytes");
+            }
             while let Some(pos) = buf.iter().position(|&b| b == b'\n') {
                 let line: Vec<u8> = buf.drain(..=pos).collect();
                 let line = &line[..line.len() - 1]; // without the trailing '\n'
@@ -335,17 +358,39 @@ impl Ntfy {
             Ok(p) => p,
             Err(_) => return,
         };
-        // 1) The nonce must match the one we issued for this exact request (one-time).
-        let nonce_ok = {
+        // 1) The nonce must match the one we issued for this exact request (one-time), AND the signed
+        //    source+package must equal what we actually asked the parent to approve. A broker that
+        //    swapped the displayed app would produce a signature over the swapped values → mismatch here.
+        let expected = {
             let map = self.pending.lock().unwrap();
-            matches!(map.get(&sd.id), Some(PendingAuth::Challenge(n)) if *n == sd.nonce)
+            match map.get(&sd.id) {
+                Some(PendingAuth::Challenge { nonce, source, package }) if *nonce == sd.nonce => {
+                    Some((*source, package.clone()))
+                }
+                _ => None,
+            }
         };
-        if !nonce_ok {
-            eprintln!("guardiand: ntfy rejected signed decision for {} (unknown id or stale nonce)", sd.id);
+        let (exp_source, exp_package) = match expected {
+            Some(v) => v,
+            None => {
+                eprintln!("guardiand: ntfy rejected signed decision for {} (unknown id or stale nonce)", sd.id);
+                self.alert(
+                    "approval-rejected",
+                    "Guardian: rejected approval attempt",
+                    "A signed decision referenced an unknown or stale request. Someone may be replaying or probing approvals.",
+                );
+                return;
+            }
+        };
+        if sd.source != exp_source || sd.package != exp_package {
+            eprintln!(
+                "guardiand: ntfy rejected signed decision for {} (signed {:?}/{} ≠ requested {:?}/{})",
+                sd.id, sd.source, sd.package, exp_source, exp_package
+            );
             self.alert(
-                "approval-rejected",
-                "Guardian: rejected approval attempt",
-                "A signed decision referenced an unknown or stale request. Someone may be replaying or probing approvals.",
+                "approval-mismatch",
+                "Guardian: approval did not match the request",
+                "A decision was signed for a different app than the one requested — possible tampering. Denied.",
             );
             return;
         }

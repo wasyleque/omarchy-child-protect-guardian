@@ -6,7 +6,12 @@
 > z **zdalnym zatwierdzaniem instalacji aplikacji** z telefonu rodzica — push-approval,
 > dokładnie jak potwierdzenie logowania 2FA.
 
-**Status:** 🌱 zarys koncepcji (faza 0 — zbieranie pomysłów). Patrz [`AGENTS.md`](AGENTS.md).
+**Status:** 🧪 **prototyp eksperymentalny.** Rdzeń zbudowany i przetestowany (unit/e2e), ale zewnętrzny
+audyt bezpieczeństwa (2026-10-09) wykrył błędy egzekucji (już naprawione) i realne ograniczenia.
+**Nie polegaj na tym jeszcze jako jedynej ochronie codziennego komputera dziecka.** Zobacz audyt
+[`guardian-security-review.md`](guardian-security-review.md) i naszą odpowiedź
+[`docs/REVIEW-RESPONSE.md`](docs/REVIEW-RESPONSE.md). Część filarów (filtr treści/DNS, SafeSearch,
+harmonogram czasu) jest **planowana, jeszcze niezaimplementowana** — patrz [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 Cel ambitny: ma być **wygodniejszy i skuteczniejszy** niż Microsoft Family Safety,
 Apple Screen Time, Google Family Link i Qustodio — a jednocześnie **prywatny** (żadnej
@@ -55,6 +60,7 @@ Rzeczy, których konkurencja na Windows/macOS/Android **nie może** zrobić, a m
 | [`docs/ARCHITEKTURA.md`](docs/ARCHITEKTURA.md) | Architektura: demon, punkty przechwycenia, push-approval, bezpieczeństwo |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Etapy budowy (MVP → v1), podział na małe weryfikowalne kroki |
 | [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) | Projekt „nie do obejścia": poziomy przeciwnika, każdy wektor obejścia → obrona, uczciwe granice |
+| [`docs/REVIEW-RESPONSE.md`](docs/REVIEW-RESPONSE.md) | Odpowiedź na zewnętrzny audyt bezpieczeństwa (każdy finding → poprawka/status) |
 | [`parent-app/`](parent-app/) | Wieloplatformowa apka rodzica (instalowalna PWA) — podpis Ed25519 na urządzeniu |
 | [`packaging/`](packaging/) | Wdrożenie: instalator, unit systemd, hook pacman, egress nftables, allowlista fapolicyd, audyt hardeningu |
 | [`docs/TESTING.md`](docs/TESTING.md) | Plan testów na czystym systemie (warstwa po warstwie + próby obejścia / czerwony zespół) |

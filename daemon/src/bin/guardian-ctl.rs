@@ -67,12 +67,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     
-    // `request` submits an install → goes to the SUBMIT socket (any uid). Everything else is a
-    // control action → the owner-only CONTROL socket.
-    let socket_path = if args[1] == "request" {
-        env::var("GUARDIAN_SUBMIT_SOCKET").unwrap_or_else(|_| "/run/guardian/submit.sock".to_string())
+    // `request` submits an install → the SUBMIT socket (any uid). Everything else is a control
+    // action → the owner-only CONTROL socket. SECURITY: the socket paths are FIXED in release builds;
+    // the env overrides (for the test harness) are honored only in debug, so a child can't point a
+    // wrapper's `guardian-ctl request` at a fake always-allow socket via GUARDIAN_SUBMIT_SOCKET.
+    const CONTROL_DEFAULT: &str = "/run/guardian/guardian.sock";
+    const SUBMIT_DEFAULT: &str = "/run/guardian/submit.sock";
+    let socket_path = if cfg!(debug_assertions) {
+        if args[1] == "request" {
+            env::var("GUARDIAN_SUBMIT_SOCKET").unwrap_or_else(|_| SUBMIT_DEFAULT.to_string())
+        } else {
+            env::var("GUARDIAN_SOCKET").unwrap_or_else(|_| CONTROL_DEFAULT.to_string())
+        }
+    } else if args[1] == "request" {
+        SUBMIT_DEFAULT.to_string()
     } else {
-        env::var("GUARDIAN_SOCKET").unwrap_or_else(|_| "/run/guardian/guardian.sock".to_string())
+        CONTROL_DEFAULT.to_string()
     };
 
     let mut stream = UnixStream::connect(socket_path)?;

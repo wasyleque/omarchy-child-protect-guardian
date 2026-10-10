@@ -26,7 +26,7 @@ if [ "$sub" = "install" ]; then
   done
   [ -n "$label" ] || label="(unspecified)"
 
-  decision="$(guardian-ctl request flatpak "flatpak: $label" 2>/dev/null)"
+  decision="$(/usr/bin/guardian-ctl request flatpak "flatpak: $label" 2>/dev/null)"
   if [ "$decision" != "ALLOW" ]; then
     echo "guardian: flatpak install of '$label' was not approved — aborting." >&2
     exit 1

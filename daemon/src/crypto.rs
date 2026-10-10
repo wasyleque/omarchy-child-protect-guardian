@@ -10,18 +10,27 @@ use ed25519_dalek::{Signature, VerifyingKey};
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::request::Decision;
+use crate::request::{Decision, InstallSource};
 
 /// Domain-separation tag so a signature here can never be replayed into another protocol.
-pub const DOMAIN: &str = "OCPG-v1";
+/// v2 binds the install source + package name, so a broker can't swap what the parent approved.
+pub const DOMAIN: &str = "OCPG-v2";
 
 /// The exact bytes both the phone and the daemon sign/verify. Unambiguous and deterministic.
-pub fn canonical_message(id: &Uuid, decision: Decision, nonce: &str, ts: u64) -> String {
+/// Binds the decision to the full displayed intent: id, decision, nonce, timestamp, source, package.
+pub fn canonical_message(
+    id: &Uuid,
+    decision: Decision,
+    nonce: &str,
+    ts: u64,
+    source: InstallSource,
+    package: &str,
+) -> String {
     let d = match decision {
         Decision::Allow => "allow",
         Decision::Deny => "deny",
     };
-    format!("{DOMAIN}|{id}|{d}|{nonce}|{ts}")
+    format!("{DOMAIN}|{id}|{d}|{nonce}|{ts}|{}|{package}", source.as_str())
 }
 
 /// A signed decision as posted back by the parent's app.
@@ -31,6 +40,9 @@ pub struct SignedDecision {
     pub decision: Decision,
     pub nonce: String,
     pub ts: u64,
+    /// The source + package the parent actually saw and approved (bound into the signature).
+    pub source: InstallSource,
+    pub package: String,
     /// base64 of the 64-byte Ed25519 signature over [`canonical_message`].
     pub sig: String,
 }
@@ -53,7 +65,7 @@ pub fn verify(vk: &VerifyingKey, sd: &SignedDecision) -> bool {
         Err(_) => return false,
     };
     let sig = Signature::from_bytes(&arr);
-    let msg = canonical_message(&sd.id, sd.decision, &sd.nonce, sd.ts);
+    let msg = canonical_message(&sd.id, sd.decision, &sd.nonce, sd.ts, sd.source, &sd.package);
     vk.verify_strict(msg.as_bytes(), &sig).is_ok()
 }
 
@@ -67,14 +79,16 @@ mod tests {
         SigningKey::from_bytes(&[7u8; 32])
     }
 
-    fn sign(sk: &SigningKey, id: Uuid, decision: Decision, nonce: &str, ts: u64) -> SignedDecision {
-        let msg = canonical_message(&id, decision, nonce, ts);
+    fn sign(sk: &SigningKey, id: Uuid, decision: Decision, nonce: &str, ts: u64, source: InstallSource, package: &str) -> SignedDecision {
+        let msg = canonical_message(&id, decision, nonce, ts, source, package);
         let sig = sk.sign(msg.as_bytes());
         SignedDecision {
             id,
             decision,
             nonce: nonce.to_string(),
             ts,
+            source,
+            package: package.to_string(),
             sig: STANDARD.encode(sig.to_bytes()),
         }
     }
@@ -84,7 +98,7 @@ mod tests {
         let sk = signing_key();
         let vk = sk.verifying_key();
         let id = Uuid::new_v4();
-        let sd = sign(&sk, id, Decision::Allow, "nonce123", 1_000);
+        let sd = sign(&sk, id, Decision::Allow, "nonce123", 1_000, InstallSource::Pacman, "firefox");
         assert!(verify(&vk, &sd));
     }
 
@@ -93,9 +107,18 @@ mod tests {
         let sk = signing_key();
         let vk = sk.verifying_key();
         let id = Uuid::new_v4();
-        let mut sd = sign(&sk, id, Decision::Deny, "nonce123", 1_000);
+        let mut sd = sign(&sk, id, Decision::Deny, "nonce123", 1_000, InstallSource::Pacman, "firefox");
         sd.decision = Decision::Allow; // flip the decision after signing
         assert!(!verify(&vk, &sd), "flipping the decision must break the signature");
+    }
+
+    #[test]
+    fn tampered_package_fails() {
+        let sk = signing_key();
+        let vk = sk.verifying_key();
+        let mut sd = sign(&sk, Uuid::new_v4(), Decision::Allow, "n", 1_000, InstallSource::Aur, "unwanted-software");
+        sd.package = "School calculator".to_string(); // broker swaps the displayed package after signing
+        assert!(!verify(&vk, &sd), "swapping the package must break the signature");
     }
 
     #[test]
@@ -103,7 +126,7 @@ mod tests {
         let sk = signing_key();
         let vk = sk.verifying_key();
         let sd = {
-            let mut s = sign(&sk, Uuid::new_v4(), Decision::Allow, "real-nonce", 1_000);
+            let mut s = sign(&sk, Uuid::new_v4(), Decision::Allow, "real-nonce", 1_000, InstallSource::Pacman, "p");
             s.nonce = "attacker-nonce".to_string();
             s
         };
@@ -114,7 +137,7 @@ mod tests {
     fn wrong_key_fails() {
         let sk = signing_key();
         let other = SigningKey::from_bytes(&[9u8; 32]);
-        let sd = sign(&sk, Uuid::new_v4(), Decision::Allow, "n", 1);
+        let sd = sign(&sk, Uuid::new_v4(), Decision::Allow, "n", 1, InstallSource::Pacman, "p");
         assert!(!verify(&other.verifying_key(), &sd), "a different key must not verify");
     }
 }

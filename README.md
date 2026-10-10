@@ -6,7 +6,12 @@
 > with **remote approval of app installs** from the parent's phone — a push-approval
 > flow just like confirming a 2FA login.
 
-**Status:** 🌱 concept draft (phase 0 — gathering ideas). See [`AGENTS.md`](AGENTS.md).
+**Status:** 🧪 **experimental prototype.** The core is built and unit/e2e-tested, but an external
+security review (2026-10-09) found enforcement bugs (now fixed) and real limitations. **Do not yet
+rely on it as the sole protection for a child's everyday computer.** See the review
+[`guardian-security-review.md`](guardian-security-review.md) and our
+[`docs/REVIEW-RESPONSE.md`](docs/REVIEW-RESPONSE.md). Several advertised pillars (content/DNS
+filtering, SafeSearch, time schedules) are **planned, not yet implemented** — see [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 Ambitious goal: be **more convenient and more effective** than Microsoft Family Safety,
 Apple Screen Time, Google Family Link and Qustodio — while staying **private** (no telemetry,
@@ -54,6 +59,7 @@ Things competitors on Windows/macOS/Android **can't** do, but we can:
 | [`docs/ARCHITECTURE.en.md`](docs/ARCHITECTURE.en.md) / [`docs/ARCHITEKTURA.md`](docs/ARCHITEKTURA.md) | Architecture: daemon, interception points, push-approval, security |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Build stages (MVP → v1), split into small verifiable steps |
 | [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) | Anti-bypass design: adversary tiers, every bypass vector → its mitigation, honest limits |
+| [`docs/REVIEW-RESPONSE.md`](docs/REVIEW-RESPONSE.md) | Response to the external security review (each finding → fix/status) |
 | [`parent-app/`](parent-app/) | Cross-platform parent approval app (installable PWA) — on-device Ed25519 signing |
 | [`packaging/`](packaging/) | Deploy: installer, systemd unit, pacman hook, nftables egress, fapolicyd allowlist, hardening audit |
 | [`docs/TESTING.md`](docs/TESTING.md) | Step-by-step test plan for a clean system (layer-by-layer + red-team bypass attempts) |

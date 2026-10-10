@@ -9,7 +9,7 @@
 
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -69,6 +69,11 @@ struct Inner {
     file: File,
     seq: u64,
     prev: String,
+    path: PathBuf,
+}
+
+fn head_path(path: &Path) -> PathBuf {
+    PathBuf::from(format!("{}.head", path.display()))
 }
 
 pub struct Audit {
@@ -119,7 +124,7 @@ impl Audit {
             use std::os::unix::fs::PermissionsExt;
             let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o640));
         }
-        Ok(Audit { inner: Mutex::new(Inner { file, seq, prev }) })
+        Ok(Audit { inner: Mutex::new(Inner { file, seq, prev, path: path.to_path_buf() }) })
     }
 
     /// Append an event to the chain. Best-effort: logging a failure to stderr, never panicking.
@@ -140,7 +145,11 @@ impl Audit {
                     return;
                 }
                 g.seq = seq;
-                g.prev = hash;
+                g.prev = hash.clone();
+                // External-ish anchor: records the latest (seq, hash) so a later truncation that
+                // forgets to also rewrite the anchor is caught by `verify`. (Not tamper-proof against
+                // root, which can rewrite both — that needs off-box shipping; see docs/THREAT_MODEL.)
+                let _ = std::fs::write(head_path(&g.path), format!("{seq} {hash}\n"));
             }
             Err(e) => eprintln!("guardiand: audit serialize failed: {e}"),
         }
@@ -188,7 +197,17 @@ pub fn verify(path: &Path) -> Result<u64> {
         prev = e.hash;
         expect_seq += 1;
     }
-    Ok(expect_seq - 1)
+    let count = expect_seq - 1;
+    // Anchor check: if a head anchor exists, the log must not have fewer entries than it recorded
+    // (catches truncation / emptying that didn't also rewrite the anchor).
+    if let Ok(head) = std::fs::read_to_string(head_path(path)) {
+        if let Some(anchor_seq) = head.split_whitespace().next().and_then(|s| s.parse::<u64>().ok()) {
+            if count < anchor_seq {
+                anyhow::bail!("log truncated: {count} entries but anchor expects at least {anchor_seq}");
+            }
+        }
+    }
+    Ok(count)
 }
 
 #[cfg(test)]

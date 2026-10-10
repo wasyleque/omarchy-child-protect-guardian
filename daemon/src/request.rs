@@ -20,6 +20,19 @@ pub enum InstallSource {
     Nix,
 }
 
+impl InstallSource {
+    /// Canonical lowercase name — must match the string the parent app signs.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Pacman => "pacman",
+            Self::Flatpak => "flatpak",
+            Self::Aur => "aur",
+            Self::Snap => "snap",
+            Self::Nix => "nix",
+        }
+    }
+}
+
 impl std::str::FromStr for InstallSource {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
