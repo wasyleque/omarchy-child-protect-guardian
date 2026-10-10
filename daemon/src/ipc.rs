@@ -28,9 +28,12 @@ const MAX_CONNECTIONS: usize = 64; // concurrent in-flight connections across bo
 const MAX_MSG_BYTES: u64 = 64 * 1024; // bytes a single connection may feed before EOF
 const READ_TIMEOUT: Duration = Duration::from_secs(30); // max wait for the next request line
 
+use std::sync::Mutex;
+
 use crate::audit::{Audit, AuditEvent};
 use crate::queue::Queue;
 use crate::request::{Decision, DecisionVia, InstallRequest, InstallSource};
+use crate::schedule::{Status as SchedStatus, TimeEngine};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -45,6 +48,8 @@ pub enum ClientMessage {
     Resolve { id: Uuid, decision: Decision },
     /// Control-only: forward a tamper/integrity alert to the parent (used by the watchdog).
     Alert { message: String },
+    /// Control-only: query the current screen-time schedule status.
+    ScheduleStatus,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -55,6 +60,8 @@ pub enum ServerMessage {
     Resolved { id: Uuid, ok: bool },
     /// Ack for `Alert`; `ok` is false when no remote (ntfy) is configured to deliver it.
     Alerted { ok: bool },
+    /// Answer for `ScheduleStatus`.
+    Schedule { status: String, remaining_secs: Option<u64> },
     Error { message: String },
 }
 
@@ -70,6 +77,8 @@ pub struct Server {
     pub max_pending_per_uid: usize,
     /// Optional append-only audit log.
     pub audit: Option<Arc<Audit>>,
+    /// Optional screen-time engine (for status queries).
+    pub schedule: Option<Arc<Mutex<TimeEngine>>>,
 }
 
 fn bind(path: &Path, mode: u32) -> Result<UnixListener> {
@@ -201,6 +210,20 @@ impl Server {
                         false
                     };
                     send(&mut write_half, &ServerMessage::Alerted { ok: delivered }).await?;
+                }
+                (true, ClientMessage::ScheduleStatus) => {
+                    let (status, remaining_secs) = match &self.schedule {
+                        Some(eng) => {
+                            let (day, minute) = crate::schedule::local_day_minute();
+                            match eng.lock().unwrap().status(day, minute) {
+                                SchedStatus::Allowed { remaining_secs } => ("allowed".to_string(), remaining_secs),
+                                SchedStatus::OutsideWindow => ("outside_window".to_string(), Some(0)),
+                                SchedStatus::BudgetExhausted => ("budget_exhausted".to_string(), Some(0)),
+                            }
+                        }
+                        None => ("no_schedule".to_string(), None),
+                    };
+                    send(&mut write_half, &ServerMessage::Schedule { status, remaining_secs }).await?;
                 }
                 (true, ClientMessage::Submit { .. }) => {
                     send(&mut write_half, &ServerMessage::Error {

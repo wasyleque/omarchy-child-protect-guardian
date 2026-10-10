@@ -29,6 +29,39 @@ pub fn challenge_message(id: &Uuid, source: InstallSource, package: &str, nonce:
     format!("{CHALLENGE_DOMAIN}|{id}|{}|{package}|{nonce}", source.as_str())
 }
 
+/// Domain tag for a parent-initiated "grant extra screen-time" command.
+pub const GRANT_DOMAIN: &str = "OCPG-GRANT-v1";
+
+/// Bytes the parent app signs to grant `minutes` of extra time (nonce + ts give anti-replay).
+pub fn grant_message(nonce: &str, minutes: u32, ts: u64) -> String {
+    format!("{GRANT_DOMAIN}|{nonce}|{minutes}|{ts}")
+}
+
+/// A signed grant-time command posted by the parent app.
+#[derive(Debug, Deserialize)]
+pub struct SignedGrant {
+    /// Discriminator so the daemon can tell a grant from a decision on the same channel.
+    pub kind: String,
+    pub nonce: String,
+    pub minutes: u32,
+    pub ts: u64,
+    pub sig: String,
+}
+
+/// Verify a signed grant against the parent key.
+pub fn verify_grant(vk: &VerifyingKey, g: &SignedGrant) -> bool {
+    let sig_bytes = match STANDARD.decode(g.sig.trim()) {
+        Ok(b) => b,
+        Err(_) => return false,
+    };
+    let arr: [u8; 64] = match sig_bytes.try_into() {
+        Ok(a) => a,
+        Err(_) => return false,
+    };
+    let sig = Signature::from_bytes(&arr);
+    vk.verify_strict(grant_message(&g.nonce, g.minutes, g.ts).as_bytes(), &sig).is_ok()
+}
+
 /// Load the daemon's Ed25519 signing key from `path` (base64 of a 32-byte seed), creating a fresh
 /// one (0600) on first run. The matching public key is what the parent app pairs to verify challenges.
 pub fn load_or_create_daemon_key(path: &Path) -> Result<SigningKey> {

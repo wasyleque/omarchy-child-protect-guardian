@@ -20,6 +20,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("  deny <id>         - Deny a request");
         eprintln!("  request <source> <package> [reason] - Submit a new request");
         eprintln!("  alert <message>   - Send a tamper/integrity alert to the parent");
+        eprintln!("  schedule   - Show screen-time status");
         eprintln!("  pair --topic <t> [--server <u>] [--app <u>]  - Show a pairing QR");
         eprintln!("  audit-verify <path>   - Verify the audit log chain");
         exit(2);
@@ -196,6 +197,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
+        "schedule" => {
+            send_message(&mut stream, ClientMessage::ScheduleStatus)?;
+            match read_response(&mut stream)? {
+                ServerMessage::Schedule { status, remaining_secs } => match remaining_secs {
+                    Some(s) => println!("{status} ({} min remaining today)", s / 60),
+                    None => println!("{status}"),
+                },
+                _ => {
+                    eprintln!("Unexpected response");
+                    exit(1);
+                }
+            }
+        }
         _ => {
             eprintln!("Unknown command: {}", args[1]);
             eprintln!("Usage: guardian-ctl <command> [arguments...]");
@@ -205,6 +219,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             eprintln!("  deny <id>         - Deny a request");
             eprintln!("  request <source> <package> [reason] - Submit a new request");
         eprintln!("  alert <message>   - Send a tamper/integrity alert to the parent");
+        eprintln!("  schedule   - Show screen-time status");
             eprintln!("  pair --topic <t> [--server <u>] [--app <u>]  - Show a pairing QR");
             eprintln!("  audit-verify <path>   - Verify the audit log chain");
             exit(2);

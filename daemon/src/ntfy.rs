@@ -11,7 +11,7 @@
 //!
 //! In both modes the daemon stays fail-closed: no trusted decision ⇒ the request times out to deny.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -61,6 +61,10 @@ pub struct Ntfy {
     /// Fire-and-forget tamper/security alerts to the parent: (dedupe-key, title, body).
     alert_tx: mpsc::UnboundedSender<(String, String, String)>,
     alert_rx: Mutex<Option<mpsc::UnboundedReceiver<(String, String, String)>>>,
+    /// Where verified grant-time commands (minutes) are delivered to the schedule engine.
+    grant_tx: Mutex<Option<mpsc::UnboundedSender<u32>>>,
+    /// One-time nonces already honored for grants (anti-replay).
+    grant_nonces: Mutex<HashSet<String>>,
 }
 
 #[derive(Deserialize)]
@@ -131,7 +135,37 @@ impl Ntfy {
             pending: Mutex::new(HashMap::new()),
             alert_tx,
             alert_rx: Mutex::new(Some(alert_rx)),
+            grant_tx: Mutex::new(None),
+            grant_nonces: Mutex::new(HashSet::new()),
         }))
+    }
+
+    /// Deliver verified grant-time minutes here (the daemon applies them to the schedule engine).
+    pub fn set_grant_sink(&self, tx: mpsc::UnboundedSender<u32>) {
+        *self.grant_tx.lock().unwrap() = Some(tx);
+    }
+
+    fn handle_grant(&self, vk: &VerifyingKey, g: crypto::SignedGrant) {
+        let now = now_secs();
+        if g.ts > now.saturating_add(60) || now.saturating_sub(g.ts) > MAX_TS_SKEW_SECS {
+            eprintln!("guardiand: ntfy rejected grant (timestamp out of window)");
+            return;
+        }
+        if self.grant_nonces.lock().unwrap().contains(&g.nonce) {
+            eprintln!("guardiand: ntfy rejected grant (replayed nonce)");
+            return;
+        }
+        if !crypto::verify_grant(vk, &g) {
+            eprintln!("guardiand: ntfy rejected grant (bad signature)");
+            self.alert("approval-forged", "Guardian: FORGED grant blocked", "A screen-time grant with an invalid signature was rejected.");
+            return;
+        }
+        self.grant_nonces.lock().unwrap().insert(g.nonce.clone());
+        let minutes = g.minutes.min(1440); // cap at a day
+        if let Some(tx) = self.grant_tx.lock().unwrap().as_ref() {
+            let _ = tx.send(minutes);
+        }
+        eprintln!("guardiand: ntfy grant of {minutes} min accepted");
     }
 
     /// Queue a tamper/security alert to the parent (non-blocking, safe from any context). Alerts of
@@ -385,6 +419,13 @@ impl Ntfy {
     }
 
     fn handle_signed(&self, vk: &VerifyingKey, msg: &str, queue: &Queue) {
+        // A parent-initiated grant-time command rides the same channel; dispatch it first.
+        if let Ok(g) = serde_json::from_str::<crypto::SignedGrant>(msg) {
+            if g.kind == "grant_time" {
+                self.handle_grant(vk, g);
+                return;
+            }
+        }
         let sd: SignedDecision = match serde_json::from_str(msg) {
             Ok(p) => p,
             Err(_) => return,

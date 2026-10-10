@@ -86,10 +86,12 @@ Installer-gating alone is not enough; enforcement must be default-deny at execut
 - [ ] **P3 — account/session hardening** (lock root, mask spare getty, no autologin/empty pw, single account); Flatpak/PackageKit coverage.
 
 ## Content-safety features (design via agy)
-- [~] **Screen-time schedule**: engine (`daemon/src/schedule.rs`) — allowed window + daily budget +
-  parent-granted extra, day rollover, idle-aware — DONE & unit-tested (6 tests). TODO: daemon tick
-  loop feeding local day/minute, `grant_time` over the signed channel, and Wayland enforcement
-  (logind idle + `loginctl lock-session`/`systemctl freeze user-<uid>.slice`).
+- [~] **Screen-time schedule**: engine (`daemon/src/schedule.rs`, 6 tests) + **daemon wiring DONE** —
+  local-time tick loop (libc), `guardian-ctl schedule` status, and **`grant_time` over the signed ntfy
+  channel** (parent grants +X min from the phone; Ed25519-verified, nonce anti-replay; verified e2e:
+  99→129 min, replay rejected, audited). TODO (host-side): idle detection + the actual session lock
+  (`loginctl lock-session` / `systemctl freeze user-<uid>.slice`) — the daemon currently logs/audits the
+  block transition and calls for the lock hook. `active=true` is a stub until the logind idle hook lands.
 - [~] **DNS filter + SafeSearch**: **config shipped** in `packaging/dns/` — dnsmasq on `:5353`
   (upstream 1.1.1.3 Families), SafeSearch `address=` map (Google/YouTube/Bing/DuckDuckGo, v4+v6),
   per-uid nftables `:53→:5353` redirect (validated), StevenBlack blocklist updater + daily timer,

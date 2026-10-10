@@ -5,6 +5,21 @@
 
 use serde::Deserialize;
 
+/// Current (day-id, minute-of-day) in the machine's LOCAL timezone. day-id is unique per calendar
+/// day (only equality matters, for the daily reset); minute-of-day is 0..1440.
+pub fn local_day_minute() -> (u64, u32) {
+    unsafe {
+        let t = libc::time(std::ptr::null_mut());
+        let mut tm: libc::tm = std::mem::zeroed();
+        if libc::localtime_r(&t, &mut tm).is_null() {
+            return (0, 0);
+        }
+        let day = (tm.tm_year as u64) * 366 + tm.tm_yday.max(0) as u64;
+        let minute = (tm.tm_hour.max(0) as u32) * 60 + tm.tm_min.max(0) as u32;
+        (day, minute)
+    }
+}
+
 /// Screen-time policy. Absent/`enabled = false` ⇒ no time limits.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Schedule {

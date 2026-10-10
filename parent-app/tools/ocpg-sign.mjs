@@ -38,6 +38,14 @@ if (cmd === "keygen") {
   const msg = new TextEncoder().encode(canonical(id, decision, nonce, ts, source, pkg));
   const sig = await ed.signAsync(msg, seed);
   console.log(JSON.stringify({ id, decision, nonce, ts, source, package: pkg, sig: b64(sig) }));
+} else if (cmd === "grant") {
+  const seed = unb64(flag(args, "--privkey"));
+  const minutes = Number(flag(args, "--minutes"));
+  const nonce = flag(args, "--nonce") ?? globalThis.crypto.randomUUID().replace(/-/g, "");
+  const ts = Number(flag(args, "--ts") ?? Math.floor(Date.now() / 1000));
+  const msg = new TextEncoder().encode(`OCPG-GRANT-v1|${nonce}|${minutes}|${ts}`);
+  const sig = await ed.signAsync(msg, seed);
+  console.log(JSON.stringify({ kind: "grant_time", nonce, minutes, ts, sig: b64(sig) }));
 } else {
   console.error("usage: keygen | sign --privkey <b64> --id <uuid> --decision allow|deny --nonce <hex> --source <src> --package <name> [--ts <unix>]");
   process.exit(2);

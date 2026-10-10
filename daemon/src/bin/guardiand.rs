@@ -100,6 +100,53 @@ async fn main() -> Result<()> {
         });
     }
 
+    // Screen-time engine. Enforcement (session lock/freeze on Wayland) is a host-side hook; here we
+    // track usage, expose status to guardian-ctl, and apply parent-granted minutes over the signed channel.
+    let schedule = match &policy.schedule {
+        Some(s) if s.enabled => {
+            let eng = Arc::new(std::sync::Mutex::new(guardian::schedule::TimeEngine::new(s.clone())));
+            if let Some(ntfy) = &ntfy {
+                let (gtx, mut grx) = tokio::sync::mpsc::unbounded_channel::<u32>();
+                ntfy.set_grant_sink(gtx);
+                let e = Arc::clone(&eng);
+                let aud = audit.clone();
+                tokio::spawn(async move {
+                    while let Some(m) = grx.recv().await {
+                        let (day, _) = guardian::schedule::local_day_minute();
+                        e.lock().unwrap().grant_minutes(day, m);
+                        if let Some(a) = &aud {
+                            a.record(AuditEvent::GrantApplied { minutes: m });
+                        }
+                        eprintln!("guardiand: applied +{m} min screen-time grant");
+                    }
+                });
+            }
+            let e = Arc::clone(&eng);
+            let aud = audit.clone();
+            tokio::spawn(async move {
+                let mut last_blocked = false;
+                let mut tick = tokio::time::interval(std::time::Duration::from_secs(30));
+                loop {
+                    tick.tick().await;
+                    let (day, minute) = guardian::schedule::local_day_minute();
+                    // active=true is a stub until the logind idle hook lands (host-side).
+                    let st = e.lock().unwrap().on_tick(day, minute, true, 30);
+                    let blocked = !matches!(st, guardian::schedule::Status::Allowed { .. });
+                    if blocked && !last_blocked {
+                        let reason = format!("{st:?}");
+                        if let Some(a) = &aud {
+                            a.record(AuditEvent::ScheduleBlocked { reason: reason.clone() });
+                        }
+                        eprintln!("guardiand: screen-time blocking ({reason}) — invoke the lock hook (host-side)");
+                    }
+                    last_blocked = blocked;
+                }
+            });
+            Some(eng)
+        }
+        _ => None,
+    };
+
     let server = Arc::new(Server {
         queue: Arc::clone(&queue),
         decision_timeout: std::time::Duration::from_secs(policy.decision_timeout_secs),
@@ -108,6 +155,7 @@ async fn main() -> Result<()> {
         control_uids: allowed_uids,
         max_pending_per_uid: policy.max_pending_per_uid,
         audit,
+        schedule,
     });
 
     server.run(&policy.socket_path, &policy.submit_socket_path).await

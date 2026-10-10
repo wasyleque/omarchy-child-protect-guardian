@@ -56,6 +56,10 @@ pub enum AuditEvent {
     },
     /// Periodic liveness marker; its absence off-box is a dead-man's-switch signal.
     Heartbeat,
+    /// Parent granted extra screen-time (verified signed command).
+    GrantApplied { minutes: u32 },
+    /// Screen-time schedule transitioned to blocking the session.
+    ScheduleBlocked { reason: String },
 }
 
 #[derive(Debug, Serialize, Deserialize)]

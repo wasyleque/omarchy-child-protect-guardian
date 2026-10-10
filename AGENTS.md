@@ -143,8 +143,13 @@ Reviewer verdict: do NOT use that commit as a child's sole protection. All 7 fin
   dnsmasq+updater+timer, README with dig tests. (Ollama was asked for the update script but refused —
   returned prose describing the blocklist instead of code — so I wrote it; lesson: adult-content-adjacent
   prompts derail the local model.) No dnsmasq/dig in sandbox → live resolve test is on-host.
-- NEXT: Wayland enforcer (logind idle + loginctl lock / systemctl freeze user-<uid>.slice) + grant_time
-  over the signed channel; SNI/DPI for 443. 18 unit tests total.
+- **Enforcer CORE DONE**: daemon holds the TimeEngine, ticks via libc local-time, `guardian-ctl schedule`
+  status, and **grant_time over the signed ntfy channel** (crypto::SignedGrant OCPG-GRANT-v1; parent
+  grants +X min from phone; Ed25519-verified + nonce anti-replay → TimeEngine.grant_minutes via an mpsc
+  sink; audited GrantApplied). Verified e2e (99→129 min, replay rejected). On block transition the daemon
+  audits ScheduleBlocked + logs "invoke lock hook". REMAINING (host-side, needs live Hyprland): logind
+  idle detection (active= is stubbed true) + actual session lock (loginctl lock-session / systemctl
+  freeze user-<uid>.slice). Also SNI/DPI for 443. 18 unit tests total.
 
 ## Workflow routing (this machine)
 - **Logic / architecture / integrations →** `agy`.
