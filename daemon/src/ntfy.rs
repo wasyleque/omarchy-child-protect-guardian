@@ -276,6 +276,28 @@ impl Ntfy {
         Ok(())
     }
 
+    /// Off-box audit mirror: publish each written audit entry, signed by the daemon key, to a
+    /// dedicated topic so it leaves the machine before a local root attacker could rewrite history.
+    pub async fn audit_mirror_loop(self: Arc<Self>, mut rx: mpsc::UnboundedReceiver<String>, topic: String) {
+        eprintln!("guardiand: mirroring signed audit entries to ntfy topic '{topic}'");
+        while let Some(entry) = rx.recv().await {
+            if let Err(e) = self.publish_audit(&topic, &entry).await {
+                eprintln!("guardiand: audit mirror publish failed: {e:#}");
+            }
+        }
+    }
+
+    async fn publish_audit(&self, topic: &str, entry: &str) -> Result<()> {
+        let sig = crypto::sign_b64(&self.daemon_key, entry);
+        let payload = serde_json::json!({
+            "topic": topic,
+            "message": serde_json::json!({ "entry": entry, "sig": sig }).to_string(),
+            "priority": 2,
+            "tags": ["ledger"],
+        });
+        self.post_publish(payload).await
+    }
+
     /// Long-lived task: subscribe to the response topic and resolve the queue on valid decisions.
     pub async fn subscribe_loop(self: Arc<Self>, queue: Arc<Queue>) {
         let url = format!("{}/{}/json", self.base(), self.response_topic);

@@ -60,6 +60,10 @@ pub struct NtfyConfig {
     /// raw one-time-token path is disabled. This closes the public-broker forgery/preemption gap.
     #[serde(default)]
     pub parent_pubkey: Option<String>,
+    /// Optional separate topic to mirror signed audit entries + heartbeats to (off-box durability:
+    /// even if a root attacker rewrites the local log, each entry already left the machine signed).
+    #[serde(default)]
+    pub audit_topic: Option<String>,
     /// Opt-in to the INSECURE token mode (no `parent_pubkey`). The token travels through the public
     /// broker, so anyone who can read the topic can forge an approval. Off by default: without a
     /// pubkey the daemon refuses remote approval and runs local-only. Only for throwaway testing.

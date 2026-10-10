@@ -177,6 +177,11 @@ can read the token and self-approve in ~50 ms — before the phone even buzzes. 
   as one JSON line each, chained by SHA-256 so deleting or editing any entry breaks the chain.
   `guardian-ctl audit-verify <path>` reports the first break. Verified e2e incl. tamper detection. On
   the host, `chattr +i` / off-box shipping makes the record durable; the chain makes edits *evident* regardless.
+  **Off-box mirror (shipped):** with `[ntfy].audit_topic` set, every entry is published **signed by the
+  daemon key** to a separate topic the instant it's written, plus a periodic **heartbeat** — so a later
+  local root rewrite can't retroactively hide an entry, and silencing the daemon shows up as a heartbeat
+  gap. A *local* HMAC key was deliberately not added (root could read it — theater). Parent-side
+  retention + heartbeat-gap alarm is the remaining piece.
 - **Integrity watchdog (L7 self-healing)**: a systemd timer (`packaging/guardian-watchdog.*`) restores
   Guardian's hook/daemon/unit from a read-only backup if they're removed or altered, restarts the
   daemon if it's down, re-verifies the audit chain, and raises a parent alert (via a new control-only

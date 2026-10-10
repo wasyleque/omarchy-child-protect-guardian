@@ -81,6 +81,25 @@ async fn main() -> Result<()> {
         _ => None,
     };
 
+    // Off-box audit mirror + daily heartbeat (dead-man's-switch), if a mirror topic is configured.
+    if let (Some(audit), Some(ntfy), Some(topic)) = (
+        &audit,
+        &ntfy,
+        policy.ntfy.as_ref().and_then(|c| c.audit_topic.clone()),
+    ) {
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        audit.set_mirror(tx);
+        tokio::spawn(Arc::clone(ntfy).audit_mirror_loop(rx, topic));
+        let hb = Arc::clone(audit);
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(std::time::Duration::from_secs(24 * 3600));
+            loop {
+                tick.tick().await; // fires immediately on the first tick, then daily
+                hb.record(AuditEvent::Heartbeat);
+            }
+        });
+    }
+
     let server = Arc::new(Server {
         queue: Arc::clone(&queue),
         decision_timeout: std::time::Duration::from_secs(policy.decision_timeout_secs),

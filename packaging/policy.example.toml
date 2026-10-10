@@ -40,3 +40,6 @@ default_on_timeout = "deny"
 # disabled), so a public-broker eavesdropper can't forge an approval. Generate a demo keypair:
 #   cargo run --bin guardian-sign -- keygen
 #parent_pubkey = "base64-ed25519-public-key"
+# Optional off-box audit durability: mirror every signed audit entry + a heartbeat to this separate
+# (secret, random) topic the moment it's written, so a later local root rewrite can't hide history.
+#audit_topic = "guardian-audit-REPLACE-WITH-LONG-RANDOM-STRING"

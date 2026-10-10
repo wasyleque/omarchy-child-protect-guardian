@@ -128,8 +128,12 @@ Reviewer verdict: do NOT use that commit as a child's sole protection. All 7 fin
 - POST-REVIEW: **daemon-signed challenge DONE** (closes #4 residual): daemon has its own Ed25519 key
   (crypto::load_or_create_daemon_key, config daemon_key_path=/etc/guardian/daemon.key, writes daemon.pub),
   signs each challenge (OCPG-CH-v1, `csig`); pairing QR carries `dpub`; PWA verifies & shows only genuine
-  cards. Verified e2e (noble verifies genuine=true, swapped=false). Remaining: SNI/DPI for 443 tunnels;
-  keyed/off-box audit durability.
+  cards. Verified e2e (noble verifies genuine=true, swapped=false).
+- POST-REVIEW: **off-box audit mirror DONE** (agy: local HMAC = theater vs root). `[ntfy].audit_topic` →
+  daemon publishes every audit entry signed by its key + a daily Heartbeat (dead-man's-switch) the moment
+  written. Verified e2e (heartbeat+submitted+decided arrived signed off-box). Remaining: parent app
+  retains mirrored entries + alarms on heartbeat gap; SNI/DPI for 443 tunnels; product features
+  (DNS filter/SafeSearch/time schedule) — design with agy, simple bits to Ollama.
 
 ## Workflow routing (this machine)
 - **Logic / architecture / integrations →** `agy`.

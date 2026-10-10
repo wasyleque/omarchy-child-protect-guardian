@@ -16,6 +16,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::request::{Decision, DecisionVia, InstallSource};
@@ -53,6 +54,8 @@ pub enum AuditEvent {
     WatchdogAlert {
         message: String,
     },
+    /// Periodic liveness marker; its absence off-box is a dead-man's-switch signal.
+    Heartbeat,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -78,6 +81,15 @@ fn head_path(path: &Path) -> PathBuf {
 
 pub struct Audit {
     inner: Mutex<Inner>,
+    /// Optional off-box mirror: each written entry's JSON is sent here for signed publishing.
+    mirror: Mutex<Option<mpsc::UnboundedSender<String>>>,
+}
+
+impl Audit {
+    /// Attach an off-box mirror sink (entries written after this are also forwarded).
+    pub fn set_mirror(&self, tx: mpsc::UnboundedSender<String>) {
+        *self.mirror.lock().unwrap() = Some(tx);
+    }
 }
 
 fn now_secs() -> u64 {
@@ -124,7 +136,10 @@ impl Audit {
             use std::os::unix::fs::PermissionsExt;
             let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o640));
         }
-        Ok(Audit { inner: Mutex::new(Inner { file, seq, prev, path: path.to_path_buf() }) })
+        Ok(Audit {
+            inner: Mutex::new(Inner { file, seq, prev, path: path.to_path_buf() }),
+            mirror: Mutex::new(None),
+        })
     }
 
     /// Append an event to the chain. Best-effort: logging a failure to stderr, never panicking.
@@ -138,8 +153,8 @@ impl Audit {
         let hash = chain_hash(&g.prev, seq, ts, &event);
         let entry = Entry { seq, ts, prev: g.prev.clone(), event, hash: hash.clone() };
         match serde_json::to_string(&entry) {
-            Ok(mut line) => {
-                line.push('\n');
+            Ok(json) => {
+                let line = format!("{json}\n");
                 if let Err(e) = g.file.write_all(line.as_bytes()).and_then(|_| g.file.flush()) {
                     eprintln!("guardiand: audit write failed: {e}");
                     return;
@@ -150,6 +165,10 @@ impl Audit {
                 // forgets to also rewrite the anchor is caught by `verify`. (Not tamper-proof against
                 // root, which can rewrite both — that needs off-box shipping; see docs/THREAT_MODEL.)
                 let _ = std::fs::write(head_path(&g.path), format!("{seq} {hash}\n"));
+                // Off-box mirror (best-effort, non-blocking): the entry leaves the machine signed.
+                if let Some(tx) = self.mirror.lock().unwrap().as_ref() {
+                    let _ = tx.send(json);
+                }
             }
             Err(e) => eprintln!("guardiand: audit serialize failed: {e}"),
         }
