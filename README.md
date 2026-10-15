@@ -9,7 +9,7 @@
 **Status:** 🧪 **experimental prototype.** The core is built and unit/e2e-tested, but **two** external
 security reviews (2026-10-09 and 2026-10-14) found enforcement bugs (addressed) and real limitations.
 **Do not yet rely on it as the sole protection for a child's everyday computer.** See the reviews
-[`guardian-security-review.md`](guardian-security-review.md) / [`raport (2)`] and our responses
+[`guardian-security-review.md`](guardian-security-review.md) + [`guardian-security-review-2.md`](guardian-security-review-2.md) and our responses
 [`docs/REVIEW-RESPONSE.md`](docs/REVIEW-RESPONSE.md) + [`docs/REVIEW-RESPONSE-2.md`](docs/REVIEW-RESPONSE-2.md).
 Content/DNS filtering, SafeSearch and time schedules exist as shippable config/engine but need the
 on-host test in [`docs/TESTING.md`](docs/TESTING.md).
