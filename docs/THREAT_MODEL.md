@@ -104,6 +104,7 @@ with the installer hook as one input among several.
 | Vector | Mitigation | Status |
 |---|---|---|
 | GRUB `e` → `init=/bin/sh` / `single` | lock GRUB password, or prefer **signed UKI + systemd-boot timeout 0** (no editable cmdline) | hardware/setup (P1) |
+| **Omarchy 4 Limine menu boots a pre-Guardian Btrfs snapshot** (child knows the LUKS passphrase) | prune/lock pre-install snapshots, password/hide the Limine menu+editor, TPM-bound unlock; `harden-audit.sh` flags Limine | hardware/setup (P1, review H4) |
 | Live USB / external boot | UEFI admin password + **Secure Boot with own keys** | hardware/setup (P1) |
 | Pull the disk / adapter | **LUKS2 full-disk encryption** (`/`, `/home`, swap), TPM2+PIN or passphrase | hardware/setup (P1) |
 | CMOS reset (desktop) | case lock / business laptop with NVRAM supervisor password | **out of scope** (§9) |

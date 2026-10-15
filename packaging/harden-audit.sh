@@ -40,6 +40,12 @@ fi
 
 meh "UEFI administrator (supervisor) password + disabled external boot: VERIFY MANUALLY in firmware (OS can't read this)"
 
+# Omarchy 4 boots via Limine with a snapshot menu; a child who knows the LUKS passphrase can boot a
+# pre-Guardian Btrfs snapshot and get a session with NONE of the controls (review H4).
+if ls /boot/limine* /boot/EFI/*/limine* >/dev/null 2>&1 || command -v limine >/dev/null 2>&1; then
+  nok "Limine detected — prune/lock pre-Guardian Btrfs snapshots, password or hide the Limine menu+editor, and use TPM-bound unlock so the child can't boot an older snapshot"
+fi
+
 hdr "Disk encryption"
 if lsblk -o TYPE 2>/dev/null | grep -q crypt; then
   ok "LUKS/crypt device present (root/home encrypted → pulled disk & live USB see ciphertext)"
@@ -66,11 +72,16 @@ if command -v nft >/dev/null 2>&1 && nft list table inet guardian >/dev/null 2>&
 else
   meh "nftables guardian egress policy not loaded (DoH/DoT/VPN escapes open)"
 fi
+# nss-resolve can make lookups come from the systemd-resolve user, bypassing the child's DNS redirect (M5).
+if systemctl is-active --quiet systemd-resolved 2>/dev/null; then
+  meh "systemd-resolved active — nss-resolve may bypass the DNS redirect; test 'getent hosts <blocked>' as the child, and disable resolved or set nsswitch hosts to 'dns' pointing at :5353"
+fi
 
 hdr "Account hygiene"
 if [ -n "$CHILD" ] && id "$CHILD" >/dev/null 2>&1; then
   groups_c="$(id -nG "$CHILD" 2>/dev/null)"
   echo "$groups_c" | grep -qwE 'wheel|sudo' && nok "child '$CHILD' is in wheel/sudo (can escalate!)" || ok "child '$CHILD' not in wheel/sudo"
+  echo "$groups_c" | grep -qwE 'docker|libvirt|lxd|kvm' && nok "child '$CHILD' is in a root-equivalent group (docker/libvirt/lxd) — can escalate" || ok "child '$CHILD' not in docker/libvirt/lxd"
 else
   meh "Pass the child's username as arg 1 to audit its groups (e.g. ./harden-audit.sh kid)"
 fi

@@ -18,7 +18,15 @@ use guardian::queue::Queue;
 /// Fire a host-side screen-time hook (session lock / unlock). Spawned detached; never blocks the tick.
 fn run_hook(kind: &str, cmd: &str) {
     match std::process::Command::new("sh").arg("-c").arg(cmd).spawn() {
-        Ok(_) => eprintln!("guardiand: ran screen-time {kind} hook"),
+        Ok(mut child) => {
+            let kind = kind.to_string();
+            // Reap the child so hooks firing every tick don't pile up zombies (review L6).
+            std::thread::spawn(move || match child.wait() {
+                Ok(s) if !s.success() => eprintln!("guardiand: screen-time {kind} hook exited {s}"),
+                Ok(_) => {}
+                Err(e) => eprintln!("guardiand: screen-time {kind} hook wait failed: {e}"),
+            });
+        }
         Err(e) => eprintln!("guardiand: screen-time {kind} hook failed to start: {e}"),
     }
 }

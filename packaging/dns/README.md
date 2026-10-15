@@ -44,6 +44,12 @@ sudo systemctl disable --now guardian-dnsmasq.service guardian-blocklist-update.
 sudo nft delete table ip guardian_dns; sudo nft delete table ip6 guardian_dns
 ```
 
+## systemd-resolved caveat (review M5)
+On Arch/Omarchy, `nsswitch.conf` often resolves `hosts` via **nss-resolve**, so lookups are made by the
+`systemd-resolve` user — not the child — and the per-uid redirect then doesn't apply. Either **stop/disable
+`systemd-resolved`**, or set `hosts:` in `/etc/nsswitch.conf` to `files dns` and point the system resolver
+at `127.0.0.1#5353`. Verify as the child: `getent hosts <a-blocked-domain>` must return `0.0.0.0`.
+
 ## Limits (honest)
 - SafeSearch maps specific search hostnames; add localized `www.google.<cctld>` lines for your locale.
 - Blocklist is category-based (StevenBlack porn variant by default) — not a guarantee; tune the source.
