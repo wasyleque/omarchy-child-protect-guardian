@@ -42,6 +42,10 @@ ln -sf /usr/local/bin/nix-env /usr/local/bin/nix
 echo "==> fapolicyd auto-trust hook helper (active only once fapolicyd is set up)"
 install -Dm755 "$HERE/fapolicyd/guardian-trust.sh" /usr/lib/guardian/guardian-trust
 
+echo "==> screen-time lock/unlock hooks (used only if [schedule] sets lock_command/unlock_command)"
+install -Dm755 "$HERE/schedule/guardian-lock.sh"   /usr/lib/guardian/guardian-lock
+install -Dm755 "$HERE/schedule/guardian-unlock.sh" /usr/lib/guardian/guardian-unlock
+
 echo "==> pacman interception hook"
 if [ "$ENFORCE" -eq 1 ]; then
   rm -f /etc/pacman.d/hooks/99-guardian-test.hook

@@ -4,6 +4,10 @@
       "Enabled": false,
       "Locked": true
     },
-    "NetworkPrediction": false
+    "NetworkPrediction": false,
+    "Proxy": {
+      "Mode": "system",
+      "Locked": true
+    }
   }
 }

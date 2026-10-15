@@ -22,11 +22,19 @@ if [ "${count:-0}" -lt 100 ]; then
 fi
 
 mkdir -p "$(dirname "$DEST")"
-chmod 644 "$tmp"
-mv -f "$tmp" "$DEST"
+# Keep ONLY sinkhole lines (review L2): a compromised upstream line like "1.2.3.4 accounts.google.com"
+# must never be installed as a DNS override.
+clean="$(mktemp)"
+grep -E '^(0\.0\.0\.0|127\.0\.0\.1)[[:space:]]' "$tmp" > "$clean" || true
+installed="$(wc -l < "$clean")"
+chmod 644 "$clean"
+mv -f "$clean" "$DEST"
+rm -f "$tmp"
 trap - EXIT
 
-# Reload the guardian dnsmasq so it picks up the new list.
-pkill -HUP -x dnsmasq 2>/dev/null || systemctl reload guardian-dnsmasq 2>/dev/null || true
+# Reload ONLY the guardian dnsmasq instance (not every dnsmasq on the host).
+systemctl reload guardian-dnsmasq 2>/dev/null \
+  || systemctl kill -s HUP guardian-dnsmasq 2>/dev/null \
+  || pkill -HUP -x dnsmasq 2>/dev/null || true
 
-echo "guardian-blocklist-update: installed $count blocked domains to $DEST"
+echo "guardian-blocklist-update: installed $installed sinkhole entries to $DEST"

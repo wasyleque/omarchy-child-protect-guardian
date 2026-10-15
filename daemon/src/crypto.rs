@@ -29,12 +29,15 @@ pub fn challenge_message(id: &Uuid, source: InstallSource, package: &str, nonce:
     format!("{CHALLENGE_DOMAIN}|{id}|{}|{package}|{nonce}", source.as_str())
 }
 
-/// Domain tag for a parent-initiated "grant extra screen-time" command.
-pub const GRANT_DOMAIN: &str = "OCPG-GRANT-v1";
+/// Domain tag for a parent-initiated "grant extra screen-time" command. v2 binds the target daemon's
+/// public key so a captured grant can't be replayed onto a sibling's machine paired to the same parent
+/// key (review M7).
+pub const GRANT_DOMAIN: &str = "OCPG-GRANT-v2";
 
-/// Bytes the parent app signs to grant `minutes` of extra time (nonce + ts give anti-replay).
-pub fn grant_message(nonce: &str, minutes: u32, ts: u64) -> String {
-    format!("{GRANT_DOMAIN}|{nonce}|{minutes}|{ts}")
+/// Bytes the parent app signs to grant `minutes` of extra time (daemon_pub binds the target machine;
+/// nonce + ts give anti-replay).
+pub fn grant_message(daemon_pub: &str, nonce: &str, minutes: u32, ts: u64) -> String {
+    format!("{GRANT_DOMAIN}|{daemon_pub}|{nonce}|{minutes}|{ts}")
 }
 
 /// A signed grant-time command posted by the parent app.
@@ -42,6 +45,8 @@ pub fn grant_message(nonce: &str, minutes: u32, ts: u64) -> String {
 pub struct SignedGrant {
     /// Discriminator so the daemon can tell a grant from a decision on the same channel.
     pub kind: String,
+    /// The intended daemon's public key (base64) — the daemon rejects a grant not addressed to it.
+    pub daemon_pub: String,
     pub nonce: String,
     pub minutes: u32,
     pub ts: u64,
@@ -59,21 +64,29 @@ pub fn verify_grant(vk: &VerifyingKey, g: &SignedGrant) -> bool {
         Err(_) => return false,
     };
     let sig = Signature::from_bytes(&arr);
-    vk.verify_strict(grant_message(&g.nonce, g.minutes, g.ts).as_bytes(), &sig).is_ok()
+    vk.verify_strict(grant_message(&g.daemon_pub, &g.nonce, g.minutes, g.ts).as_bytes(), &sig).is_ok()
 }
 
 /// Load the daemon's Ed25519 signing key from `path` (base64 of a 32-byte seed), creating a fresh
 /// one (0600) on first run. The matching public key is what the parent app pairs to verify challenges.
 pub fn load_or_create_daemon_key(path: &Path) -> Result<SigningKey> {
-    if let Ok(contents) = std::fs::read_to_string(path) {
-        let seed: [u8; 32] = STANDARD
-            .decode(contents.trim())
-            .context("decoding daemon key")?
-            .try_into()
-            .map_err(|_| anyhow::anyhow!("daemon key must be 32 bytes"))?;
-        return Ok(SigningKey::from_bytes(&seed));
+    match std::fs::read_to_string(path) {
+        Ok(contents) => {
+            let seed: [u8; 32] = STANDARD
+                .decode(contents.trim())
+                .context("decoding daemon key")?
+                .try_into()
+                .map_err(|_| anyhow::anyhow!("daemon key must be 32 bytes"))?;
+            return Ok(SigningKey::from_bytes(&seed));
+        }
+        // Only a genuinely-missing key triggers creation; any other read error is fatal so we never
+        // silently overwrite an existing key we merely failed to read (review L5).
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => {
+            return Err(e).with_context(|| format!("reading daemon key {}", path.display()));
+        }
     }
-    // Create a new key from the OS CSPRNG.
+
     let mut seed = [0u8; 32];
     std::fs::File::open("/dev/urandom")
         .and_then(|mut f| f.read_exact(&mut seed))
@@ -81,12 +94,25 @@ pub fn load_or_create_daemon_key(path: &Path) -> Result<SigningKey> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).ok();
     }
-    std::fs::write(path, STANDARD.encode(seed)).with_context(|| format!("writing daemon key {}", path.display()))?;
+    // Create the file 0600 BEFORE writing the secret (review L5).
+    use std::io::Write as _;
+    let mut f;
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+        use std::os::unix::fs::OpenOptionsExt;
+        f = std::fs::OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .mode(0o600)
+            .open(path)
+            .with_context(|| format!("creating daemon key {}", path.display()))?;
     }
+    #[cfg(not(unix))]
+    {
+        f = std::fs::File::create(path)?;
+    }
+    f.write_all(STANDARD.encode(seed).as_bytes())
+        .with_context(|| format!("writing daemon key {}", path.display()))?;
     Ok(SigningKey::from_bytes(&seed))
 }
 

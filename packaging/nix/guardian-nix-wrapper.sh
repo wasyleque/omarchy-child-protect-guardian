@@ -40,6 +40,14 @@ else
       if [ "$seen" = 0 ]; then [ "$arg" = "$sub2" ] && seen=1; continue; fi
       case "$arg" in -*) ;; *) label="${label:+$label }$arg" ;; esac
     done
+  elif [ "$sub1" = "run" ] || [ "$sub1" = "shell" ]; then
+    # `nix run/shell` fetch+execute software without an "install" — gate them too (review L3).
+    is_install=1
+    seen=0
+    for arg in "$@"; do
+      if [ "$seen" = 0 ]; then [ "$arg" = "$sub1" ] && seen=1; continue; fi
+      case "$arg" in -*) ;; *) label="${label:+$label }$arg" ;; esac
+    done
   fi
 fi
 

@@ -1,4 +1,5 @@
 {
   "DnsOverHttpsMode": "off",
-  "BuiltInDnsClientEnabled": false
+  "BuiltInDnsClientEnabled": false,
+  "ProxyMode": "system"
 }

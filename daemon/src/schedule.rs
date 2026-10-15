@@ -22,6 +22,7 @@ pub fn local_day_minute() -> (u64, u32) {
 
 /// Screen-time policy. Absent/`enabled = false` ⇒ no time limits.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Schedule {
     #[serde(default)]
     pub enabled: bool,
@@ -138,6 +139,18 @@ impl TimeEngine {
     pub fn grant_minutes(&mut self, day: u64, minutes: u32) {
         self.roll_day(day);
         self.granted_secs = self.granted_secs.saturating_add(minutes as u64 * 60);
+    }
+
+    /// Persisted state (day, used_secs, granted_secs) so a reboot doesn't reset the budget (H2).
+    pub fn snapshot(&self) -> (u64, u64, u64) {
+        (self.day, self.used_secs, self.granted_secs)
+    }
+
+    /// Restore previously-persisted usage. A later `roll_day` with a new day still resets correctly.
+    pub fn restore(&mut self, day: u64, used_secs: u64, granted_secs: u64) {
+        self.day = day;
+        self.used_secs = used_secs;
+        self.granted_secs = granted_secs;
     }
 }
 

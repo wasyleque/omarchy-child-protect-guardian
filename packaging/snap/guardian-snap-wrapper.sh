@@ -16,7 +16,7 @@ for arg in "$@"; do
     fi
 done
 
-if [ "$subcommand" = "install" ]; then
+if [ "$subcommand" = "install" ] || [ "$subcommand" = "try" ]; then
     # Collect every non-option token after "install" (options anywhere are ignored, order-independent).
     seen=0; label=""
     for arg in "$@"; do

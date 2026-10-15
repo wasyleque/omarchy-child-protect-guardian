@@ -23,6 +23,26 @@ fn run_hook(kind: &str, cmd: &str) {
     }
 }
 
+fn save_sched_state(path: &std::path::Path, eng: &std::sync::Mutex<guardian::schedule::TimeEngine>) {
+    let (day, used, granted) = eng.lock().unwrap().snapshot();
+    if let Some(p) = path.parent() {
+        std::fs::create_dir_all(p).ok();
+    }
+    let _ = std::fs::write(
+        path,
+        format!("{{\"day\":{day},\"used_secs\":{used},\"granted_secs\":{granted}}}\n"),
+    );
+}
+
+fn load_sched_state(path: &std::path::Path, eng: &std::sync::Mutex<guardian::schedule::TimeEngine>) {
+    if let Ok(s) = std::fs::read_to_string(path) {
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&s) {
+            let g = |k| v.get(k).and_then(|x: &serde_json::Value| x.as_u64()).unwrap_or(0);
+            eng.lock().unwrap().restore(g("day"), g("used_secs"), g("granted_secs"));
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Optional first argument: path to the policy file.
@@ -75,7 +95,7 @@ async fn main() -> Result<()> {
 
     // Set up remote push-approval if configured and enabled.
     let ntfy = match &policy.ntfy {
-        Some(cfg) if cfg.enabled => match Ntfy::new(cfg.clone(), daemon_key.clone()) {
+        Some(cfg) if cfg.enabled => match Ntfy::new(cfg.clone(), daemon_key.clone(), Some(policy.grant_nonce_path.clone())) {
             Ok(ntfy) => {
                 tokio::spawn(Arc::clone(&ntfy).subscribe_loop(Arc::clone(&queue)));
                 tokio::spawn(Arc::clone(&ntfy).alert_worker());
@@ -113,15 +133,19 @@ async fn main() -> Result<()> {
     let schedule = match &policy.schedule {
         Some(s) if s.enabled => {
             let eng = Arc::new(std::sync::Mutex::new(guardian::schedule::TimeEngine::new(s.clone())));
+            // Persisted usage survives reboot/restart so the budget isn't reset (review H2).
+            load_sched_state(&policy.schedule_state_path, &eng);
             if let Some(ntfy) = &ntfy {
                 let (gtx, mut grx) = tokio::sync::mpsc::unbounded_channel::<u32>();
                 ntfy.set_grant_sink(gtx);
                 let e = Arc::clone(&eng);
                 let aud = audit.clone();
+                let sp = policy.schedule_state_path.clone();
                 tokio::spawn(async move {
                     while let Some(m) = grx.recv().await {
                         let (day, _) = guardian::schedule::local_day_minute();
                         e.lock().unwrap().grant_minutes(day, m);
+                        save_sched_state(&sp, &e);
                         if let Some(a) = &aud {
                             a.record(AuditEvent::GrantApplied { minutes: m });
                         }
@@ -134,6 +158,7 @@ async fn main() -> Result<()> {
             let unlock_cmd = s.unlock_command.clone();
             let e = Arc::clone(&eng);
             let aud = audit.clone();
+            let sp = policy.schedule_state_path.clone();
             tokio::spawn(async move {
                 let mut last_blocked = false;
                 let mut tick = tokio::time::interval(std::time::Duration::from_secs(tick_secs));
@@ -142,6 +167,7 @@ async fn main() -> Result<()> {
                     let (day, minute) = guardian::schedule::local_day_minute();
                     // active=true is a stub until the logind idle hook lands (host-side).
                     let st = e.lock().unwrap().on_tick(day, minute, true, tick_secs);
+                    save_sched_state(&sp, &e);
                     let blocked = !matches!(st, guardian::schedule::Status::Allowed { .. });
                     if blocked && !last_blocked {
                         let reason = format!("{st:?}");
@@ -149,13 +175,17 @@ async fn main() -> Result<()> {
                             a.record(AuditEvent::ScheduleBlocked { reason: reason.clone() });
                         }
                         eprintln!("guardiand: screen-time BLOCKING ({reason})");
-                        if let Some(c) = &lock_cmd {
-                            run_hook("lock", c);
-                        }
                     } else if !blocked && last_blocked {
                         eprintln!("guardiand: screen-time UNBLOCKED");
                         if let Some(c) = &unlock_cmd {
                             run_hook("unlock", c);
+                        }
+                    }
+                    // Re-assert the lock on EVERY tick while blocked (review H2): covers a child who
+                    // logs in / reboots after the budget was already spent. (Lock hooks must be idempotent.)
+                    if blocked {
+                        if let Some(c) = &lock_cmd {
+                            run_hook("lock", c);
                         }
                     }
                     last_blocked = blocked;

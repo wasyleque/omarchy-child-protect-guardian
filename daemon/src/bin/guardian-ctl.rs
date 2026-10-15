@@ -59,7 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         // Include the daemon's public key so the app can verify published challenges (reject fakes).
         let dpub = flag("--daemon-pubkey")
-            .or_else(|| std::fs::read_to_string("/etc/guardian/daemon.pub").ok().map(|s| s.trim().to_string()))
+            .or_else(|| std::fs::read_to_string("/var/lib/guardian/daemon.pub").ok().map(|s| s.trim().to_string()))
             .filter(|s| !s.is_empty());
         let payload = match &dpub {
             Some(d) => serde_json::json!({"server": server, "topic": topic, "dpub": d}).to_string(),

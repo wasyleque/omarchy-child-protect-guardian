@@ -15,6 +15,13 @@
 # 1) Root is unrestricted (updates, guardiand, recovery).
 allow perm=any uid=0 : all
 
+# 1a) Block the loader-as-launcher laundering trick for the child: `ld-linux.so <untrusted-elf>`.
+#     fapolicyd's upstream `ld_so` pattern matches exactly this (review H3). Keep it ABOVE the
+#     trust allows so a trusted loader can't be used to run an untrusted target.
+deny_audit perm=execute pattern=ld_so uid=1001 : all
+# NOTE: memfd-based exec (e.g. Python os.memfd_create) is a separate laundering path — set
+#       vm.memfd_noexec=2 (see 99-guardian-memfd.conf) and verify on-host; fapolicyd alone won't catch it.
+
 # 2) The child may execute a file ONLY if that file (the object) is trusted. Untrusted object → deny.
 #    This also stops the loader-laundering trick: `ld-linux.so <untrusted-elf>` opens the untrusted
 #    object for execute, which this rule denies.

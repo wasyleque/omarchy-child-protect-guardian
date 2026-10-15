@@ -16,6 +16,10 @@ RuntimeDirectoryMode=0755
 # /var/log/guardian, writable under ProtectSystem=strict, so the audit log can actually be written.
 LogsDirectory=guardian
 LogsDirectoryMode=0750
+# /var/lib/guardian, writable, for the daemon key, screen-time state and grant nonces (review H1):
+# without this the first-run key write fails and the unit crash-loops.
+StateDirectory=guardian
+StateDirectoryMode=0700
 
 ProtectHome=read-only
 ProtectSystem=strict

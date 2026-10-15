@@ -65,6 +65,8 @@ pub struct Ntfy {
     grant_tx: Mutex<Option<mpsc::UnboundedSender<u32>>>,
     /// One-time nonces already honored for grants (anti-replay).
     grant_nonces: Mutex<HashSet<String>>,
+    /// Where honored grant nonces are persisted (so a restart can't re-allow a replay).
+    grant_nonce_path: Option<std::path::PathBuf>,
 }
 
 #[derive(Deserialize)]
@@ -93,10 +95,25 @@ fn random_hex() -> String {
     Uuid::new_v4().simple().to_string()
 }
 
+fn load_nonces(path: Option<&std::path::Path>) -> HashSet<String> {
+    let mut set = HashSet::new();
+    if let Some(p) = path {
+        if let Ok(s) = std::fs::read_to_string(p) {
+            for line in s.lines() {
+                let line = line.trim();
+                if !line.is_empty() {
+                    set.insert(line.to_string());
+                }
+            }
+        }
+    }
+    set
+}
+
 impl Ntfy {
     /// Build the ntfy handle. Returns an error (so the caller can run without ntfy) if a
     /// `parent_pubkey` is configured but cannot be parsed — we never silently downgrade.
-    pub fn new(cfg: NtfyConfig, daemon_key: SigningKey) -> Result<Arc<Self>> {
+    pub fn new(cfg: NtfyConfig, daemon_key: SigningKey, grant_nonce_path: Option<std::path::PathBuf>) -> Result<Arc<Self>> {
         let mode = match cfg.parent_pubkey.as_deref() {
             Some(pk) => {
                 let vk = crypto::parse_pubkey(pk)
@@ -136,7 +153,8 @@ impl Ntfy {
             alert_tx,
             alert_rx: Mutex::new(Some(alert_rx)),
             grant_tx: Mutex::new(None),
-            grant_nonces: Mutex::new(HashSet::new()),
+            grant_nonces: Mutex::new(load_nonces(grant_nonce_path.as_deref())),
+            grant_nonce_path,
         }))
     }
 
@@ -146,6 +164,11 @@ impl Ntfy {
     }
 
     fn handle_grant(&self, vk: &VerifyingKey, g: crypto::SignedGrant) {
+        // Must be addressed to THIS daemon (binds the target machine; blocks sibling-PC replay, M7).
+        if g.daemon_pub != crypto::pubkey_b64(&self.daemon_key) {
+            eprintln!("guardiand: ntfy rejected grant (addressed to a different daemon)");
+            return;
+        }
         let now = now_secs();
         if g.ts > now.saturating_add(60) || now.saturating_sub(g.ts) > MAX_TS_SKEW_SECS {
             eprintln!("guardiand: ntfy rejected grant (timestamp out of window)");
@@ -161,6 +184,16 @@ impl Ntfy {
             return;
         }
         self.grant_nonces.lock().unwrap().insert(g.nonce.clone());
+        // Persist the nonce so a restart within the TTL window can't re-honor it (M7).
+        if let Some(p) = &self.grant_nonce_path {
+            if let Some(dir) = p.parent() {
+                std::fs::create_dir_all(dir).ok();
+            }
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) {
+                use std::io::Write as _;
+                let _ = writeln!(f, "{}", g.nonce);
+            }
+        }
         let minutes = g.minutes.min(1440); // cap at a day
         if let Some(tx) = self.grant_tx.lock().unwrap().as_ref() {
             let _ = tx.send(minutes);

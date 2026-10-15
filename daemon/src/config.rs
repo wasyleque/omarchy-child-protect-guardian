@@ -9,7 +9,7 @@ use crate::schedule::Schedule;
 
 /// Runtime policy for the daemon.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Policy {
     /// Path of the Unix-domain CONTROL socket (list/resolve; owner-only).
     pub socket_path: PathBuf,
@@ -26,6 +26,10 @@ pub struct Policy {
     /// The daemon's own Ed25519 signing key (base64 seed), created on first run. Used to sign the
     /// challenges it publishes so the parent app rejects fake/injected approval cards.
     pub daemon_key_path: PathBuf,
+    /// Where daily screen-time usage is persisted so a reboot doesn't reset the budget (review H2).
+    pub schedule_state_path: PathBuf,
+    /// Where honored grant nonces are persisted so a restart can't allow a replay (review M7).
+    pub grant_nonce_path: PathBuf,
     /// Optional remote push-approval via ntfy. Absent/`enabled = false` → local decisions only.
     pub ntfy: Option<NtfyConfig>,
     /// Optional screen-time schedule (window + daily budget). Enforcement wiring is a later slice.
@@ -42,7 +46,9 @@ impl Default for Policy {
             default_on_timeout: Decision::Deny,
             max_pending_per_uid: 5,
             audit_path: PathBuf::from("/var/log/guardian/audit.log"),
-            daemon_key_path: PathBuf::from("/etc/guardian/daemon.key"),
+            daemon_key_path: PathBuf::from("/var/lib/guardian/daemon.key"),
+            schedule_state_path: PathBuf::from("/var/lib/guardian/schedule-state.json"),
+            grant_nonce_path: PathBuf::from("/var/lib/guardian/grant-nonces"),
             ntfy: None,
             schedule: None,
         }
@@ -51,6 +57,7 @@ impl Default for Policy {
 
 /// Remote push-approval settings (ntfy). The parent's phone subscribes to `request_topic`.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NtfyConfig {
     /// Master switch for the ntfy push path.
     #[serde(default)]
@@ -84,31 +91,24 @@ impl Policy {
     /// Load the policy from `path`, always falling back to defaults so the daemon starts.
     ///
     ///  * missing file → [`Policy::default`], silently;
-    ///  * unreadable file or malformed TOML → warn on stderr, then [`Policy::default`];
-    ///  * otherwise → the parsed policy.
+    ///  * present but unreadable or malformed → **exit the process** (fail loud, review L1): we must
+    ///    not silently fall back to defaults and quietly turn off screen-time / remote approval / the
+    ///    audit mirror because of a typo. Unknown keys are rejected (`deny_unknown_fields`).
     pub fn load_or_default(path: &Path) -> Policy {
         let content = match std::fs::read_to_string(path) {
             Ok(content) => content,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Policy::default(),
             Err(e) => {
-                eprintln!(
-                    "guardiand: cannot read policy file {}: {} — using defaults",
-                    path.display(),
-                    e
-                );
-                return Policy::default();
+                eprintln!("guardiand: cannot read policy file {}: {e} — refusing to start", path.display());
+                std::process::exit(1);
             }
         };
 
         match toml::from_str(&content) {
             Ok(policy) => policy,
             Err(e) => {
-                eprintln!(
-                    "guardiand: invalid policy file {}: {} — using defaults",
-                    path.display(),
-                    e
-                );
-                Policy::default()
+                eprintln!("guardiand: invalid policy file {}: {e} — refusing to start (fix it or remove it for defaults)", path.display());
+                std::process::exit(1);
             }
         }
     }

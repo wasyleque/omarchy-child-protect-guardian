@@ -9,8 +9,10 @@
 polkit.addRule(function(action, subject) {
     if (action.id.indexOf("org.freedesktop.NetworkManager.") === 0 && subject.user !== "root") {
         var a = action.id;
+        // NOTE: we do NOT block network-control, so the child can still connect to a Wi-Fi the admin
+        // already saved (review L4). We block only adding/editing connections (VPN/tether profiles)
+        // and creating a hotspot.
         if (a.indexOf("settings.modify") !== -1 ||   // add/edit/delete connections (VPN, tether, …)
-            a.indexOf("network-control")  !== -1 ||   // activate/deactivate arbitrary connections
             a.indexOf("wifi.share")        !== -1) {   // create a hotspot
             // Require an admin password the child does not have.
             return polkit.Result.AUTH_ADMIN;
