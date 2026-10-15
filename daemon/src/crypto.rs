@@ -21,12 +21,29 @@ use crate::request::{Decision, InstallSource};
 pub const DOMAIN: &str = "OCPG-v2";
 
 /// Domain tag for the daemon's signature over the *challenge* it publishes, so the parent app can
-/// reject any approval card the real daemon did not issue (fake/injected cards).
-pub const CHALLENGE_DOMAIN: &str = "OCPG-CH-v1";
+/// reject any approval card the real daemon did not issue (fake/injected cards). v2 also binds the
+/// displayed reason and the response URL so a broker can't rewrite them (review M2).
+pub const CHALLENGE_DOMAIN: &str = "OCPG-CH-v2";
 
 /// The bytes the daemon signs (and the app verifies) to authenticate a published challenge.
-pub fn challenge_message(id: &Uuid, source: InstallSource, package: &str, nonce: &str) -> String {
-    format!("{CHALLENGE_DOMAIN}|{id}|{}|{package}|{nonce}", source.as_str())
+pub fn challenge_message(
+    id: &Uuid,
+    source: InstallSource,
+    package: &str,
+    nonce: &str,
+    reason: &str,
+    respond_to: &str,
+) -> String {
+    format!("{CHALLENGE_DOMAIN}|{id}|{}|{package}|{nonce}|{reason}|{respond_to}", source.as_str())
+}
+
+/// Domain tag for the daemon's signature over a tamper/security alert (so the app shows only real
+/// alerts, not spoofed ones — review H5).
+pub const ALERT_DOMAIN: &str = "OCPG-ALERT-v1";
+
+/// The bytes the daemon signs for an alert.
+pub fn alert_message(text: &str, ts: u64) -> String {
+    format!("{ALERT_DOMAIN}|{text}|{ts}")
 }
 
 /// Domain tag for a parent-initiated "grant extra screen-time" command. v2 binds the target daemon's

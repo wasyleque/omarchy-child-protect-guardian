@@ -23,8 +23,9 @@ use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::Semaphore;
 use uuid::Uuid;
 
-/// Hard caps so a local process can't exhaust the daemon (review finding #7).
-const MAX_CONNECTIONS: usize = 64; // concurrent in-flight connections across both sockets
+/// Hard caps so a local process can't exhaust the daemon (review finding #7 + M1).
+const MAX_CONNECTIONS: usize = 64; // concurrent in-flight connections PER SOCKET
+const MAX_PER_UID_CONNS: usize = 8; // concurrent connections one uid may hold (anti-starvation)
 const MAX_MSG_BYTES: u64 = 64 * 1024; // bytes a single connection may feed before EOF
 const READ_TIMEOUT: Duration = Duration::from_secs(30); // max wait for the next request line
 
@@ -108,14 +109,23 @@ impl Server {
             control_path.display(),
             submit_path.display()
         );
-        let conns = Arc::new(Semaphore::new(MAX_CONNECTIONS));
+        // Separate per-socket budgets so a flood on the submit socket can't starve control (M1).
+        let control_sem = Arc::new(Semaphore::new(MAX_CONNECTIONS));
+        let submit_sem = Arc::new(Semaphore::new(MAX_CONNECTIONS));
+        let per_uid: Arc<Mutex<std::collections::HashMap<u32, usize>>> = Arc::new(Mutex::new(std::collections::HashMap::new()));
         tokio::select! {
-            r = Arc::clone(&self).accept_loop(control, true, Arc::clone(&conns)) => r,
-            r = Arc::clone(&self).accept_loop(submit, false, Arc::clone(&conns)) => r,
+            r = Arc::clone(&self).accept_loop(control, true, control_sem, Arc::clone(&per_uid)) => r,
+            r = Arc::clone(&self).accept_loop(submit, false, submit_sem, per_uid) => r,
         }
     }
 
-    async fn accept_loop(self: Arc<Self>, listener: UnixListener, is_control: bool, conns: Arc<Semaphore>) -> Result<()> {
+    async fn accept_loop(
+        self: Arc<Self>,
+        listener: UnixListener,
+        is_control: bool,
+        conns: Arc<Semaphore>,
+        per_uid: Arc<Mutex<std::collections::HashMap<u32, usize>>>,
+    ) -> Result<()> {
         loop {
             let (stream, _addr) = listener.accept().await.context("accepting a connection")?;
             let uid = stream.peer_cred().ok().map(|c| c.uid());
@@ -143,7 +153,7 @@ impl Server {
                 }
             }
             let uid = uid.unwrap_or(u32::MAX);
-            // Cap concurrent connections; if we're at the limit, drop this one rather than pile up.
+            // Cap concurrent connections per socket; if we're at the limit, drop this one.
             let permit = match Arc::clone(&conns).try_acquire_owned() {
                 Ok(p) => p,
                 Err(_) => {
@@ -151,10 +161,30 @@ impl Server {
                     continue;
                 }
             };
+            // Per-uid cap so one local user can't hold every slot and starve the parent (M1).
+            {
+                let mut m = per_uid.lock().unwrap();
+                let c = m.entry(uid).or_insert(0);
+                if *c >= MAX_PER_UID_CONNS {
+                    eprintln!("guardiand: uid {uid} at per-uid connection cap — dropping");
+                    continue;
+                }
+                *c += 1;
+            }
             let server = Arc::clone(&self);
+            let per_uid2 = Arc::clone(&per_uid);
             tokio::spawn(async move {
                 if let Err(e) = server.handle(stream, is_control, uid).await {
                     eprintln!("guardiand: connection error: {e:#}");
+                }
+                {
+                    let mut m = per_uid2.lock().unwrap();
+                    if let Some(c) = m.get_mut(&uid) {
+                        *c = c.saturating_sub(1);
+                        if *c == 0 {
+                            m.remove(&uid);
+                        }
+                    }
                 }
                 drop(permit);
             });
@@ -184,7 +214,7 @@ impl Server {
                 Ok(m) => m,
                 Err(e) => {
                     send(&mut write_half, &ServerMessage::Error { message: format!("bad request: {e}") }).await?;
-                    continue;
+                    break; // close on the first malformed line (M1: don't let a peer hold the slot)
                 }
             };
 
@@ -229,6 +259,7 @@ impl Server {
                     send(&mut write_half, &ServerMessage::Error {
                         message: "submit not accepted on the control socket".into(),
                     }).await?;
+                    break;
                 }
 
                 // ---- submit socket: submit only ----
@@ -293,6 +324,7 @@ impl Server {
                     send(&mut write_half, &ServerMessage::Error {
                         message: "only submit is accepted on the submit socket".into(),
                     }).await?;
+                    break;
                 }
             }
         }

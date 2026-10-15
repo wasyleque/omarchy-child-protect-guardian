@@ -229,10 +229,15 @@ impl Ntfy {
     }
 
     async fn publish_alert(&self, title: &str, body: &str) -> Result<()> {
+        // Sign the alert so the parent app shows only genuine alerts (review H5). `message` is a JSON
+        // blob the app parses + verifies; `title` stays human-readable for the raw ntfy app.
+        let ts = now_secs();
+        let asig = crypto::sign_b64(&self.daemon_key, &crypto::alert_message(body, ts));
+        let message = serde_json::json!({ "kind": "alert", "text": body, "ts": ts, "asig": asig }).to_string();
         let payload = serde_json::json!({
             "topic": self.cfg.request_topic,
             "title": title,
-            "message": body,
+            "message": message,
             "priority": 5,
             "tags": ["rotating_light", "warning"],
         });
@@ -303,18 +308,21 @@ impl Ntfy {
     /// app reads this, signs, and POSTs the signed decision to the response topic.
     async fn publish_challenge(&self, req: &InstallRequest, nonce: &str) -> Result<()> {
         // Machine-readable payload for the parent app to consume and sign.
-        // Sign the challenge so the app can reject any card the real daemon did not issue.
+        let respond_to = format!("{}/{}", self.base(), self.response_topic);
+        let reason = req.reason.clone().unwrap_or_default();
+        // Sign the challenge (incl. reason + respond_to) so the app rejects any card the real daemon
+        // did not issue, and a broker can't rewrite the reason or redirect the response (M2).
         let csig = crypto::sign_b64(
             &self.daemon_key,
-            &crypto::challenge_message(&req.id, req.source, &req.package, nonce),
+            &crypto::challenge_message(&req.id, req.source, &req.package, nonce, &reason, &respond_to),
         );
         let data = serde_json::json!({
             "id": req.id,
             "source": req.source,
             "package": req.package,
             "nonce": nonce,
-            "reason": req.reason,
-            "respond_to": format!("{}/{}", self.base(), self.response_topic),
+            "reason": reason,
+            "respond_to": respond_to,
             "csig": csig,
         })
         .to_string();
