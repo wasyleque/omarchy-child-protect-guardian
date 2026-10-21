@@ -152,14 +152,14 @@ class NtfyService : Service() {
             )
             return NotificationCompat.Action(0, label, pi)
         }
-        val body = buildString {
-            append(source).append(" install")
-            if (reason.isNotBlank()) append(" · ").append(reason)
-        }
+        // Collapsed: short summary. Expanded: the exact command the child ran (advanced review) —
+        // `reason` carries it and is covered by the daemon's signature, so it can't be faked.
+        val summary = "$source install of \"$pkg\""
+        val expanded = if (reason.isNotBlank()) "$summary\n\nCommand:\n$reason" else summary
         val n = NotificationCompat.Builder(this, CH_REQ)
             .setContentTitle("Approve install: $pkg")
-            .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setContentText(summary)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(expanded))
             .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_CALL)

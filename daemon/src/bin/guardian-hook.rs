@@ -2,6 +2,36 @@ use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::process;
 
+/// Best-effort: the actual command that triggered this hook (pacman/yay/paru), read from the parent
+/// process. Shown to the parent as the "full command" for advanced review. The daemon signs it into
+/// the challenge (via `reason`), so a broker can't rewrite it.
+fn invoking_command() -> Option<String> {
+    // /proc/self/stat: field 4 is ppid (fields after the possibly-space-containing comm in parens).
+    let stat = std::fs::read_to_string("/proc/self/stat").ok()?;
+    let after_comm = stat.rsplit_once(')')?.1; // skip "(comm)" which may contain spaces
+    let ppid = after_comm.split_whitespace().nth(1)?; // state, ppid, ...
+    let raw = std::fs::read(format!("/proc/{ppid}/cmdline")).ok()?;
+    if raw.is_empty() {
+        return None;
+    }
+    let cmd: String = raw
+        .split(|b| *b == 0)
+        .filter(|s| !s.is_empty())
+        .map(|s| String::from_utf8_lossy(s))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let cmd = cmd.trim().to_string();
+    if cmd.is_empty() {
+        return None;
+    }
+    // Keep it sane for a phone notification (truncate by chars, never mid-UTF-8).
+    if cmd.chars().count() > 256 {
+        Some(format!("{}…", cmd.chars().take(256).collect::<String>()))
+    } else {
+        Some(cmd)
+    }
+}
+
 fn main() {
     // Read all lines from stdin
     let mut targets = Vec::new();
@@ -42,7 +72,7 @@ fn main() {
     let client_message = guardian::ipc::ClientMessage::Submit {
         source: guardian::request::InstallSource::Pacman,
         package: targets.join(", "),
-        reason: None,
+        reason: invoking_command(),
     };
     
     let json_message = serde_json::to_string(&client_message).expect("Failed to serialize message");

@@ -7,9 +7,11 @@ if [ -z "${GUARDIAN_CHILD:-}" ]; then
   logger -t guardian-unlock "GUARDIAN_CHILD not set"
   exit 0
 fi
-uid="$(id -u "$GUARDIAN_CHILD" 2>/dev/null || true)"
-[ -n "$uid" ] || exit 0
-
-logger -t guardian-unlock "thawing screen-time for $GUARDIAN_CHILD (uid $uid)"
-systemctl thaw "user-$uid.slice" 2>/dev/null || true
+# GUARDIAN_CHILD may be a space-separated list of children — thaw each.
+for child in $GUARDIAN_CHILD; do
+  uid="$(id -u "$child" 2>/dev/null || true)"
+  [ -n "$uid" ] || continue
+  logger -t guardian-unlock "thawing screen-time for $child (uid $uid)"
+  systemctl thaw "user-$uid.slice" 2>/dev/null || true
+done
 exit 0

@@ -17,7 +17,7 @@
 # later step. Everything cheaper and more common than that is blocked here.
 
 # ---- EDIT THESE ----
-define CHILD_UID   = 1001                 # the child account's uid (id -u <child>)
+define CHILD_UIDS  = { 1001 }             # one uid per child account; setup-child.sh adds each kid's uid
 define DNS_SERVERS = { 192.168.0.1 }      # your filtering resolver(s): router, Pi-hole, NextDNS, 1.1.1.3 ...
 # --------------------
 
@@ -46,8 +46,8 @@ table inet guardian {
     chain egress {
         type filter hook output priority filter; policy accept;
 
-        # Anything not from the child is unaffected by this policy.
-        meta skuid != $CHILD_UID accept
+        # Anything not from a child account is unaffected by this policy.
+        meta skuid != $CHILD_UIDS accept
 
         # --- from here down: packets originate from the CHILD ---
         oifname "lo" accept

@@ -193,6 +193,23 @@ same crypto the daemon already trusts). Architecture from agy.
   (versionCode 2). If CI ever rejects AGP 8.13.2, fall back to the proven AGP 8.5.2 / Gradle 8.9 stack.
 - Follow-ups: iOS app; payload encryption to parent key (M4); heartbeat-gap alarm in the app; app icon.
 
+## Child onboarding + multi-child (2026-10-22)
+- packaging/setup-child.sh <name> [--name "Full Name"] [--parent <p>]: one command, run once per child.
+  Creates a NAMED unprivileged account (no wheel/sudo/root; GECOS display name), adds only desktop
+  groups (video/audio/input/render/seat), ADDS the child's uid to the nftables + DNS uid SETS
+  (accumulates across kids), writes a guardiand drop-in Environment=GUARDIAN_CHILD=<space list>, and
+  prints the pairing QR. Idempotent.
+- packaging/set-parent-key.sh <pubkey>: stores the phone's pubkey into policy [ntfy].parent_pubkey,
+  enables signed mode, restarts guardiand — removes the manual TOML edit. So pairing = scan QR + one paste.
+- MULTI-CHILD: nft egress + dns-redirect switched from `define CHILD_UID = N` to `define CHILD_UIDS =
+  { .. }` (uid set); guardian-lock.sh/unlock.sh now loop over the GUARDIAN_CHILD list. nft validated
+  with 2 kids via unshare. (Per-child screen-time BUDGETS still global — follow-up; TimeEngine is one.)
+- FULL COMMAND to parent (B-advanced): the exact invoked command rides the SIGNED `reason` field
+  (OCPG-CH-v2, tamper-proof). guardian-hook reads it from /proc/<ppid>/cmdline (pacman/yay/paru);
+  flatpak/snap/nix wrappers pass `$(basename $0) $*`. Android notification shows it expanded ("Command:").
+  AI summary of the command = next step (needs the AI assistant pillar; not built yet).
+- Versions bumped: daemon 0.2.1, android app 0.1.2 (versionCode 3). 18 unit tests green.
+
 ## Workflow routing (this machine)
 - **Logic / architecture / integrations →** `agy`.
 - **Simple implementation micro-tasks →** local Ollama `qwen3-coder:30b` via `aider` (host 192.168.0.11).

@@ -87,7 +87,11 @@ cat <<'NEXT'
      layer that stops those from EXECUTING. Until it enforces, treat install-gating as advisory.
   4. Hardware baseline (UEFI pw, Secure Boot, UKI/locked GRUB, LUKS) — then: packaging/harden-audit.sh
   5. Tamper-proof the files:  chattr +i /usr/lib/guardian/guardian-hook /usr/bin/guardiand /etc/pacman.d/hooks/*guardian*.hook
-  6. Account: child not in wheel/sudo; lock root; mask spare getty.
+  6. Child account(s): one command per child creates a named, unprivileged account (no sudo/root),
+     wires the firewall/DNS/screen-time to that child, and prints the pairing QR:
+         sudo packaging/setup-child.sh <child-name> [--name "Full Name"]
+     After the phone scans the QR, finish pairing:  sudo packaging/set-parent-key.sh <key-from-app>
+     Also: lock root; mask spare getty.
 Verify anytime:  packaging/harden-audit.sh <child-username>
 Roll everything back:  sudo packaging/uninstall.sh
 NEXT
