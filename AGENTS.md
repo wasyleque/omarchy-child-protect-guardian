@@ -223,6 +223,15 @@ same crypto the daemon already trusts). Architecture from agy.
   enriched reason; downgrading the verdict to "low" breaks the signature. 20 unit tests (added 2 ai).
 - Versions: daemon 0.2.2, android 0.1.4.
 
+## Auto-pairing (2026-10-22)
+- QR now carries `pair_to` (= `<request_topic>-pair`). The app, right after scanning, POSTs its own
+  pubkey there ({kind:"parent_key",pubkey}) and has a "Send my key to PC" button as fallback.
+- packaging/pair.sh <topic> [server]: shows the QR, polls the pair topic (~2 min), captures the key,
+  prints it + a sha256 fingerprint, the parent confirms it matches the app, then runs set-parent-key.sh.
+  So pairing = scan the QR + confirm on the PC — no copy/paste. Injection by a topic-guesser is
+  defeated by the parent comparing the fingerprint. Capture logic verified e2e over real ntfy.
+- setup-child.sh now points at pair.sh. Versions: daemon 0.2.3, android 0.1.5.
+
 ## Workflow routing (this machine)
 - **Logic / architecture / integrations →** `agy`.
 - **Simple implementation micro-tasks →** local Ollama `qwen3-coder:30b` via `aider` (host 192.168.0.11).

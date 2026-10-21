@@ -20,6 +20,7 @@ object Prefs {
     private const val K_SERVER = "server"
     private const val K_TOPIC = "topic"
     private const val K_DPUB = "dpub"
+    private const val K_PAIR_TO = "pair_to"
     private const val K_RESPOND = "last_respond_to"
     private const val K_HISTORY = "history"
     private const val MAX_HISTORY = 30
@@ -54,6 +55,7 @@ object Prefs {
     fun server(ctx: Context): String = secure(ctx).getString(K_SERVER, "https://ntfy.sh")!!
     fun topic(ctx: Context): String? = secure(ctx).getString(K_TOPIC, null)
     fun dpub(ctx: Context): String? = secure(ctx).getString(K_DPUB, null)
+    fun pairTo(ctx: Context): String? = secure(ctx).getString(K_PAIR_TO, null)
     fun lastRespondTo(ctx: Context): String? = secure(ctx).getString(K_RESPOND, null)
 
     fun setLastRespondTo(ctx: Context, url: String) {
@@ -79,6 +81,7 @@ object Prefs {
                 if (o.has("server")) putString(K_SERVER, o.getString("server"))
                 putString(K_TOPIC, topic)
                 if (o.has("dpub")) putString(K_DPUB, o.getString("dpub"))
+                if (o.has("pair_to")) putString(K_PAIR_TO, o.getString("pair_to"))
             }.apply()
             true
         } catch (e: Exception) {

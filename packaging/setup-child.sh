@@ -105,12 +105,9 @@ if [ -f "$POLICY" ] && grep -q '^\s*request_topic' "$POLICY"; then
   TOPIC="$(sed -nE 's/^[[:space:]]*request_topic[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "$POLICY" | head -1)"
   SERVER="$(sed -nE 's/^[[:space:]]*server[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "$POLICY" | head -1)"
   if [ -n "$TOPIC" ] && command -v guardian-ctl >/dev/null 2>&1; then
-    echo "==> Scan this on the parent's phone (Guardian Parent app → Pair — scan QR):"
-    guardian-ctl pair --topic "$TOPIC" ${SERVER:+--server "$SERVER"} || true
-    echo
-    echo "After scanning, finish the one-time key exchange:"
-    echo "  - in the app tap 'Copy public key'"
-    echo "  - on this PC run:  sudo $HERE/set-parent-key.sh <paste-the-key>"
+    echo "==> Pair the parent's phone now (shows the QR and auto-captures the key):"
+    echo "       sudo $HERE/pair.sh $TOPIC${SERVER:+ $SERVER}"
+    echo "    (scan the QR in the app → it sends its key back → confirm the fingerprint here.)"
   fi
 else
   echo "Note: [ntfy] request_topic not set in $POLICY yet — configure it, then re-run to get the QR."

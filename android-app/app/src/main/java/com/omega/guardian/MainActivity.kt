@@ -41,6 +41,7 @@ class MainActivity : AppCompatActivity() {
         } else if (Prefs.applyPairing(this, contents)) {
             toast("Paired ✓")
             NtfyService.start(this)
+            sendKeyToPc()   // auto-return our public key so the PC finishes pairing without copy/paste
             render()
         } else {
             toast("That QR is not a Guardian pairing code")
@@ -66,6 +67,7 @@ class MainActivity : AppCompatActivity() {
             cm.setPrimaryClip(ClipData.newPlainText("guardian pubkey", Prefs.publicKeyB64(this)))
             toast("Public key copied")
         }
+        b.btnSendKey.setOnClickListener { sendKeyToPc() }
         b.btnBattery.setOnClickListener { requestIgnoreBatteryOptimizations() }
         b.btnGrant15.setOnClickListener { sendGrant(15) }
         b.btnGrant30.setOnClickListener { sendGrant(30) }
@@ -120,6 +122,30 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             toast(if (ok) "Granted +$minutes min" else "Grant failed — try again")
+        }
+    }
+
+    /** POST our public key to the pairing-return topic so the PC captures it (packaging/pair.sh). */
+    private fun sendKeyToPc() {
+        val pairTo = Prefs.pairTo(this)
+        if (pairTo == null) {
+            toast("Re-scan the QR (this pairing has no return channel)")
+            return
+        }
+        val server = Prefs.server(this).trimEnd('/')
+        val url = "$server/$pairTo"
+        val pub = Prefs.publicKeyB64(this)
+        lifecycleScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                try {
+                    val payload = JSONObject().put("kind", "parent_key").put("pubkey", pub)
+                    val req = Request.Builder().url(url).post(payload.toString().toRequestBody()).build()
+                    http.newCall(req).execute().use { it.isSuccessful }
+                } catch (e: Exception) {
+                    false
+                }
+            }
+            toast(if (ok) "Sent my key to the PC — confirm it there" else "Couldn't reach the PC; use Copy public key")
         }
     }
 

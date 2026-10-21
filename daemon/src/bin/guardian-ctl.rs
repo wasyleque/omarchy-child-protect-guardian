@@ -61,9 +61,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let dpub = flag("--daemon-pubkey")
             .or_else(|| std::fs::read_to_string("/var/lib/guardian/daemon.pub").ok().map(|s| s.trim().to_string()))
             .filter(|s| !s.is_empty());
+        // Pairing-return topic: the app POSTs its own public key here so the PC captures it
+        // automatically (packaging/pair.sh), removing the manual copy/paste of the key.
+        let pair_to = format!("{topic}-pair");
         let payload = match &dpub {
-            Some(d) => serde_json::json!({"server": server, "topic": topic, "dpub": d}).to_string(),
-            None => serde_json::json!({"server": server, "topic": topic}).to_string(),
+            Some(d) => serde_json::json!({"server": server, "topic": topic, "dpub": d, "pair_to": pair_to}).to_string(),
+            None => serde_json::json!({"server": server, "topic": topic, "pair_to": pair_to}).to_string(),
         };
         let enc = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(payload.as_bytes());
         let url = format!("{}#pair={}", app, enc);
