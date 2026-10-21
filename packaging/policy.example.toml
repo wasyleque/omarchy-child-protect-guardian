@@ -57,3 +57,19 @@ default_on_timeout = "deny"
 #lock_command   = "GUARDIAN_CHILD=kid /usr/lib/guardian/guardian-lock"
 #unlock_command = "GUARDIAN_CHILD=kid /usr/lib/guardian/guardian-unlock"
 #tick_secs = 30                    # lower only for testing
+
+# Optional AI risk-summary: the daemon asks a model for a short "what is this package + risk" note and
+# includes it (cryptographically SIGNED, so the broker can't tamper with the verdict) in the request
+# the parent sees. Privacy-first: point it at a LOCAL model on your LAN so package names never leave
+# your network. Any failure/timeout simply omits the summary — it never blocks or delays a decision.
+#[ai]
+#enabled = true
+#provider = "ollama"                               # "ollama" or "openai" (OpenAI-compatible)
+#endpoint = "http://192.168.0.11:11434/api/generate"
+#model = "qwen3.8:latest"                          # any general chat model; avoid code-only models
+#timeout_secs = 12
+# For an OpenAI-compatible endpoint instead:
+#provider = "openai"
+#endpoint = "https://api.openai.com/v1/chat/completions"
+#model = "gpt-4o-mini"
+#api_key = "sk-..."

@@ -108,6 +108,10 @@ async fn main() -> Result<()> {
                 if let Some(a) = &audit {
                     ntfy.set_audit(Arc::clone(a));
                 }
+                if let Some(ai) = policy.ai.as_ref().filter(|a| a.enabled) {
+                    eprintln!("guardiand: AI risk-summary enabled ({} @ {})", ai.model, ai.endpoint);
+                    ntfy.set_ai(ai.clone());
+                }
                 tokio::spawn(Arc::clone(&ntfy).subscribe_loop(Arc::clone(&queue)));
                 tokio::spawn(Arc::clone(&ntfy).alert_worker());
                 Some(ntfy)

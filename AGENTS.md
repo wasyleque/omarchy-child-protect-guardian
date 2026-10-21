@@ -210,6 +210,19 @@ same crypto the daemon already trusts). Architecture from agy.
   AI summary of the command = next step (needs the AI assistant pillar; not built yet).
 - Versions bumped: daemon 0.2.1, android app 0.1.2 (versionCode 3). 18 unit tests green.
 
+## AI risk-summary (2026-10-22) — daemon/src/ai.rs + config [ai]
+- Daemon asks a model for a 2-sentence "what is this package + child-safety/security concern" ending
+  in "RISK: low|medium|high", and folds it into the SIGNED challenge reason (OCPG-CH-v2) — so the
+  verdict is tamper-proof and already displayed; no protocol change, no new field.
+- Provider pluggable: "ollama" (POST /api/generate) default, or "openai" (OpenAI-compatible). Default
+  endpoint = user's LAN Ollama http://192.168.0.11:11434, model qwen3.8:latest (think:false to suppress
+  reasoning). Privacy-first (local). Off by default. Any failure/timeout → summary omitted, never blocks.
+- Enriched reason computed BEFORE signing (don't hold the ai Mutex across .await — cloned out first).
+- Android app shows a 🟢/🟡/🔴 risk light (parsed from "RISK:") + full "Details:" (command + AI note).
+- VERIFIED LIVE on real Ollama: steam → "RISK: medium" summary in the challenge; csig verifies over the
+  enriched reason; downgrading the verdict to "low" breaks the signature. 20 unit tests (added 2 ai).
+- Versions: daemon 0.2.2, android 0.1.4.
+
 ## Workflow routing (this machine)
 - **Logic / architecture / integrations →** `agy`.
 - **Simple implementation micro-tasks →** local Ollama `qwen3-coder:30b` via `aider` (host 192.168.0.11).

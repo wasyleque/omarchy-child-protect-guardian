@@ -69,6 +69,8 @@ pub struct Ntfy {
     grant_nonce_path: Option<std::path::PathBuf>,
     /// Audit log, so rejected/forged approvals are recorded (not just alerted) — review N5.
     audit: Mutex<Option<Arc<crate::audit::Audit>>>,
+    /// Optional AI risk-summary config (enriches each challenge, signed). None = off.
+    ai: Mutex<Option<crate::config::AiConfig>>,
 }
 
 #[derive(Deserialize)]
@@ -158,12 +160,18 @@ impl Ntfy {
             grant_nonces: Mutex::new(load_nonces(grant_nonce_path.as_deref())),
             grant_nonce_path,
             audit: Mutex::new(None),
+            ai: Mutex::new(None),
         }))
     }
 
     /// Attach the audit log so rejected approvals are recorded (N5).
     pub fn set_audit(&self, audit: Arc<crate::audit::Audit>) {
         *self.audit.lock().unwrap() = Some(audit);
+    }
+
+    /// Enable AI risk-summaries (enriches each published challenge).
+    pub fn set_ai(&self, ai: crate::config::AiConfig) {
+        *self.ai.lock().unwrap() = Some(ai);
     }
 
     /// Record a rejected approval in the audit chain (best-effort).
@@ -324,7 +332,17 @@ impl Ntfy {
     async fn publish_challenge(&self, req: &InstallRequest, nonce: &str) -> Result<()> {
         // Machine-readable payload for the parent app to consume and sign.
         let respond_to = format!("{}/{}", self.base(), self.response_topic);
-        let reason = req.reason.clone().unwrap_or_default();
+        let mut reason = req.reason.clone().unwrap_or_default();
+
+        // Optional AI risk-summary: generated here so it's part of the SIGNED challenge (tamper-proof)
+        // and shown to the parent. Clone the config out before awaiting — never hold the lock across .await.
+        let ai_cfg = self.ai.lock().unwrap().clone();
+        if let Some(cfg) = ai_cfg {
+            let source_str = format!("{:?}", req.source).to_lowercase();
+            if let Some(summary) = crate::ai::summarize(&self.client, &cfg, &source_str, &req.package).await {
+                reason = if reason.is_empty() { summary } else { format!("{reason}\n\n{summary}") };
+            }
+        }
         // Sign the challenge (incl. reason + respond_to) so the app rejects any card the real daemon
         // did not issue, and a broker can't rewrite the reason or redirect the response (M2).
         let csig = crypto::sign_b64(

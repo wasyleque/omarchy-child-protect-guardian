@@ -35,6 +35,9 @@ pub struct Policy {
     /// Optional screen-time schedule (window + daily budget). Enforcement wiring is a later slice.
     #[serde(default)]
     pub schedule: Option<Schedule>,
+    /// Optional AI risk-summary of each install request (shown to the parent). Off by default.
+    #[serde(default)]
+    pub ai: Option<AiConfig>,
 }
 
 impl Default for Policy {
@@ -51,9 +54,41 @@ impl Default for Policy {
             grant_nonce_path: PathBuf::from("/var/lib/guardian/grant-nonces"),
             ntfy: None,
             schedule: None,
+            ai: None,
         }
     }
 }
+
+/// AI risk-summary settings. When enabled, the daemon asks a model for a short "what is this package
+/// + risk" note and includes it (signed) in the request shown to the parent. Privacy-first: point it
+/// at a LOCAL model (Ollama on your LAN) so package names never leave your network. Any failure or
+/// timeout simply omits the summary — it never blocks or delays a decision beyond `timeout_secs`.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AiConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    /// "ollama" (POST /api/generate) or "openai" (POST /v1/chat/completions, OpenAI-compatible).
+    #[serde(default = "default_ai_provider")]
+    pub provider: String,
+    /// Full endpoint URL. Ollama example: http://192.168.0.11:11434/api/generate
+    #[serde(default = "default_ai_endpoint")]
+    pub endpoint: String,
+    /// Model name, e.g. "qwen3.8:latest" (Ollama) or "gpt-4o-mini" (OpenAI-compatible).
+    #[serde(default = "default_ai_model")]
+    pub model: String,
+    /// Optional bearer token for the "openai" provider (left out for local Ollama).
+    #[serde(default)]
+    pub api_key: Option<String>,
+    /// Hard cap on how long the daemon waits for the summary before giving up.
+    #[serde(default = "default_ai_timeout")]
+    pub timeout_secs: u64,
+}
+
+fn default_ai_provider() -> String { "ollama".to_string() }
+fn default_ai_endpoint() -> String { "http://192.168.0.11:11434/api/generate".to_string() }
+fn default_ai_model() -> String { "qwen3.8:latest".to_string() }
+fn default_ai_timeout() -> u64 { 12 }
 
 /// Remote push-approval settings (ntfy). The parent's phone subscribes to `request_topic`.
 #[derive(Debug, Clone, Deserialize)]

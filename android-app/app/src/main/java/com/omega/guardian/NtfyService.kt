@@ -152,10 +152,12 @@ class NtfyService : Service() {
             )
             return NotificationCompat.Action(0, label, pi)
         }
-        // Collapsed: short summary. Expanded: the exact command the child ran (advanced review) —
-        // `reason` carries it and is covered by the daemon's signature, so it can't be faked.
-        val summary = "$source install of \"$pkg\""
-        val expanded = if (reason.isNotBlank()) "$summary\n\nCommand:\n$reason" else summary
+        // Collapsed: risk light + short summary. Expanded: full signed details (the exact command the
+        // child ran + the AI risk note). `reason` carries it and is covered by the daemon's signature,
+        // so neither the command nor the AI verdict can be faked by the broker.
+        val risk = riskLight(reason)
+        val summary = (if (risk.isNotEmpty()) "$risk " else "") + "$source install of \"$pkg\""
+        val expanded = if (reason.isNotBlank()) "$summary\n\nDetails:\n$reason" else summary
         val n = NotificationCompat.Builder(this, CH_REQ)
             .setContentTitle("Approve install: $pkg")
             .setContentText(summary)
@@ -168,6 +170,20 @@ class NtfyService : Service() {
             .addAction(action("allow", "Allow"))
             .build()
         nm.notify(notifId, n)
+    }
+
+    /** Traffic-light emoji from a "RISK: low|medium|high" line in the (signed) AI summary, if present. */
+    private fun riskLight(reason: String): String {
+        val lower = reason.lowercase()
+        val i = lower.lastIndexOf("risk:")
+        if (i < 0) return ""
+        val tail = lower.substring(i + 5)
+        return when {
+            tail.contains("high") -> "🔴"   // red
+            tail.contains("medium") -> "🟡" // yellow
+            tail.contains("low") -> "🟢"     // green
+            else -> ""
+        }
     }
 
     private fun postAlert(text: String) {
