@@ -184,6 +184,13 @@ same crypto the daemon already trusts). Architecture from agy.
   APK to a GitHub release on tag v* (like yt-downloader). Signing via KEYSTORE_B64 secret optional.
 - NOT compiled on a device here (no Android SDK in sandbox) — crypto core proven, Android wiring is a
   first cut to validate via CI/Android Studio, same iterate-on-report loop as the daemon on-host tests.
+- 2026-10-21/22: APK built in CI, downloaded and **installed on the user's phone via adb** (adb at
+  ~/Android/Sdk/platform-tools/adb; device over ADB-WiFi) — app launches. To push a new build: download
+  the CI artifact `guardian-parent-apk` and `adb install -r`.
+- BUILD STACK DECISION: user's Android Studio generated a full wrapper (Gradle 9.3.0) + AGP 8.13.2 and
+  built locally. Adopted that stack as the single source of truth (committed gradlew + wrapper jar) and
+  switched CI to `./gradlew`, so Studio and CI are identical — no version drift. App bumped to 0.1.1
+  (versionCode 2). If CI ever rejects AGP 8.13.2, fall back to the proven AGP 8.5.2 / Gradle 8.9 stack.
 - Follow-ups: iOS app; payload encryption to parent key (M4); heartbeat-gap alarm in the app; app icon.
 
 ## Workflow routing (this machine)

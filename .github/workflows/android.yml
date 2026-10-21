@@ -43,14 +43,12 @@ jobs:
       # whose cmdline-tools re-download stalls on the interactive `sdkmanager --licenses` prompt.
 
       - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.9"
 
       - name: Unit tests (crypto vectors vs daemon)
-        run: gradle :app:testDebugUnitTest
+        run: ./gradlew :app:testDebugUnitTest
 
       - name: Build debug APK
-        run: gradle :app:assembleDebug
+        run: ./gradlew :app:assembleDebug
 
       - name: Decode release keystore (if provided)
         if: ${{ env.KEYSTORE_B64 != '' }}
@@ -66,7 +64,7 @@ jobs:
           KS_PASS: ${{ secrets.KS_PASS }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASS: ${{ secrets.KEY_PASS }}
-        run: gradle :app:assembleRelease
+        run: ./gradlew :app:assembleRelease
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

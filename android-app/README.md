@@ -41,8 +41,8 @@ secrets `KEYSTORE_B64`, `KS_PASS`, `KEY_ALIAS`, `KEY_PASS` (generate once with
 
 ### Local (Android Studio)
 
-Open `android-app/` in Android Studio (Giraffe+). Let it generate the Gradle wrapper, then Run. Or on
-the CLI with Gradle 8.9 installed: `gradle :app:assembleDebug`.
+Open `android-app/` in Android Studio and Run. The Gradle wrapper (Gradle 9.3.0) and AGP 8.13.2 are
+committed, so Studio and CI build the **same** stack — no version drift. CLI: `./gradlew :app:assembleDebug`.
 
 ## On the phone
 
