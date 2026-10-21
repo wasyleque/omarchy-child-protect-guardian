@@ -24,6 +24,14 @@ This rule forces admin auth for system installs/updates, which the child can't p
 sudo install -Dm644 49-guardian-flatpak.rules /etc/polkit-1/rules.d/49-guardian-flatpak.rules
 ```
 
+## ⚠ The wrapper is advisory — fapolicyd is the real control (review B3)
+
+Confirmed on-host: a child can skip this wrapper with `/usr/bin/flatpak --user install …` (absolute
+path, not via `$PATH`), and `--user` installs don't hit the polkit rule. The wrapper gates the common
+CLI path and the polkit rule gates GUI **system** installs, but the layer that actually stops a
+sneaked-in `--user` app (or any downloaded binary) is **fapolicyd execution allowlisting** (../fapolicyd),
+which must be enforcing. Treat Flatpak gating as advisory until fapolicyd is in place.
+
 ## Residual gaps (honest)
 
 - Calling `/usr/bin/flatpak` by full path, or a `--user` install via a GUI portal, bypasses the CLI

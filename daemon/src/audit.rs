@@ -56,6 +56,8 @@ pub enum AuditEvent {
     },
     /// Periodic liveness marker; its absence off-box is a dead-man's-switch signal.
     Heartbeat,
+    /// A remote approval was rejected (bad signature, forged, stale, mismatched, or unknown format).
+    ApprovalRejected { reason: String },
     /// Parent granted extra screen-time (verified signed command).
     GrantApplied { minutes: u32 },
     /// Screen-time schedule transitioned to blocking the session.

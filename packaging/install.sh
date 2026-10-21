@@ -46,6 +46,11 @@ echo "==> screen-time lock/unlock hooks (used only if [schedule] sets lock_comma
 install -Dm755 "$HERE/schedule/guardian-lock.sh"   /usr/lib/guardian/guardian-lock
 install -Dm755 "$HERE/schedule/guardian-unlock.sh" /usr/lib/guardian/guardian-unlock
 
+echo "==> browser Secure-DNS(DoH) off policies (review B4: Firefox's built-in DoH bypasses filtering)"
+install -Dm644 "$HERE/network/firefox-policies.json"     /etc/firefox/policies/policies.json
+install -Dm644 "$HERE/network/chromium-dns-policy.json"  /etc/chromium/policies/managed/guardian-dns.json
+# (Chrome uses /etc/opt/chrome/policies/managed/ — copy there too if Chrome is used.)
+
 echo "==> pacman interception hook"
 if [ "$ENFORCE" -eq 1 ]; then
   rm -f /etc/pacman.d/hooks/99-guardian-test.hook
@@ -76,6 +81,10 @@ cat <<'NEXT'
   2. Network egress:   edit CHILD_UID+DNS in packaging/nftables/guardian-egress.nft, test with
      `nft -f ...`, then make persistent. Browser/NM lockdown: see packaging/network/README.md
   3. Execution allowlist: packaging/fapolicyd/README.md  (run PERMISSIVE first!)
+     *** REQUIRED, not optional *** — without fapolicyd enforcing, a child can bypass the install
+     controls entirely: `/usr/bin/flatpak --user install …` (direct path, skips the wrapper — review
+     B3) and any downloaded AppImage/portable binary run straight from \$HOME. fapolicyd is the only
+     layer that stops those from EXECUTING. Until it enforces, treat install-gating as advisory.
   4. Hardware baseline (UEFI pw, Secure Boot, UKI/locked GRUB, LUKS) — then: packaging/harden-audit.sh
   5. Tamper-proof the files:  chattr +i /usr/lib/guardian/guardian-hook /usr/bin/guardiand /etc/pacman.d/hooks/*guardian*.hook
   6. Account: child not in wheel/sudo; lock root; mask spare getty.

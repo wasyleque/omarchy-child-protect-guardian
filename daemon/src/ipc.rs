@@ -102,7 +102,10 @@ fn bind(path: &Path, mode: u32) -> Result<UnixListener> {
 impl Server {
     /// Bind both sockets and serve until a fatal accept error on either.
     pub async fn run(self: Arc<Self>, control_path: &Path, submit_path: &Path) -> Result<()> {
-        let control = bind(control_path, 0o660)?;
+        // 0666 so a child can *connect* and thus be seen + rejected + alerted by SO_PEERCRED (review
+        // N2: 0660 blocked the connect at the filesystem so the attempt was never logged/alerted).
+        // Authorization is the peer-credential check, not the file mode.
+        let control = bind(control_path, 0o666)?;
         let submit = bind(submit_path, 0o666)?;
         eprintln!(
             "guardiand: control socket {} (owner-only), submit socket {} (any uid, capped)",

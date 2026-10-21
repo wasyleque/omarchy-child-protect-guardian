@@ -105,6 +105,9 @@ async fn main() -> Result<()> {
     let ntfy = match &policy.ntfy {
         Some(cfg) if cfg.enabled => match Ntfy::new(cfg.clone(), daemon_key.clone(), Some(policy.grant_nonce_path.clone())) {
             Ok(ntfy) => {
+                if let Some(a) = &audit {
+                    ntfy.set_audit(Arc::clone(a));
+                }
                 tokio::spawn(Arc::clone(&ntfy).subscribe_loop(Arc::clone(&queue)));
                 tokio::spawn(Arc::clone(&ntfy).alert_worker());
                 Some(ntfy)

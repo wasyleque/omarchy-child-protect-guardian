@@ -270,10 +270,10 @@ $("copyPub").onclick = async () => { try{ await navigator.clipboard.writeText(pu
         if(data.server) localStorage.setItem("ocpg.server", data.server);
         if(data.topic)  localStorage.setItem("ocpg.topic", data.topic);
         if(data.dpub)   localStorage.setItem("ocpg.dpub", data.dpub);   // daemon pubkey → verify challenges
+        paired = true;   // only when we actually stored (review N12: cancel must not claim "Paired")
       }
       // don't leave the topic sitting in the URL / history
       history.replaceState(null, "", location.pathname + location.search);
-      paired = true;
     }
   }catch(e){ /* ignore a malformed pairing link */ }
 

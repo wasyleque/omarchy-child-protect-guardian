@@ -67,6 +67,8 @@ pub struct Ntfy {
     grant_nonces: Mutex<HashSet<String>>,
     /// Where honored grant nonces are persisted (so a restart can't re-allow a replay).
     grant_nonce_path: Option<std::path::PathBuf>,
+    /// Audit log, so rejected/forged approvals are recorded (not just alerted) — review N5.
+    audit: Mutex<Option<Arc<crate::audit::Audit>>>,
 }
 
 #[derive(Deserialize)]
@@ -155,7 +157,20 @@ impl Ntfy {
             grant_tx: Mutex::new(None),
             grant_nonces: Mutex::new(load_nonces(grant_nonce_path.as_deref())),
             grant_nonce_path,
+            audit: Mutex::new(None),
         }))
+    }
+
+    /// Attach the audit log so rejected approvals are recorded (N5).
+    pub fn set_audit(&self, audit: Arc<crate::audit::Audit>) {
+        *self.audit.lock().unwrap() = Some(audit);
+    }
+
+    /// Record a rejected approval in the audit chain (best-effort).
+    fn audit_reject(&self, reason: &str) {
+        if let Some(a) = self.audit.lock().unwrap().as_ref() {
+            a.record(crate::audit::AuditEvent::ApprovalRejected { reason: reason.to_string() });
+        }
     }
 
     /// Deliver verified grant-time minutes here (the daemon applies them to the schedule engine).
@@ -469,7 +484,18 @@ impl Ntfy {
         }
         let sd: SignedDecision = match serde_json::from_str(msg) {
             Ok(p) => p,
-            Err(_) => return,
+            Err(_) => {
+                // A decision arrived we can't parse — almost always an old/stale parent app (review
+                // N9/B8). Don't drop it silently: surface it so the parent knows to update the app.
+                eprintln!("guardiand: ntfy decision in an unrecognised format — parent app likely needs updating");
+                self.alert(
+                    "decision-format",
+                    "Guardian: update the parent app",
+                    "A decision arrived in an old/unrecognised format and was ignored. Update (hard-reload) the parent app.",
+                );
+                self.audit_reject("unknown decision format (old app?)");
+                return;
+            }
         };
         // 1) The nonce must match the one we issued for this exact request (one-time), AND the signed
         //    source+package must equal what we actually asked the parent to approve. A broker that
@@ -492,6 +518,7 @@ impl Ntfy {
                     "Guardian: rejected approval attempt",
                     "A signed decision referenced an unknown or stale request. Someone may be replaying or probing approvals.",
                 );
+                self.audit_reject("signed decision for unknown/stale request");
                 return;
             }
         };
@@ -505,12 +532,14 @@ impl Ntfy {
                 "Guardian: approval did not match the request",
                 "A decision was signed for a different app than the one requested — possible tampering. Denied.",
             );
+            self.audit_reject("signed decision package/source mismatch");
             return;
         }
         // 2) Timestamp freshness (defends against very old captured signatures).
         let now = now_secs();
         if sd.ts > now.saturating_add(60) || now.saturating_sub(sd.ts) > MAX_TS_SKEW_SECS {
             eprintln!("guardiand: ntfy rejected signed decision for {} (timestamp out of window)", sd.id);
+            self.audit_reject("signed decision timestamp out of window");
             return;
         }
         // 3) The signature must verify against the paired parent key.
@@ -521,6 +550,7 @@ impl Ntfy {
                 "Guardian: FORGED approval blocked",
                 "A decision with an invalid signature was rejected — someone tried to forge an approval. The install was denied.",
             );
+            self.audit_reject("signed decision bad signature (forged)");
             return;
         }
         // Consume the nonce so a replay can't reuse it.
