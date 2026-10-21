@@ -1,0 +1,79 @@
+name: Android parent app
+
+# Builds the native Android parent app and produces a sideloadable APK.
+# - every push/PR: run the crypto unit tests (the OCPG-v2 vectors that must match the daemon) and
+#   build a debug APK uploaded as a workflow artifact;
+# - on a tag v*: build a signed release APK (if signing secrets are set) and attach it to a GitHub
+#   release. Without secrets it still uploads the debug APK so there is always something to install.
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ "v*" ]
+    paths:
+      - "android-app/**"
+      - ".github/workflows/android.yml"
+  pull_request:
+    paths:
+      - "android-app/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to attach the APK to a release on a tag
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # job-level so the step `if:` conditions can read it (secrets aren't readable in `if` directly)
+      KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+    defaults:
+      run:
+        working-directory: android-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Unit tests (crypto vectors vs daemon)
+        run: gradle :app:testDebugUnitTest
+
+      - name: Build debug APK
+        run: gradle :app:assembleDebug
+
+      - name: Decode release keystore (if provided)
+        if: ${{ env.KEYSTORE_B64 != '' }}
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/guardian.jks"
+
+      - name: Build signed release APK (if provided)
+        if: ${{ env.KEYSTORE_B64 != '' }}
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          KEYSTORE_PATH: ${{ runner.temp }}/guardian.jks
+          KS_PASS: ${{ secrets.KS_PASS }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.KEY_PASS }}
+        run: gradle :app:assembleRelease
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: guardian-parent-apk
+          path: android-app/app/build/outputs/apk/**/*.apk
+
+      - name: Attach APK to release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: android-app/app/build/outputs/apk/**/*.apk

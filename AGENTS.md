@@ -151,6 +151,41 @@ Reviewer verdict: do NOT use that commit as a child's sole protection. All 7 fin
   idle detection (active= is stubbed true) + actual session lock (loginctl lock-session / systemctl
   freeze user-<uid>.slice). Also SNI/DPI for 443. 18 unit tests total.
 
+## On-host test report (2026-10-21, commit c5b90de) — see guardian-test-report-2026-10-21.md
+User ran the real-hardware test (parent `wasyl`, child `dziecko` uid 1001). Core loop works
+(pacman hold/allow/deny/timeout fail-closed, forged approval rejected+alerted, watchdog, audit).
+Verdict: still NOT a child's sole protection. Fixes shipped v0.2.0 (commit 72561f4):
+- B1 policy.example daemon_key_path → /var/lib/guardian (crashed on fresh install under ProtectSystem).
+- B8 service worker now network-first + bumped cache (phone was stuck on old OCPG-v1 format forever).
+- N9 unparseable/old-format decision now logs + alerts "update the app" + audits ApprovalRejected
+  (this silent drop had hidden B8). Verified e2e.
+- N5 rejected/forged approvals now write an audit entry (ntfy got an audit handle).
+- N2 control socket 0666 so a child's connect is seen → rejected+alerted+audited by SO_PEERCRED.
+- B4 install.sh installs Firefox/Chromium DoH-off policies by default (Firefox built-in DoH bypassed
+  the nftables IP list). IP list stays best-effort; SNI filtering still the real fix.
+- B3 documented honestly: flatpak wrapper is ADVISORY; fapolicyd enforcing is REQUIRED to stop
+  `/usr/bin/flatpak --user` + portable binaries. install.sh NEXT step upgraded to *** REQUIRED ***.
+- N12 pairing: 'paired' set only when the key is actually stored (cancel no longer lies).
+- STILL on-host (user): §7 fapolicyd enforce (closes B3), §12 boot/LUKS snapshot (H4), §9/13 child GUI.
+
+## Native Android parent app (in progress) — android-app/
+User: "potrzebujemy aplikacji na androida a nie strony www" (PWA is cumbersome: no background push,
+stale cache, key lost in private tabs — B8/N11). Built a NATIVE Kotlin app (no daemon change needed;
+same crypto the daemon already trusts). Architecture from agy.
+- Crypto.kt: raw Ed25519 via BouncyCastle (bcprov-jdk18on 1.78.1), byte-identical to dalek/noble.
+  **Verified on the JVM here** against a shared vector: pubkey + decision sig + grant sig match,
+  genuine OCPG-CH-v2 challenge verifies, tampered one rejected. CryptoTest.kt pins it (runs in CI).
+- NtfyService.kt: foreground service (type specialUse) + OkHttp WebSocket to ntfy /<topic>/ws with
+  45s ping + backoff reconnect; verifies csig before showing anything; notification Allow/Deny →
+  DecisionReceiver signs OCPG-v2 on-device and POSTs to respond_to. Signed alerts verified+shown.
+- MainActivity: QR-scan pairing (ZXing), copy pubkey, battery-optimisation opt-out, +15/+30 grant
+  (OCPG-GRANT-v2 to last respond_to), recent-request history. Prefs.kt = EncryptedSharedPreferences.
+- CI: .github/workflows/android.yml runs crypto tests + builds a debug APK every push, attaches an
+  APK to a GitHub release on tag v* (like yt-downloader). Signing via KEYSTORE_B64 secret optional.
+- NOT compiled on a device here (no Android SDK in sandbox) — crypto core proven, Android wiring is a
+  first cut to validate via CI/Android Studio, same iterate-on-report loop as the daemon on-host tests.
+- Follow-ups: iOS app; payload encryption to parent key (M4); heartbeat-gap alarm in the app; app icon.
+
 ## Workflow routing (this machine)
 - **Logic / architecture / integrations →** `agy`.
 - **Simple implementation micro-tasks →** local Ollama `qwen3-coder:30b` via `aider` (host 192.168.0.11).
