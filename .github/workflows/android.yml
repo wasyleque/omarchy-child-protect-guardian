@@ -33,12 +33,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
 
-      - uses: android-actions/setup-android@v3
+      # The ubuntu-latest runner ships a preinstalled Android SDK (ANDROID_HOME set, platform-34 +
+      # build-tools present, licenses accepted). We rely on it rather than android-actions/setup-android,
+      # whose cmdline-tools re-download stalls on the interactive `sdkmanager --licenses` prompt.
 
       - uses: gradle/actions/setup-gradle@v4
         with:
