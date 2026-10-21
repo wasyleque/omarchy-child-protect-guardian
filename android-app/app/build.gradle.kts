@@ -11,11 +11,21 @@ android {
         applicationId = "com.omega.guardian"
         minSdk = 26
         targetSdk = 34
-        versionCode = 3
-        versionName = "0.1.2"
+        versionCode = 4
+        versionName = "0.1.3"
     }
 
     signingConfigs {
+        // Fixed debug key (checked in; debug keystores are non-secret, password "android"). Without
+        // this, every CI runner generates its own debug key and `adb install -r` fails with a
+        // signature mismatch, forcing an uninstall that wipes the pairing. With it, every build
+        // (CI or Studio) is signed identically, so updates install in place.
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
         create("release") {
             // Only wired when CI (or a local dev) provides a keystore via env, so a plain
             // `assembleRelease` without secrets still configures. See .github/workflows/android.yml.
