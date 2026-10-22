@@ -6,12 +6,16 @@
 > z **zdalnym zatwierdzaniem instalacji aplikacji** z telefonu rodzica — push-approval,
 > dokładnie jak potwierdzenie logowania 2FA.
 
-**Status:** 🧪 **prototyp eksperymentalny.** Rdzeń zbudowany i przetestowany (unit/e2e), ale zewnętrzny
-audyt bezpieczeństwa (2026-10-09) wykrył błędy egzekucji (już naprawione) i realne ograniczenia.
-**Nie polegaj na tym jeszcze jako jedynej ochronie codziennego komputera dziecka.** Zobacz audyt
-[`guardian-security-review.md`](guardian-security-review.md) i naszą odpowiedź
-[`docs/REVIEW-RESPONSE.md`](docs/REVIEW-RESPONSE.md). Część filarów (filtr treści/DNS, SafeSearch,
-harmonogram czasu) jest **planowana, jeszcze niezaimplementowana** — patrz [`docs/ROADMAP.md`](docs/ROADMAP.md).
+**Status:** 🧪 **prototyp eksperymentalny.** Rdzeń zbudowany i przetestowany (unit/e2e), **dwa** zewnętrzne
+audyty bezpieczeństwa (2026-10-09 i 2026-10-14) wykryły błędy egzekucji (już naprawione) i realne
+ograniczenia, a pierwszy **test na żywym sprzęcie (2026-10-21)** potwierdził, że pętla główna działa,
+i znalazł cztery kolejne błędy egzekucji — wszystkie już naprawione (v0.2.0).
+**Nie polegaj na tym jeszcze jako jedynej ochronie codziennego komputera dziecka.** Zobacz audyty
+[`guardian-security-review.md`](guardian-security-review.md) + [`guardian-security-review-2.md`](guardian-security-review-2.md),
+nasze odpowiedzi [`docs/REVIEW-RESPONSE.md`](docs/REVIEW-RESPONSE.md) + [`docs/REVIEW-RESPONSE-2.md`](docs/REVIEW-RESPONSE-2.md)
+oraz raport z testu na sprzęcie [`guardian-test-report-2026-10-21.md`](guardian-test-report-2026-10-21.md).
+Filtr treści/DNS, SafeSearch i harmonogram czasu istnieją jako gotowy config/silnik, ale wymagają
+dalszych testów na sprzęcie — patrz [`docs/TESTING.md`](docs/TESTING.md).
 
 Cel ambitny: ma być **wygodniejszy i skuteczniejszy** niż Microsoft Family Safety,
 Apple Screen Time, Google Family Link i Qustodio — a jednocześnie **prywatny** (żadnej

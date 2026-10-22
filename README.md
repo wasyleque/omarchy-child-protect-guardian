@@ -6,13 +6,16 @@
 > with **remote approval of app installs** from the parent's phone — a push-approval
 > flow just like confirming a 2FA login.
 
-**Status:** 🧪 **experimental prototype.** The core is built and unit/e2e-tested, but **two** external
-security reviews (2026-10-09 and 2026-10-14) found enforcement bugs (addressed) and real limitations.
-**Do not yet rely on it as the sole protection for a child's everyday computer.** See the reviews
-[`guardian-security-review.md`](guardian-security-review.md) + [`guardian-security-review-2.md`](guardian-security-review-2.md) and our responses
-[`docs/REVIEW-RESPONSE.md`](docs/REVIEW-RESPONSE.md) + [`docs/REVIEW-RESPONSE-2.md`](docs/REVIEW-RESPONSE-2.md).
-Content/DNS filtering, SafeSearch and time schedules exist as shippable config/engine but need the
-on-host test in [`docs/TESTING.md`](docs/TESTING.md).
+**Status:** 🧪 **experimental prototype.** The core is built and unit/e2e-tested, **two** external
+security reviews (2026-10-09 and 2026-10-14) found enforcement bugs (addressed) and real limitations,
+and a first **live on-host test on real hardware (2026-10-21)** confirmed the core loop works while
+finding four more enforcement bugs — all since fixed (v0.2.0). **Do not yet rely on it as the sole
+protection for a child's everyday computer.** See the reviews
+[`guardian-security-review.md`](guardian-security-review.md) + [`guardian-security-review-2.md`](guardian-security-review-2.md),
+our responses [`docs/REVIEW-RESPONSE.md`](docs/REVIEW-RESPONSE.md) + [`docs/REVIEW-RESPONSE-2.md`](docs/REVIEW-RESPONSE-2.md),
+and the on-host test report [`guardian-test-report-2026-10-21.md`](guardian-test-report-2026-10-21.md).
+Content/DNS filtering, SafeSearch and time schedules exist as shippable config/engine but need more
+on-host testing per [`docs/TESTING.md`](docs/TESTING.md).
 
 > **Privacy caveat:** using the **public** `ntfy.sh` broker sends install requests (and, if enabled,
 > audit entries) through a third party — signed, but **not encrypted**. For real privacy run a
