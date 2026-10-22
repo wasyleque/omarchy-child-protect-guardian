@@ -246,6 +246,12 @@ same crypto the daemon already trusts). Architecture from agy.
   in-place update (no uninstall), confirming the signing fix.
 - Follow-up if needed: Android 13+ per-app language picker (locales_config.xml + android:localeConfig)
   to override the system locale; DE/FR/ZH to match the README languages.
+- **First public APK download**: GitHub Release **v0.1.6** created (`gh release create`) with
+  `guardian-parent-0.1.6.apk` attached — permanent no-login link at /releases/latest. Before this there
+  was NO release/tag, only the expiring CI workflow artifact. android-app/README.md now leads with a
+  "Download & install" section (Releases link + direct asset URL + 4 phone steps) and documents the
+  `git tag v* && git push` → Release flow. Future releases: bump versionCode/Name, tag v*, push — CI
+  attaches the APK. (The debug APK is CI-named app-debug.apk; rename or keep guardian-parent-<v>.apk.)
 
 ## Workflow routing (this machine)
 - **Logic / architecture / integrations →** `agy`.

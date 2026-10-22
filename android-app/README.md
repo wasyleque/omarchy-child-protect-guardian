@@ -4,6 +4,24 @@ A native Android app for the parent, replacing the web PWA (which couldn't notif
 serving stale code, and lost its key in private tabs — see the on-host test report, B8/N11). It does
 the same cryptography the daemon already trusts, so **no daemon change is needed**.
 
+Languages: **English · Polski · Español** (the app follows your phone's system language).
+
+## Download & install (parent's phone)
+
+**→ Get the APK from the [Releases page](https://github.com/wasyleque/omarchy-child-protect-guardian/releases/latest).**
+Direct link to the current build:
+[`guardian-parent-0.1.6.apk`](https://github.com/wasyleque/omarchy-child-protect-guardian/releases/download/v0.1.6/guardian-parent-0.1.6.apk).
+
+1. On the phone, open that link and **download the `.apk`**.
+2. Tap the downloaded file; when asked, allow your browser/file manager to **install unknown apps**.
+3. Open **Guardian Parent** → **Pair — scan QR**, and scan the QR shown on the PC by
+   `guardian-ctl pair --topic <topic>` (or `sudo packaging/pair.sh <topic>`).
+4. Tap **Allow unrestricted background** so approvals arrive even while the app is closed.
+
+The APK is **debug-signed** (the key is committed in this repo, so it is reproducible and non-secret).
+Because the signing key is fixed, each new version **updates in place** — no uninstall, pairing kept.
+A new APK is attached to every `v*` release automatically (see *Build → GitHub Actions* below).
+
 ## What it does
 
 - Generates an **Ed25519 key on the phone** and keeps the private seed in `EncryptedSharedPreferences`
@@ -33,10 +51,19 @@ a tampered one is rejected.)
 
 ### GitHub Actions (recommended, like the yt-downloader flow)
 
-`.github/workflows/android.yml` runs the crypto tests, builds a **debug APK** on every push, and
-attaches an APK to a **GitHub release on a `v*` tag**. Download `guardian-parent-apk` from the run (or
-the release) and sideload it. A debug APK installs fine; for a stable upgradeable signature, set repo
-secrets `KEYSTORE_B64`, `KS_PASS`, `KEY_ALIAS`, `KEY_PASS` (generate once with
+`.github/workflows/android.yml` runs the crypto tests and builds a **debug APK** on every push
+(downloadable as the `guardian-parent-apk` workflow artifact — handy for testing a branch, but it
+expires and needs a GitHub login). **For a permanent public download, cut a release:**
+
+```bash
+# bump versionCode/versionName in app/build.gradle.kts first, then:
+git tag v0.1.7 && git push origin v0.1.7
+```
+
+The tag triggers the workflow, which attaches the APK to a **GitHub Release** on the
+[Releases page](https://github.com/wasyleque/omarchy-child-protect-guardian/releases) — a stable link
+anyone can download with no login. The committed debug key is used unless you provide a release
+keystore via repo secrets `KEYSTORE_B64`, `KS_PASS`, `KEY_ALIAS`, `KEY_PASS` (generate once with
 `keytool -genkeypair -keystore guardian.jks -keyalg RSA -keysize 2048 -validity 10000`).
 
 ### Local (Android Studio)
