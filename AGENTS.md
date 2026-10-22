@@ -251,7 +251,9 @@ same crypto the daemon already trusts). Architecture from agy.
   was NO release/tag, only the expiring CI workflow artifact. android-app/README.md now leads with a
   "Download & install" section (Releases link + direct asset URL + 4 phone steps) and documents the
   `git tag v* && git push` → Release flow. Future releases: bump versionCode/Name, tag v*, push — CI
-  attaches the APK. (The debug APK is CI-named app-debug.apk; rename or keep guardian-parent-<v>.apk.)
+  attaches the APK. The workflow now **renames the asset to `guardian-parent-<version>.apk`** (version =
+  tag minus the leading `v`, prefers the signed release APK else debug) and attaches only that one file,
+  so there is no raw app-debug.apk duplicate to clean up anymore.
 
 ## Workflow routing (this machine)
 - **Logic / architecture / integrations →** `agy`.

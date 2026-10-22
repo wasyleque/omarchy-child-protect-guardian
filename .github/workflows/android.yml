@@ -72,8 +72,20 @@ jobs:
           name: guardian-parent-apk
           path: android-app/app/build/outputs/apk/**/*.apk
 
+      # On a v* tag, rename the built APK to guardian-parent-<version>.apk (version = the tag without
+      # its leading "v") and attach only that one, nicely named file — prefer the signed release APK
+      # if secrets produced one, else the debug APK. This avoids a second, raw-named app-debug.apk.
+      - name: Stage release APK (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          ver="${GITHUB_REF_NAME#v}"
+          src="app/build/outputs/apk/release/app-release.apk"
+          [ -f "$src" ] || src="app/build/outputs/apk/debug/app-debug.apk"
+          cp "$src" "guardian-parent-${ver}.apk"
+          echo "APK_FILE=android-app/guardian-parent-${ver}.apk" >> "$GITHUB_ENV"
+
       - name: Attach APK to release (tags only)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: android-app/app/build/outputs/apk/**/*.apk
+          files: ${{ env.APK_FILE }}
