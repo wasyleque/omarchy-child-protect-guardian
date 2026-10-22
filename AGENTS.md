@@ -232,6 +232,21 @@ same crypto the daemon already trusts). Architecture from agy.
   defeated by the parent comparing the fingerprint. Capture logic verified e2e over real ntfy.
 - setup-child.sh now points at pair.sh. Versions: daemon 0.2.3, android 0.1.5.
 
+## App localization — EN / PL / ES (2026-10-22)
+- All user-facing text in the Android app is now in string resources (was hardcoded). `values/strings.xml`
+  = English (default), `values-pl/` = Polish, `values-es/` = Spanish. Covers the whole UI: layout labels
+  + buttons, every MainActivity toast/status, and the NtfyService notifications (foreground, install
+  challenge title/summary/Details, Allow/Deny action labels, alert, channel names). `req_summary`,
+  `approve_title`, `grant_ok` use positional format args (`%1$s` / `%1$d`).
+- `build.gradle.kts`: `resourceConfigurations += listOf("en","pl","es")` (ships only these three). The
+  phone's locale auto-selects (pl-PL device → Polish; anything else → English fallback). The signed
+  protocol/canonical messages are untouched — only presentation is translated.
+- Verified: aapt2 dump shows (default)/(pl)/(es) variants compiled in; built + installed in place on the
+  user's phone (pl-PL) as 0.1.6 / versionCode 7 — displays Polish. The fixed debug key made it an
+  in-place update (no uninstall), confirming the signing fix.
+- Follow-up if needed: Android 13+ per-app language picker (locales_config.xml + android:localeConfig)
+  to override the system locale; DE/FR/ZH to match the README languages.
+
 ## Workflow routing (this machine)
 - **Logic / architecture / integrations →** `agy`.
 - **Simple implementation micro-tasks →** local Ollama `qwen3-coder:30b` via `aider` (host 192.168.0.11).

@@ -37,14 +37,14 @@ class MainActivity : AppCompatActivity() {
     private val scan = registerForActivityResult(ScanContract()) { result ->
         val contents = result.contents
         if (contents == null) {
-            toast("Scan cancelled")
+            toast(getString(R.string.scan_cancelled))
         } else if (Prefs.applyPairing(this, contents)) {
-            toast("Paired ✓")
+            toast(getString(R.string.paired_ok))
             NtfyService.start(this)
             sendKeyToPc()   // auto-return our public key so the PC finishes pairing without copy/paste
             render()
         } else {
-            toast("That QR is not a Guardian pairing code")
+            toast(getString(R.string.qr_not_guardian))
         }
     }
 
@@ -60,12 +60,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         b.btnScan.setOnClickListener {
-            scan.launch(ScanOptions().setPrompt("Scan the Guardian pairing QR").setBeepEnabled(false))
+            scan.launch(ScanOptions().setPrompt(getString(R.string.scan_prompt)).setBeepEnabled(false))
         }
         b.btnCopy.setOnClickListener {
             val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             cm.setPrimaryClip(ClipData.newPlainText("guardian pubkey", Prefs.publicKeyB64(this)))
-            toast("Public key copied")
+            toast(getString(R.string.pubkey_copied))
         }
         b.btnSendKey.setOnClickListener { sendKeyToPc() }
         b.btnBattery.setOnClickListener { requestIgnoreBatteryOptimizations() }
@@ -83,11 +83,11 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("SetTextI18n")
     private fun render() {
-        b.tvStatus.text = if (Prefs.isPaired(this)) "Paired · listening" else "Not paired — scan the QR on the PC"
+        b.tvStatus.text = getString(if (Prefs.isPaired(this)) R.string.status_paired else R.string.status_not_paired)
         b.tvPubkey.text = Prefs.publicKeyB64(this)
         val h = Prefs.history(this)
         val fmt = SimpleDateFormat("MMM d HH:mm", Locale.getDefault())
-        b.tvHistory.text = if (h.length() == 0) "No requests yet." else buildString {
+        b.tvHistory.text = if (h.length() == 0) getString(R.string.history_empty) else buildString {
             for (i in 0 until h.length()) {
                 val o = h.getJSONObject(i)
                 append(fmt.format(Date(o.optLong("ts") * 1000)))
@@ -102,7 +102,7 @@ class MainActivity : AppCompatActivity() {
         val respondTo = Prefs.lastRespondTo(this)
         val dpub = Prefs.dpub(this)
         if (respondTo == null || dpub == null) {
-            toast("Grants work after the first install request (so the app learns where to send)")
+            toast(getString(R.string.grant_need_request))
             return
         }
         lifecycleScope.launch {
@@ -121,7 +121,7 @@ class MainActivity : AppCompatActivity() {
                     false
                 }
             }
-            toast(if (ok) "Granted +$minutes min" else "Grant failed — try again")
+            toast(if (ok) getString(R.string.grant_ok, minutes) else getString(R.string.grant_failed))
         }
     }
 
@@ -129,7 +129,7 @@ class MainActivity : AppCompatActivity() {
     private fun sendKeyToPc() {
         val pairTo = Prefs.pairTo(this)
         if (pairTo == null) {
-            toast("Re-scan the QR (this pairing has no return channel)")
+            toast(getString(R.string.rescan_no_channel))
             return
         }
         val server = Prefs.server(this).trimEnd('/')
@@ -145,7 +145,7 @@ class MainActivity : AppCompatActivity() {
                     false
                 }
             }
-            toast(if (ok) "Sent my key to the PC — confirm it there" else "Couldn't reach the PC; use Copy public key")
+            toast(if (ok) getString(R.string.key_sent_ok) else getString(R.string.key_sent_failed))
         }
     }
 
@@ -155,7 +155,7 @@ class MainActivity : AppCompatActivity() {
                 Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))
             )
         } catch (e: Exception) {
-            toast("Open Settings → Battery and allow unrestricted background use")
+            toast(getString(R.string.battery_fallback))
         }
     }
 

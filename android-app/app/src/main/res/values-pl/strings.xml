@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="header_title">Omarchy Child Protect Guardian</string>
+
+    <!-- ekran główny -->
+    <string name="btn_scan">Paruj — zeskanuj QR</string>
+    <string name="pubkey_label">Twój klucz publiczny (wklej na komputerze, jeśli trzeba):</string>
+    <string name="btn_send_key">Wyślij mój klucz do komputera</string>
+    <string name="btn_copy">Kopiuj klucz publiczny</string>
+    <string name="btn_battery">Zezwól na pełne działanie w tle (zalecane)</string>
+    <string name="hdr_screen_time">Czas ekranowy</string>
+    <string name="btn_grant15">+15 min</string>
+    <string name="btn_grant30">+30 min</string>
+    <string name="hdr_recent">Ostatnie prośby</string>
+
+    <!-- status + komunikaty -->
+    <string name="status_paired">Sparowano · nasłuchiwanie</string>
+    <string name="status_not_paired">Niesparowano — zeskanuj kod QR na komputerze</string>
+    <string name="history_empty">Brak próśb.</string>
+    <string name="scan_prompt">Zeskanuj kod QR parowania Guardian</string>
+    <string name="scan_cancelled">Skanowanie anulowane</string>
+    <string name="paired_ok">Sparowano ✓</string>
+    <string name="qr_not_guardian">To nie jest kod parowania Guardian</string>
+    <string name="pubkey_copied">Skopiowano klucz publiczny</string>
+    <string name="grant_need_request">Doładowania działają po pierwszej prośbie o instalację (aplikacja uczy się, gdzie je wysłać)</string>
+    <string name="grant_ok">Dodano +%1$d min</string>
+    <string name="grant_failed">Nie udało się dodać czasu — spróbuj ponownie</string>
+    <string name="rescan_no_channel">Zeskanuj QR ponownie (to parowanie nie ma kanału zwrotnego)</string>
+    <string name="key_sent_ok">Wysłano klucz do komputera — potwierdź go tam</string>
+    <string name="key_sent_failed">Brak połączenia z komputerem; użyj „Kopiuj klucz publiczny”</string>
+    <string name="battery_fallback">Otwórz Ustawienia → Bateria i zezwól na nieograniczone działanie w tle</string>
+
+    <!-- powiadomienia -->
+    <string name="fg_title">Guardian czuwa</string>
+    <string name="fg_text">Nasłuchiwanie próśb o instalację</string>
+    <string name="alert_default">Alert Guardian</string>
+    <string name="approve_title">Zatwierdź instalację: %1$s</string>
+    <string name="req_summary">instalacja przez %1$s: „%2$s”</string>
+    <string name="details_label">Szczegóły:</string>
+    <string name="action_deny">Odmów</string>
+    <string name="action_allow">Zezwól</string>
+    <string name="alert_title">⚠ Alert Guardian</string>
+    <string name="ch_fg_name">Nasłuch w tle</string>
+    <string name="ch_req_name">Prośby o instalację</string>
+</resources>

@@ -1,4 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Guardian Parent</string>
+    <string name="header_title">Omarchy Child Protect Guardian</string>
+
+    <!-- main screen -->
+    <string name="btn_scan">Pair — scan QR</string>
+    <string name="pubkey_label">Your public key (paste into the PC if asked):</string>
+    <string name="btn_send_key">Send my key to PC</string>
+    <string name="btn_copy">Copy public key</string>
+    <string name="btn_battery">Allow unrestricted background (recommended)</string>
+    <string name="hdr_screen_time">Screen time</string>
+    <string name="btn_grant15">+15 min</string>
+    <string name="btn_grant30">+30 min</string>
+    <string name="hdr_recent">Recent requests</string>
+
+    <!-- status + toasts -->
+    <string name="status_paired">Paired · listening</string>
+    <string name="status_not_paired">Not paired — scan the QR on the PC</string>
+    <string name="history_empty">No requests yet.</string>
+    <string name="scan_prompt">Scan the Guardian pairing QR</string>
+    <string name="scan_cancelled">Scan cancelled</string>
+    <string name="paired_ok">Paired ✓</string>
+    <string name="qr_not_guardian">That QR is not a Guardian pairing code</string>
+    <string name="pubkey_copied">Public key copied</string>
+    <string name="grant_need_request">Grants work after the first install request (so the app learns where to send)</string>
+    <string name="grant_ok">Granted +%1$d min</string>
+    <string name="grant_failed">Grant failed — try again</string>
+    <string name="rescan_no_channel">Re-scan the QR (this pairing has no return channel)</string>
+    <string name="key_sent_ok">Sent my key to the PC — confirm it there</string>
+    <string name="key_sent_failed">Couldn\'t reach the PC; use Copy public key</string>
+    <string name="battery_fallback">Open Settings → Battery and allow unrestricted background use</string>
+
+    <!-- notifications -->
+    <string name="fg_title">Guardian is watching</string>
+    <string name="fg_text">Listening for install requests</string>
+    <string name="alert_default">Guardian alert</string>
+    <string name="approve_title">Approve install: %1$s</string>
+    <string name="req_summary">%1$s install of \"%2$s\"</string>
+    <string name="details_label">Details:</string>
+    <string name="action_deny">Deny</string>
+    <string name="action_allow">Allow</string>
+    <string name="alert_title">⚠ Guardian alert</string>
+    <string name="ch_fg_name">Background listener</string>
+    <string name="ch_req_name">Install requests</string>
 </resources>

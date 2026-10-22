@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="header_title">Omarchy Child Protect Guardian</string>
+
+    <!-- pantalla principal -->
+    <string name="btn_scan">Vincular — escanear QR</string>
+    <string name="pubkey_label">Tu clave pública (pégala en el PC si se solicita):</string>
+    <string name="btn_send_key">Enviar mi clave al PC</string>
+    <string name="btn_copy">Copiar clave pública</string>
+    <string name="btn_battery">Permitir uso en segundo plano sin restricciones (recomendado)</string>
+    <string name="hdr_screen_time">Tiempo de pantalla</string>
+    <string name="btn_grant15">+15 min</string>
+    <string name="btn_grant30">+30 min</string>
+    <string name="hdr_recent">Solicitudes recientes</string>
+
+    <!-- estado + avisos -->
+    <string name="status_paired">Vinculado · escuchando</string>
+    <string name="status_not_paired">Sin vincular — escanea el QR en el PC</string>
+    <string name="history_empty">Aún no hay solicitudes.</string>
+    <string name="scan_prompt">Escanea el código QR de vinculación de Guardian</string>
+    <string name="scan_cancelled">Escaneo cancelado</string>
+    <string name="paired_ok">Vinculado ✓</string>
+    <string name="qr_not_guardian">Ese QR no es un código de vinculación de Guardian</string>
+    <string name="pubkey_copied">Clave pública copiada</string>
+    <string name="grant_need_request">Las concesiones de tiempo funcionan tras la primera solicitud de instalación (así la app sabe a dónde enviarlas)</string>
+    <string name="grant_ok">Concedidos +%1$d min</string>
+    <string name="grant_failed">No se pudo conceder — inténtalo de nuevo</string>
+    <string name="rescan_no_channel">Vuelve a escanear el QR (esta vinculación no tiene canal de retorno)</string>
+    <string name="key_sent_ok">Clave enviada al PC — confírmala allí</string>
+    <string name="key_sent_failed">No se pudo contactar con el PC; usa «Copiar clave pública»</string>
+    <string name="battery_fallback">Abre Ajustes → Batería y permite el uso en segundo plano sin restricciones</string>
+
+    <!-- notificaciones -->
+    <string name="fg_title">Guardian está vigilando</string>
+    <string name="fg_text">Escuchando solicitudes de instalación</string>
+    <string name="alert_default">Alerta de Guardian</string>
+    <string name="approve_title">Aprobar instalación: %1$s</string>
+    <string name="req_summary">instalación de %1$s: «%2$s»</string>
+    <string name="details_label">Detalles:</string>
+    <string name="action_deny">Denegar</string>
+    <string name="action_allow">Permitir</string>
+    <string name="alert_title">⚠ Alerta de Guardian</string>
+    <string name="ch_fg_name">Escucha en segundo plano</string>
+    <string name="ch_req_name">Solicitudes de instalación</string>
+</resources>

@@ -13,7 +13,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Omarchy Child Protect Guardian"
+            android:text="@string/header_title"
             android:textSize="20sp"
             android:textStyle="bold" />
 
@@ -29,13 +29,13 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="Pair — scan QR" />
+            android:text="@string/btn_scan" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp"
-            android:text="Your public key (paste into the PC if asked):"
+            android:text="@string/pubkey_label"
             android:textStyle="bold" />
 
         <TextView
@@ -52,27 +52,27 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="Send my key to PC" />
+            android:text="@string/btn_send_key" />
 
         <Button
             android:id="@+id/btnCopy"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="Copy public key" />
+            android:text="@string/btn_copy" />
 
         <Button
             android:id="@+id/btnBattery"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="Allow unrestricted background (recommended)" />
+            android:text="@string/btn_battery" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp"
-            android:text="Screen time"
+            android:text="@string/hdr_screen_time"
             android:textStyle="bold" />
 
         <LinearLayout
@@ -87,7 +87,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="6dp"
                 android:layout_weight="1"
-                android:text="+15 min" />
+                android:text="@string/btn_grant15" />
 
             <Button
                 android:id="@+id/btnGrant30"
@@ -95,14 +95,14 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="6dp"
                 android:layout_weight="1"
-                android:text="+30 min" />
+                android:text="@string/btn_grant30" />
         </LinearLayout>
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp"
-            android:text="Recent requests"
+            android:text="@string/hdr_recent"
             android:textStyle="bold" />
 
         <TextView

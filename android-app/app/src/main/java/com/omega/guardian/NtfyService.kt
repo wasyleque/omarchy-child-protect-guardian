@@ -99,7 +99,7 @@ class NtfyService : Service() {
 
         // Security alert (signed). Show only if the signature verifies against the paired daemon key.
         if (msg.optString("kind") == "alert") {
-            val textA = msg.optString("text", "Guardian alert")
+            val textA = msg.optString("text", getString(R.string.alert_default))
             val ts = msg.optLong("ts", 0L)
             val asig = msg.optString("asig", "")
             if (Crypto.verify(dpub, Crypto.alertCanonical(textA, ts), asig)) {
@@ -128,8 +128,8 @@ class NtfyService : Service() {
 
     private fun foregroundNotification(): Notification =
         NotificationCompat.Builder(this, CH_FG)
-            .setContentTitle("Guardian is watching")
-            .setContentText("Listening for install requests")
+            .setContentTitle(getString(R.string.fg_title))
+            .setContentText(getString(R.string.fg_text))
             .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_MIN)
@@ -156,18 +156,18 @@ class NtfyService : Service() {
         // child ran + the AI risk note). `reason` carries it and is covered by the daemon's signature,
         // so neither the command nor the AI verdict can be faked by the broker.
         val risk = riskLight(reason)
-        val summary = (if (risk.isNotEmpty()) "$risk " else "") + "$source install of \"$pkg\""
-        val expanded = if (reason.isNotBlank()) "$summary\n\nDetails:\n$reason" else summary
+        val summary = (if (risk.isNotEmpty()) "$risk " else "") + getString(R.string.req_summary, source, pkg)
+        val expanded = if (reason.isNotBlank()) "$summary\n\n${getString(R.string.details_label)}\n$reason" else summary
         val n = NotificationCompat.Builder(this, CH_REQ)
-            .setContentTitle("Approve install: $pkg")
+            .setContentTitle(getString(R.string.approve_title, pkg))
             .setContentText(summary)
             .setStyle(NotificationCompat.BigTextStyle().bigText(expanded))
             .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setAutoCancel(true)
-            .addAction(action("deny", "Deny"))
-            .addAction(action("allow", "Allow"))
+            .addAction(action("deny", getString(R.string.action_deny)))
+            .addAction(action("allow", getString(R.string.action_allow)))
             .build()
         nm.notify(notifId, n)
     }
@@ -189,7 +189,7 @@ class NtfyService : Service() {
     private fun postAlert(text: String) {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val n = NotificationCompat.Builder(this, CH_REQ)
-            .setContentTitle("⚠ Guardian alert")
+            .setContentTitle(getString(R.string.alert_title))
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setSmallIcon(android.R.drawable.stat_notify_error)
@@ -208,10 +208,10 @@ class NtfyService : Service() {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
             val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             nm.createNotificationChannel(
-                NotificationChannel(CH_FG, "Background listener", NotificationManager.IMPORTANCE_MIN)
+                NotificationChannel(CH_FG, ctx.getString(R.string.ch_fg_name), NotificationManager.IMPORTANCE_MIN)
             )
             nm.createNotificationChannel(
-                NotificationChannel(CH_REQ, "Install requests", NotificationManager.IMPORTANCE_HIGH)
+                NotificationChannel(CH_REQ, ctx.getString(R.string.ch_req_name), NotificationManager.IMPORTANCE_HIGH)
             )
         }
 
