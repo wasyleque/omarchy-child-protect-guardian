@@ -19,8 +19,12 @@ allow perm=any uid=0 : all
 #     fapolicyd's upstream `ld_so` pattern matches exactly this (review H3). Keep it ABOVE the
 #     trust allows so a trusted loader can't be used to run an untrusted target.
 deny_audit perm=execute pattern=ld_so uid=1001 : all
-# NOTE: memfd-based exec (e.g. Python os.memfd_create) is a separate laundering path — set
-#       vm.memfd_noexec=2 (see 99-guardian-memfd.conf) and verify on-host; fapolicyd alone won't catch it.
+# NOTE: memfd-based exec (e.g. Python os.memfd_create) is a separate laundering path. Do NOT set
+#       vm.memfd_noexec=2 system-wide — on-host test 2026-10-23 (C0) showed it makes the NEXT BOOT
+#       fail (dbus-broker: "memfd_create() requires MFD_NOEXEC_SEAL with vm.memfd_noexec=2" →
+#       systemd "Failed to set up API bus"), leaving the host unbootable. The object-trust deny below
+#       already blocks running an untrusted memfd'd ELF for the child. If you must tighten memfd,
+#       use at most =1 and reboot-test before relying on it.
 
 # 2) The child may execute a file ONLY if that file (the object) is trusted. Untrusted object → deny.
 #    This also stops the loader-laundering trick: `ld-linux.so <untrusted-elf>` opens the untrusted
