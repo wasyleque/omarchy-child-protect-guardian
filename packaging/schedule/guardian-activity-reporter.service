@@ -1,0 +1,16 @@
+# Guardian activity reporter — a USER service for the CHILD's graphical session.
+# Install the script to /usr/lib/guardian/guardian-activity-reporter, drop this unit into the child's
+# ~/.config/systemd/user/, then (as the child):  systemctl --user enable --now guardian-activity-reporter
+# (or add `exec-once = /usr/lib/guardian/guardian-activity-reporter` to the child's hyprland.conf).
+[Unit]
+Description=Guardian activity reporter (foreground app -> usage log for the daily digest)
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+ExecStart=/usr/lib/guardian/guardian-activity-reporter
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

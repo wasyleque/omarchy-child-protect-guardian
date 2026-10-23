@@ -95,6 +95,7 @@ default_on_timeout = "deny"
 #digest_hour = 20                                   # local hour (0–23) to send it
 #digest_lang = "Polish"                             # language of the digest (e.g. Bielik for Polish)
 #dns_query_log = "/var/log/guardian/dns-queries.log"  # optional; enables worrying-topic flagging
+#activity_log = "/home/CHILD/.local/share/guardian/activity.log"  # optional; adds "apps used today"
 # For an OpenAI-compatible endpoint instead:
 #provider = "openai"
 #endpoint = "https://api.openai.com/v1/chat/completions"

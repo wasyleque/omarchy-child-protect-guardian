@@ -59,6 +59,7 @@ install -Dm755 "$HERE/fapolicyd/guardian-trust.sh" /usr/lib/guardian/guardian-tr
 echo "==> screen-time lock/unlock hooks (used only if [schedule] sets lock_command/unlock_command)"
 install -Dm755 "$HERE/schedule/guardian-lock.sh"   /usr/lib/guardian/guardian-lock
 install -Dm755 "$HERE/schedule/guardian-unlock.sh" /usr/lib/guardian/guardian-unlock
+install -Dm755 "$HERE/schedule/guardian-activity-reporter.sh" /usr/lib/guardian/guardian-activity-reporter
 
 echo "==> browser Secure-DNS(DoH) off policies (review B4: Firefox's built-in DoH bypasses filtering)"
 install -Dm644 "$HERE/network/firefox-policies.json"     /etc/firefox/policies/policies.json

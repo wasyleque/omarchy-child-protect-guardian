@@ -98,6 +98,10 @@ pub struct AiConfig {
     /// it the digest still covers blocked attempts from the audit log, but can't flag web lookups.
     #[serde(default)]
     pub dns_query_log: Option<String>,
+    /// Optional path to the child-activity log (from guardian-activity-reporter) so the digest can
+    /// report which apps/games were used and roughly for how long.
+    #[serde(default)]
+    pub activity_log: Option<String>,
 }
 
 fn default_digest_hour() -> u8 { 20 }

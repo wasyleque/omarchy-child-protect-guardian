@@ -173,9 +173,40 @@ fn scan_dns_for_concerns(path: &str) -> Vec<String> {
     out
 }
 
+/// Top foreground apps today from the activity log (approx time = samples × interval). Best-effort.
+fn summarize_activity(path: &str, midnight: u64) -> Vec<String> {
+    use std::io::BufRead;
+    const INTERVAL: u64 = 30; // matches the reporter's default sampling period
+    let mut by_class: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
+    if let Ok(f) = std::fs::File::open(path) {
+        for line in std::io::BufReader::new(f).lines().map_while(Result::ok) {
+            let mut it = line.splitn(3, '\t');
+            let ts: u64 = it.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+            if ts < midnight {
+                continue;
+            }
+            if let Some(class) = it.next() {
+                if !class.is_empty() {
+                    *by_class.entry(class.to_string()).or_insert(0) += INTERVAL;
+                }
+            }
+        }
+    }
+    let mut v: Vec<(String, u64)> = by_class.into_iter().collect();
+    v.sort_by(|a, b| b.1.cmp(&a.1));
+    v.into_iter()
+        .take(6)
+        .map(|(c, secs)| {
+            let m = secs / 60;
+            let t = if m >= 60 { format!("{}h{:02}m", m / 60, m % 60) } else { format!("{m}m") };
+            format!("{c} ~{t}")
+        })
+        .collect()
+}
+
 /// Compile today's events (since local midnight) from the audit log + the DNS concern scan into a
 /// compact, factual summary the digest model turns into a parent-facing note.
-fn build_day_summary(audit_path: &std::path::Path, dns_log: Option<&str>) -> String {
+fn build_day_summary(audit_path: &std::path::Path, dns_log: Option<&str>, activity_log: Option<&str>) -> String {
     let (_, _, minute) = guardian::schedule::local_now();
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -239,6 +270,12 @@ fn build_day_summary(audit_path: &std::path::Path, dns_log: Option<&str>) -> Str
     }
     if grants > 0 {
         s.push_str(&format!("Extra-time grants given: {grants}.\n"));
+    }
+    if let Some(path) = activity_log {
+        let apps = summarize_activity(path, midnight);
+        if !apps.is_empty() {
+            s.push_str(&format!("Apps/games used today: {}.\n", apps.join(", ")));
+        }
     }
     if let Some(path) = dns_log {
         let hits = scan_dns_for_concerns(path);
@@ -518,7 +555,7 @@ async fn main() -> Result<()> {
                 let client = reqwest::Client::new();
                 loop {
                     tokio::time::sleep(std::time::Duration::from_secs(secs_until_hour(ai.digest_hour))).await;
-                    let events = build_day_summary(&audit_path, ai.dns_query_log.as_deref());
+                    let events = build_day_summary(&audit_path, ai.dns_query_log.as_deref(), ai.activity_log.as_deref());
                     match guardian::ai::daily_digest(&client, &ai, &ai.digest_lang, &events).await {
                         Some(d) => ntfy.alert("daily-digest", "Guardian: podsumowanie dnia", &d),
                         None => eprintln!("guardiand: daily digest skipped (AI unavailable)"),
