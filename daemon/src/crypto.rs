@@ -46,6 +46,14 @@ pub fn alert_message(text: &str, ts: u64) -> String {
     format!("{ALERT_DOMAIN}|{text}|{ts}")
 }
 
+/// Domain for a live "current foreground app" activity ping the daemon signs (the app shows it).
+pub const ACT_DOMAIN: &str = "OCPG-ACT-v1";
+
+/// The bytes the daemon signs for an activity ping (which child is running which app, when).
+pub fn activity_message(child: &str, app: &str, ts: u64) -> String {
+    format!("{ACT_DOMAIN}|{child}|{app}|{ts}")
+}
+
 /// Domain tag for a parent-initiated "grant extra screen-time" command. v2 binds the target daemon's
 /// public key so a captured grant can't be replayed onto a sibling's machine paired to the same parent
 /// key (review M7).

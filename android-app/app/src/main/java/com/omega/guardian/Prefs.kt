@@ -131,6 +131,20 @@ object Prefs {
 
     fun isPaired(ctx: Context): Boolean = children(ctx).length() > 0
 
+    /** Live "current app" per child (from signed activity pings). Stored as "ts\tapp". */
+    fun setCurrentApp(ctx: Context, child: String, app: String, ts: Long) {
+        plain(ctx).edit().putString("cur_$child", "$ts\t$app").apply()
+    }
+    /** The child's current app if seen in the last 3 minutes, else null (stale → "offline"). */
+    fun currentApp(ctx: Context, child: String): String? {
+        val v = plain(ctx).getString("cur_$child", null) ?: return null
+        val parts = v.split("\t", limit = 2)
+        if (parts.size < 2) return null
+        val ts = parts[0].toLongOrNull() ?: return null
+        if (System.currentTimeMillis() / 1000 - ts > 180) return null
+        return parts[1]
+    }
+
     /** Optimistic local "lock now" toggle, per active child. */
     fun lockRequested(ctx: Context): Boolean = plain(ctx).getBoolean("lock_${activeChildName(ctx)}", false)
     fun setLockRequested(ctx: Context, v: Boolean) {

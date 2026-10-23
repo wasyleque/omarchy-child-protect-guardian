@@ -154,7 +154,9 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetTextI18n")
     private fun render() {
         val n = Prefs.children(this).length()
-        b.tvStatus.text = if (n == 0) getString(R.string.status_not_paired) else getString(R.string.status_children_fmt, n)
+        val base = if (n == 0) getString(R.string.status_not_paired) else getString(R.string.status_children_fmt, n)
+        val now = if (n > 0) Prefs.currentApp(this, Prefs.activeChildName(this)) else null
+        b.tvStatus.text = if (now != null) "$base\n" + getString(R.string.now_using_fmt, now) else base
         populateChildSpinner()
         b.lblScheduleFor.text = if (n > 0) getString(R.string.sched_for_fmt, Prefs.activeChildName(this)) else getString(R.string.hdr_schedule)
         b.tvPubkey.text = Prefs.publicKeyB64(this)

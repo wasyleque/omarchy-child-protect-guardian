@@ -105,6 +105,19 @@ class NtfyService : Service() {
             return
         }
 
+        // Live "current app" ping (signed, low priority — no notification, just updates the UI).
+        if (msg.optString("kind") == "activity") {
+            val app = msg.optString("app", "")
+            val ts = msg.optLong("ts", 0L)
+            val sig = msg.optString("sig", "")
+            val who = msg.optString("child", child)
+            if (app.isNotBlank() && Crypto.verify(dpub, Crypto.activityCanonical(who, app, ts), sig)) {
+                Prefs.setCurrentApp(this, child, app, ts)
+                sendBroadcast(Intent(ACTION_PENDING_CHANGED).setPackage(packageName))
+            }
+            return
+        }
+
         // Install challenge. Reject anything this child's daemon didn't sign.
         val id = msg.optString("id", "")
         val nonce = msg.optString("nonce", "")

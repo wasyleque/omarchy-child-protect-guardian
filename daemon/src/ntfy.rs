@@ -384,6 +384,20 @@ impl Ntfy {
         self.post_publish(payload).await
     }
 
+    /// Publish a signed "current app" ping for a child at low priority (no buzz). The app verifies it
+    /// with the daemon key and shows "now: <app>". Only called on change + while the child is active.
+    pub async fn publish_activity(&self, child: &str, app: &str) -> Result<()> {
+        let ts = now_secs();
+        let sig = crypto::sign_b64(&self.daemon_key, &crypto::activity_message(child, app, ts));
+        let message = serde_json::json!({ "kind": "activity", "child": child, "app": app, "ts": ts, "sig": sig }).to_string();
+        let payload = serde_json::json!({
+            "topic": self.cfg.request_topic,
+            "message": message,
+            "priority": 1,
+        });
+        self.post_publish(payload).await
+    }
+
     fn base(&self) -> &str {
         self.cfg.server.trim_end_matches('/')
     }

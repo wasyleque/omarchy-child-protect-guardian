@@ -204,6 +204,24 @@ fn summarize_activity(path: &str, midnight: u64) -> Vec<String> {
         .collect()
 }
 
+/// The activity log for a child (written by guardian-activity-reporter in the child's home).
+fn activity_log_for(name: &str) -> Option<std::path::PathBuf> {
+    let o = std::process::Command::new("getent").args(["passwd", name]).output().ok()?;
+    let line = String::from_utf8_lossy(&o.stdout);
+    let home = line.trim().split(':').nth(5)?.to_string();
+    if home.is_empty() {
+        return None;
+    }
+    Some(std::path::PathBuf::from(home).join(".local/share/guardian/activity.log"))
+}
+
+/// The most recent foreground-app class from an activity log (last non-empty line's 2nd column).
+fn last_activity_app(path: &std::path::Path) -> Option<String> {
+    let txt = std::fs::read_to_string(path).ok()?;
+    let last = txt.lines().filter(|l| !l.trim().is_empty()).last()?;
+    last.split('\t').nth(1).map(|s| s.to_string()).filter(|s| !s.is_empty())
+}
+
 /// Compile today's events (since local midnight) from the audit log + the DNS concern scan into a
 /// compact, factual summary the digest model turns into a parent-facing note.
 fn build_day_summary(audit_path: &std::path::Path, dns_log: Option<&str>, activity_log: Option<&str>) -> String {
@@ -564,6 +582,41 @@ async fn main() -> Result<()> {
                     tokio::time::sleep(std::time::Duration::from_secs(90)).await;
                 }
             });
+        }
+    }
+
+    // Live "current app" pings: when enabled, publish each active child's foreground app (on change)
+    // so the parent app can show "now: <app>". Reads the reporter's per-child activity log.
+    if let Some(ntfy) = &ntfy {
+        if policy.ntfy.as_ref().map(|c| c.publish_activity).unwrap_or(false) {
+            let children: Vec<(String, u32)> = std::env::var("GUARDIAN_CHILD")
+                .ok()
+                .map(|v| v.split_whitespace().map(|s| s.to_string()).collect::<Vec<_>>())
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|n| uid_of(&n).map(|u| (n, u)))
+                .collect();
+            if !children.is_empty() {
+                let ntfy = Arc::clone(ntfy);
+                eprintln!("guardiand: live activity pings enabled for {:?}", children.iter().map(|(n, _)| n).collect::<Vec<_>>());
+                tokio::spawn(async move {
+                    let mut last: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+                    loop {
+                        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                        for (name, uid) in &children {
+                            if !child_active(*uid) {
+                                continue;
+                            }
+                            if let Some(app) = activity_log_for(name).and_then(|p| last_activity_app(&p)) {
+                                if last.get(name) != Some(&app) {
+                                    last.insert(name.clone(), app.clone());
+                                    let _ = ntfy.publish_activity(name, &app).await;
+                                }
+                            }
+                        }
+                    }
+                });
+            }
         }
     }
 

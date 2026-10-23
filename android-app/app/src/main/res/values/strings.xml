@@ -103,4 +103,5 @@
         <item>Saturday</item>
         <item>Sunday</item>
     </string-array>
+    <string name="now_using_fmt">▶ Now using: %1$s</string>
 </resources>

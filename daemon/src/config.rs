@@ -137,6 +137,10 @@ pub struct NtfyConfig {
     /// pubkey the daemon refuses remote approval and runs local-only. Only for throwaway testing.
     #[serde(default)]
     pub allow_insecure_token: bool,
+    /// Publish a signed, low-priority "current app" ping (from the activity reporter) so the app can
+    /// show what the child is doing now. Off by default (adds some broker traffic while the child is on).
+    #[serde(default)]
+    pub publish_activity: bool,
 }
 
 fn default_ntfy_server() -> String {

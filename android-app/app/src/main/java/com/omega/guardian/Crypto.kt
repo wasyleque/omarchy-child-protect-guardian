@@ -53,6 +53,8 @@ object Crypto {
     fun challengeCanonical(id: String, source: String, pkg: String, nonce: String, reason: String, respondTo: String) =
         "$CHALLENGE|$id|$source|$pkg|$nonce|$reason|$respondTo"
 
+    fun activityCanonical(child: String, app: String, ts: Long) = "OCPG-ACT-v1|$child|$app|$ts"
+
     /** Sign a decision; returns base64 of the 64-byte signature. */
     fun signDecision(seed: ByteArray, id: String, decision: String, nonce: String, ts: Long, source: String, pkg: String): String =
         b64e(signRaw(seed, decisionCanonical(id, decision, nonce, ts, source, pkg)))
