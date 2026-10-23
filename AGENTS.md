@@ -320,11 +320,20 @@ fixed across 3 batches (daemon 0.2.4→0.2.5, app 0.1.6→0.1.7/vc8). Docs commi
   - Step 6 — F16 (979cdc3, daemon 0.3.1): the tick now charges the budget only when the child has an
     ACTIVE, non-idle logind session (child_active via loginctl) and never while parent-locked; falls
     back to active=true without logind. Fixes budget draining by wall clock / while frozen. NEEDS host.
-  - REMAINING Batch 4: live "current app/game" view (hard over one-way ntfy — the app can't poll;
-    needs a low-rate activity publish or a child-side reporter feeding app-usage into the digest —
-    DEFERRED, design needed); per-child targeting for grant/lock-now (add `child` to OCPG-GRANT/LOCK;
-    today both apply to ALL children — minor, own-PC case already fine). ON-HOST VERIFY pending for the
-    whole screen-time/digest/F16 path + Batch 1-2 security fixes.
+  - Step 7 — per-child grant (33b57f6, daemon 0.3.2 / app 0.1.10): OCPG-GRANT-v3 adds a `child` field;
+    grant routes to the named child (fallback all/single). CryptoTest vector updated to v3. Lock stays
+    global ("lock the computer").
+  - Step 8 — activity reporter + digest (8373d56, daemon 0.3.3): packaging/schedule/
+    guardian-activity-reporter.sh (hyprctl, in child session) logs foreground app; digest reports
+    "apps used today" via [ai].activity_log.
+  - Step 9 — LIVE "current app" (2f8e8d0, daemon 0.3.4 / app 0.1.11): [ntfy].publish_activity → daemon
+    signs (OCPG-ACT-v1) each active child's current app on change → app shows "▶ Now using: <app>".
+  - Batch 4 FEATURES COMPLETE. ON-HOST VERIFY still pending for the whole screen-time/digest/F16/
+    activity path + Batch 1-2 security fixes (user tests on the child box .12 when able). Known
+    non-Batch-4 follow-ups remain (M4 payload encryption, iOS, app icon, heartbeat-gap alarm).
+  - README reworked (b4b854a/f2d7a7d): Status moved below Documentation + reworded ("✅ Working — in
+    active testing, not yet sole protection"), new "📱 Android parent app" section + a real phone
+    screenshot (docs/screenshots/android-app.png, public key redacted). daemon now 0.3.4, app 0.1.11/vc12.
 
 ## Workflow routing (this machine)
 - **Logic / architecture / integrations →** `agy`.
