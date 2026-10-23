@@ -16,6 +16,34 @@ no shipping your child's data to a corporate cloud).
 
 ---
 
+## 🚀 Install & update
+
+> **Full, security-ordered deploy guide:** **[`packaging/README.md`](packaging/README.md)** (hardware
+> baseline → daemon → pacman hook → nftables egress → fapolicyd → hardening → updating). Short version:
+
+**On the child's computer (Arch / Omarchy):**
+```bash
+git clone https://github.com/wasyleque/omarchy-child-protect-guardian
+cd omarchy-child-protect-guardian/daemon && cargo build --release && cd ..
+sudo packaging/install.sh                   # safe default (only 'pacman -S sl' gated); add --enforce when ready
+sudo packaging/setup-child.sh <child-name>  # locked-down child account (no sudo) + pairing QR
+```
+Then apply the host-specific layers — **nftables** egress, the **fapolicyd** execution allowlist
+(`guardian-fapolicyd-setup.sh`, *required* for real enforcement), browser/NM lockdown and the hardware
+baseline — all in [`packaging/README.md`](packaging/README.md). Check it end to end anytime with
+`sudo packaging/smoke-test.sh <child>`.
+
+**On the parent's phone:** install the Android app from the
+**[Releases page](https://github.com/wasyleque/omarchy-child-protect-guardian/releases/latest)** and
+scan the pairing QR — details in [📱 Android parent app](#-android-parent-app).
+
+**Updating later:** `git pull` → `cargo build --release` → `sudo packaging/install.sh` →
+`sudo systemctl restart guardiand` (under fapolicyd enforcing, re-trust the new binaries first) — full
+steps in [`packaging/README.md` → *7. Updating*](packaging/README.md#7-updating-to-a-new-version). The
+phone's APK installs **in place** over the old one (pairing kept, no re-pair).
+
+---
+
 ## Why Linux/Omarchy wins here
 
 Things competitors on Windows/macOS/Android **can't** do, but we can:

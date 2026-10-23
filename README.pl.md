@@ -24,6 +24,34 @@ telemetrii, żadnego wysyłania danych dziecka do korporacyjnej chmury).
 
 ---
 
+## 🚀 Instalacja i aktualizacja
+
+> **Pełny przewodnik wdrożenia (w kolejności bezpieczeństwa):** **[`packaging/README.md`](packaging/README.md)**
+> (baza sprzętowa → demon → hook pacmana → nftables → fapolicyd → utwardzenie → aktualizacja). Skrót:
+
+**Na komputerze dziecka (Arch / Omarchy):**
+```bash
+git clone https://github.com/wasyleque/omarchy-child-protect-guardian
+cd omarchy-child-protect-guardian/daemon && cargo build --release && cd ..
+sudo packaging/install.sh                   # bezpiecznie domyślnie (gated tylko 'pacman -S sl'); --enforce gdy gotów
+sudo packaging/setup-child.sh <imię-dziecka>  # konto dziecka bez roota + QR do parowania
+```
+Potem warstwy zależne od hosta — **nftables**, lista dozwolonych wykonań **fapolicyd**
+(`guardian-fapolicyd-setup.sh`, *wymagane* do realnej egzekucji), blokada przeglądarek/NM i baza
+sprzętowa — wszystko w [`packaging/README.md`](packaging/README.md). Weryfikacja:
+`sudo packaging/smoke-test.sh <dziecko>`.
+
+**Na telefonie rodzica:** zainstaluj apkę z
+**[strony Releases](https://github.com/wasyleque/omarchy-child-protect-guardian/releases/latest)** i
+zeskanuj QR parowania — szczegóły w [📱 Android parent app](README.md#-android-parent-app).
+
+**Aktualizacja:** `git pull` → `cargo build --release` → `sudo packaging/install.sh` →
+`sudo systemctl restart guardiand` (pod fapolicyd w trybie enforce najpierw ponownie zaufaj nowym
+binarkom) — pełne kroki w [`packaging/README.md` → *7. Updating*](packaging/README.md#7-updating-to-a-new-version).
+APK na telefonie instaluje się **w miejscu** (parowanie zostaje).
+
+---
+
 ## Dlaczego akurat Linux/Omarchy to wygrywa
 
 Rzeczy, których konkurencja na Windows/macOS/Android **nie może** zrobić, a my możemy:
