@@ -95,6 +95,61 @@ if systemctl is-active --quiet guardiand 2>/dev/null; then
 fi
 echo "==> guardiand screen-time lock bound to '$CHILD'"
 
+# 5b. Session hardening — close the LOGIN-level escapes the on-host test found (F12/F13/F18). These
+#     matter most: without them a child bypasses every other layer at the greeter or a text console.
+echo
+echo "==> session hardening (login-level escapes — review F12/F13/F18)"
+
+# F13: disable on-demand text consoles. A tty login (Ctrl+Alt+F3..F6) runs in getty@ttyN.service,
+#      OUTSIDE user-<uid>.slice, so it escapes the screen-time freeze (F18, confirmed live).
+LOGIND_DROPIN=/etc/systemd/logind.conf.d/10-guardian-noconsoles.conf
+if [ ! -f "$LOGIND_DROPIN" ]; then
+  read -r -p "    Disable text consoles tty2–tty6 (recommended; closes a lock-bypass)? [Y/n] " a
+  case "$a" in
+    n|N) echo "    skipped — WARNING: a child can escape the screen-time lock via Ctrl+Alt+F3..F6" ;;
+    *)
+      mkdir -p /etc/systemd/logind.conf.d
+      cat > "$LOGIND_DROPIN" <<'EOF'
+# Guardian: no on-demand VTs / spare consoles (review F13/F18). Your display manager keeps its own VT.
+[Login]
+NAutoVTs=0
+ReserveVT=0
+EOF
+      systemctl mask getty@tty2.service getty@tty3.service getty@tty4.service \
+                     getty@tty5.service getty@tty6.service autovt@.service >/dev/null 2>&1 || true
+      echo "    text consoles disabled (REBOOT to apply). Undo: rm $LOGIND_DROPIN &&"
+      echo "        systemctl unmask getty@tty{2..6}.service autovt@.service   (recover via SSH if needed)"
+      ;;
+  esac
+else
+  echo "    text consoles already hardened ($LOGIND_DROPIN)"
+fi
+
+# F12: a display-manager autologin into a NON-child account (Omarchy ships SDDM autologin for the
+#      parent) hands a child that session on power-on — every other layer is moot.
+for conf in /etc/sddm.conf.d/*.conf /etc/sddm.conf; do
+  [ -f "$conf" ] || continue
+  au="$(sed -nE 's/^[[:space:]]*User[[:space:]]*=[[:space:]]*(.+)/\1/p' "$conf" | head -1)"
+  if [ -n "$au" ] && grep -qiE '^\[Autologin\]|^[[:space:]]*Session[[:space:]]*=' "$conf" && [ "$au" != "$CHILD" ]; then
+    echo "    !! $conf autologins '$au' — a child who powers on lands in that session with its privileges."
+    read -r -p "       Remove this autologin? [Y/n] " a
+    case "$a" in
+      n|N) echo "       left as-is — WARNING: this bypasses Guardian entirely." ;;
+      *) cp -a "$conf" "$conf.guardian.bak"
+         sed -i -E '/^[[:space:]]*(User|Session)[[:space:]]*=/d' "$conf"
+         echo "       autologin removed (backup: $conf.guardian.bak); a login prompt will appear on boot." ;;
+    esac
+  fi
+done
+
+# F12 greeter: Omarchy's SDDM theme shows only the last user (no picker), so a freshly-created child
+#      can't pick their account. Point at a stock theme with a user list.
+THEME="$(sed -nE 's/^[[:space:]]*Current[[:space:]]*=[[:space:]]*(.+)/\1/p' /etc/sddm.conf /etc/sddm.conf.d/*.conf 2>/dev/null | head -1)"
+if [ "$THEME" = "omarchy" ]; then
+  echo "    NOTE: SDDM theme 'omarchy' shows only the last user. For multi-user login switch to a theme"
+  echo "          with a picker, e.g.:  sudo sed -i 's/^Current=.*/Current=breeze/' /etc/sddm.conf.d/*.conf"
+fi
+
 echo
 echo "Child account ready:  $CHILD  (uid $CHILD_UID)  — no sudo, no root."
 echo "Verify the lockdown:  $HERE/harden-audit.sh $CHILD"

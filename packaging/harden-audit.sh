@@ -85,9 +85,29 @@ if [ -n "$CHILD" ] && id "$CHILD" >/dev/null 2>&1; then
 else
   meh "Pass the child's username as arg 1 to audit its groups (e.g. ./harden-audit.sh kid)"
 fi
-for t in tty2 tty3 tty4 tty5 tty6; do :; done
-act_getty="$(systemctl list-units --type=service 2>/dev/null | grep -c 'getty@tty[2-9]')"
-[ "${act_getty:-0}" -gt 0 ] && meh "spare getty on tty2+ active — consider masking (VT login surface)" || ok "no spare getty on tty2+ active"
+# Text consoles (review F13): check the CONFIGURED NAutoVTs, not currently-running units — getty@ttyN
+# is spawned on demand when someone presses Ctrl+Alt+Fn, so "no getty running now" is a false PASS.
+nautovts="$(systemctl show systemd-logind -p NAutoVTs --value 2>/dev/null)"
+if [ "${nautovts:-6}" = "0" ]; then
+  ok "text consoles disabled (NAutoVTs=0) — no tty login surface"
+else
+  nok "on-demand text consoles enabled (NAutoVTs=${nautovts:-?}) — a tty login (Ctrl+Alt+F3..F6) escapes the screen-time lock (F18); run setup-child.sh or set NAutoVTs=0"
+fi
+
+# Display-manager autologin into a non-child (review F12): hands a child that session on power-on.
+autologin_bad=""
+for conf in /etc/sddm.conf.d/*.conf /etc/sddm.conf /etc/gdm/custom.conf; do
+  [ -f "$conf" ] || continue
+  au="$(sed -nE 's/^[[:space:]]*(User|AutomaticLogin)[[:space:]]*=[[:space:]]*(.+)/\2/p' "$conf" | head -1)"
+  if [ -n "$au" ] && grep -qiE '^\[Autologin\]|Automatic[Ll]ogin|^[[:space:]]*Session[[:space:]]*=' "$conf"; then
+    [ -n "$CHILD" ] && [ "$au" = "$CHILD" ] || autologin_bad="$au ($conf)"
+  fi
+done
+if [ -n "$autologin_bad" ]; then
+  nok "autologin into a non-child account: $autologin_bad — bypasses every Guardian layer (F12); remove it"
+else
+  ok "no display-manager autologin into a non-child account"
+fi
 
 hdr "Summary"
 printf '  %d pass, %d warn, %d fail\n' "$pass" "$warn" "$fail"

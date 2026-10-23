@@ -12,6 +12,10 @@ for child in $GUARDIAN_CHILD; do
   uid="$(id -u "$child" 2>/dev/null || true)"
   [ -n "$uid" ] || continue
   logger -t guardian-unlock "thawing screen-time for $child (uid $uid)"
+  # Reverse both halves of the lock, in order: resume stopped processes, then thaw the slice, then
+  # clear the episode stamp so the next lock notifies again (review F17/F18).
   systemctl thaw "user-$uid.slice" 2>/dev/null || true
+  pkill -CONT -u "$uid" 2>/dev/null || true
+  rm -f "/run/guardian/locked-$uid" 2>/dev/null || true
 done
 exit 0
