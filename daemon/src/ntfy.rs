@@ -76,6 +76,8 @@ pub struct Ntfy {
     lock_override: Mutex<Option<Arc<std::sync::atomic::AtomicBool>>>,
     /// Where verified pushed schedules (child name + override) go to be applied + persisted.
     sched_tx: Mutex<Option<mpsc::UnboundedSender<(String, crate::schedule::ChildSchedule)>>>,
+    /// Where a pushed AI config is persisted (so it survives restart + the digest task re-reads it).
+    ai_config_path: Mutex<Option<std::path::PathBuf>>,
 }
 
 #[derive(Deserialize)]
@@ -175,7 +177,13 @@ impl Ntfy {
             ai: Mutex::new(None),
             lock_override: Mutex::new(None),
             sched_tx: Mutex::new(None),
+            ai_config_path: Mutex::new(None),
         }))
+    }
+
+    /// Where to persist a pushed AI config (enables the "set AI" command).
+    pub fn set_ai_config_path(&self, path: std::path::PathBuf) {
+        *self.ai_config_path.lock().unwrap() = Some(path);
     }
 
     /// Attach the audit log so rejected approvals are recorded (N5).
@@ -292,6 +300,52 @@ impl Ntfy {
         } else {
             eprintln!("guardiand: lock command received but no [schedule] is configured — nothing to lock");
         }
+    }
+
+    /// Apply a verified pushed AI config: update the live summary config + persist it (the digest task
+    /// re-reads the file). Same anti-replay + addressing checks as a grant.
+    fn handle_aicfg(&self, vk: &VerifyingKey, a: crypto::SignedAiCfg) {
+        if a.daemon_pub != crypto::pubkey_b64(&self.daemon_key) {
+            eprintln!("guardiand: ntfy rejected AI config (addressed to a different daemon)");
+            return;
+        }
+        let now = now_secs();
+        if a.ts > now.saturating_add(60) || now.saturating_sub(a.ts) > MAX_TS_SKEW_SECS {
+            eprintln!("guardiand: ntfy rejected AI config (timestamp out of window)");
+            return;
+        }
+        if self.grant_nonces.lock().unwrap().contains(&a.nonce) {
+            eprintln!("guardiand: ntfy rejected AI config (replayed nonce)");
+            return;
+        }
+        if !crypto::verify_aicfg(vk, &a) {
+            eprintln!("guardiand: ntfy rejected AI config (bad signature)");
+            self.alert("aicfg-forged", "Guardian: FORGED AI config blocked", "An AI config with an invalid signature was rejected.");
+            return;
+        }
+        let cfg: crate::config::AiConfig = match serde_json::from_str(&a.cfg) {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("guardiand: ntfy rejected AI config (bad JSON: {e})");
+                return;
+            }
+        };
+        self.grant_nonces.lock().unwrap().insert(a.nonce.clone());
+        if let Some(p) = &self.grant_nonce_path {
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) {
+                use std::io::Write as _;
+                let _ = writeln!(f, "{}", a.nonce);
+            }
+        }
+        // Live update for install risk-summaries + persist for the digest task / next start.
+        *self.ai.lock().unwrap() = if cfg.enabled { Some(cfg) } else { None };
+        if let Some(path) = self.ai_config_path.lock().unwrap().as_ref() {
+            if let Some(dir) = path.parent() {
+                std::fs::create_dir_all(dir).ok();
+            }
+            let _ = std::fs::write(path, &a.cfg);
+        }
+        eprintln!("guardiand: ntfy AI config updated from the app");
     }
 
     /// Apply a verified pushed schedule for a child (same anti-replay + addressing checks as a grant).
@@ -642,6 +696,13 @@ impl Ntfy {
         if let Ok(s) = serde_json::from_str::<crypto::SignedSchedule>(msg) {
             if s.kind == "set_schedule" {
                 self.handle_schedule(vk, s);
+                return;
+            }
+        }
+        // ...and a pushed AI/Ollama configuration.
+        if let Ok(a) = serde_json::from_str::<crypto::SignedAiCfg>(msg) {
+            if a.kind == "set_ai" {
+                self.handle_aicfg(vk, a);
                 return;
             }
         }

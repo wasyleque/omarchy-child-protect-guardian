@@ -156,6 +156,40 @@ pub struct SignedSchedule {
     pub sig: String,
 }
 
+/// Domain for a parent-pushed AI/Ollama configuration.
+pub const AICFG_DOMAIN: &str = "OCPG-AICFG-v1";
+
+/// Bytes the parent app signs to set the AI config (`cfg_json` signed verbatim, like a schedule).
+pub fn aicfg_message(daemon_pub: &str, nonce: &str, ts: u64, cfg_json: &str) -> String {
+    format!("{AICFG_DOMAIN}|{daemon_pub}|{nonce}|{ts}|{cfg_json}")
+}
+
+/// A signed AI-config command posted by the parent app.
+#[derive(Debug, Deserialize)]
+pub struct SignedAiCfg {
+    pub kind: String,
+    pub daemon_pub: String,
+    pub nonce: String,
+    pub ts: u64,
+    /// The AI config as a JSON string (parsed into config::AiConfig).
+    pub cfg: String,
+    pub sig: String,
+}
+
+/// Verify a signed AI-config command against the parent key.
+pub fn verify_aicfg(vk: &VerifyingKey, a: &SignedAiCfg) -> bool {
+    let sig_bytes = match STANDARD.decode(a.sig.trim()) {
+        Ok(b) => b,
+        Err(_) => return false,
+    };
+    let arr: [u8; 64] = match sig_bytes.try_into() {
+        Ok(a) => a,
+        Err(_) => return false,
+    };
+    let sig = Signature::from_bytes(&arr);
+    vk.verify_strict(aicfg_message(&a.daemon_pub, &a.nonce, a.ts, &a.cfg).as_bytes(), &sig).is_ok()
+}
+
 /// Verify a signed schedule command against the parent key.
 pub fn verify_schedule(vk: &VerifyingKey, s: &SignedSchedule) -> bool {
     let sig_bytes = match STANDARD.decode(s.sig.trim()) {

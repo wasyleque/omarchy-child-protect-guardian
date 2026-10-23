@@ -38,6 +38,13 @@ pub struct Policy {
     /// Optional AI risk-summary of each install request (shown to the parent). Off by default.
     #[serde(default)]
     pub ai: Option<AiConfig>,
+    /// Where an AI config pushed from the app is persisted (overrides `[ai]` on next start + at runtime).
+    #[serde(default = "default_ai_config_path")]
+    pub ai_config_path: PathBuf,
+}
+
+fn default_ai_config_path() -> PathBuf {
+    PathBuf::from("/var/lib/guardian/ai.json")
 }
 
 impl Default for Policy {
@@ -55,6 +62,7 @@ impl Default for Policy {
             ntfy: None,
             schedule: None,
             ai: None,
+            ai_config_path: default_ai_config_path(),
         }
     }
 }

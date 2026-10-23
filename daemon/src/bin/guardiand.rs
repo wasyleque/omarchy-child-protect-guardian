@@ -204,6 +204,12 @@ fn summarize_activity(path: &str, midnight: u64) -> Vec<String> {
         .collect()
 }
 
+/// Load an AI config pushed from the app (persisted), if present — overrides policy `[ai]`.
+fn load_ai_override(path: &std::path::Path) -> Option<guardian::config::AiConfig> {
+    let txt = std::fs::read_to_string(path).ok()?;
+    serde_json::from_str(&txt).ok()
+}
+
 /// The activity log for a child (written by guardian-activity-reporter in the child's home).
 fn activity_log_for(name: &str) -> Option<std::path::PathBuf> {
     let o = std::process::Command::new("getent").args(["passwd", name]).output().ok()?;
@@ -387,10 +393,13 @@ async fn main() -> Result<()> {
                 if let Some(a) = &audit {
                     ntfy.set_audit(Arc::clone(a));
                 }
-                if let Some(ai) = policy.ai.as_ref().filter(|a| a.enabled) {
-                    eprintln!("guardiand: AI risk-summary enabled ({} @ {})", ai.model, ai.endpoint);
+                // Effective AI config = a config pushed from the app (persisted) overrides policy [ai].
+                let eff_ai = load_ai_override(&policy.ai_config_path).or_else(|| policy.ai.clone());
+                if let Some(ai) = eff_ai.as_ref().filter(|a| a.enabled) {
+                    eprintln!("guardiand: AI enabled ({} @ {})", ai.model, ai.endpoint);
                     ntfy.set_ai(ai.clone());
                 }
+                ntfy.set_ai_config_path(policy.ai_config_path.clone()); // enable "set AI" from the app
                 ntfy.set_lock_override(Arc::clone(&lock_override));
                 tokio::spawn(Arc::clone(&ntfy).subscribe_loop(Arc::clone(&queue)));
                 tokio::spawn(Arc::clone(&ntfy).alert_worker());
@@ -564,25 +573,30 @@ async fn main() -> Result<()> {
 
     // Daily AI parenting digest (usage + blocked attempts + worrying-lookup warnings), pushed as a
     // signed alert the app already verifies + shows. Off unless [ai].digest_enabled.
+    // Always spawn (when ntfy is up) and re-read the AI config each cycle, so enabling the digest or
+    // changing the hour/model from the app takes effect without a daemon restart.
     if let Some(ntfy) = &ntfy {
-        if let Some(ai) = policy.ai.clone().filter(|a| a.enabled && a.digest_enabled) {
-            let ntfy = Arc::clone(ntfy);
-            let audit_path = policy.audit_path.clone();
-            eprintln!("guardiand: daily AI digest enabled (at {}:00, {})", ai.digest_hour, ai.digest_lang);
-            tokio::spawn(async move {
-                let client = reqwest::Client::new();
-                loop {
-                    tokio::time::sleep(std::time::Duration::from_secs(secs_until_hour(ai.digest_hour))).await;
+        let ntfy = Arc::clone(ntfy);
+        let audit_path = policy.audit_path.clone();
+        let ai_path = policy.ai_config_path.clone();
+        let policy_ai = policy.ai.clone();
+        tokio::spawn(async move {
+            let client = reqwest::Client::new();
+            loop {
+                let cur = load_ai_override(&ai_path).or_else(|| policy_ai.clone());
+                let hour = cur.as_ref().map(|a| a.digest_hour).unwrap_or(20);
+                tokio::time::sleep(std::time::Duration::from_secs(secs_until_hour(hour))).await;
+                let cur = load_ai_override(&ai_path).or_else(|| policy_ai.clone());
+                if let Some(ai) = cur.filter(|a| a.enabled && a.digest_enabled) {
                     let events = build_day_summary(&audit_path, ai.dns_query_log.as_deref(), ai.activity_log.as_deref());
                     match guardian::ai::daily_digest(&client, &ai, &ai.digest_lang, &events).await {
                         Some(d) => ntfy.alert("daily-digest", "Guardian: podsumowanie dnia", &d),
                         None => eprintln!("guardiand: daily digest skipped (AI unavailable)"),
                     }
-                    // Step past this minute so we don't fire twice before the hour rolls over.
-                    tokio::time::sleep(std::time::Duration::from_secs(90)).await;
                 }
-            });
-        }
+                tokio::time::sleep(std::time::Duration::from_secs(90)).await;
+            }
+        });
     }
 
     // Live "current app" pings: when enabled, publish each active child's foreground app (on change)
