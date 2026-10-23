@@ -255,6 +255,43 @@ same crypto the daemon already trusts). Architecture from agy.
   tag minus the leading `v`, prefers the signed release APK else debug) and attaches only that one file,
   so there is no raw app-debug.apk duplicate to clean up anymore.
 
+## On-host test report #2 (2026-10-23, commit 8a6e8ae) + fixes — see guardian-{test-report,fixes}-2026-10-23.md
+User (the tester) ran fapolicyd end-to-end for the first time + child GUI session. Serious findings;
+fixed across 3 batches (daemon 0.2.4→0.2.5, app 0.1.6→0.1.7/vc8). Docs committed to repo.
+- **Batch 1 — critical P0** (commits 56d7e00, 01a2bed, b1d13d6):
+  - C0: stopped shipping `vm.memfd_noexec=2` (made next boot fail — dbus-broker/API bus). Removed file.
+  - C1/F1/F2/F3/F14: new `packaging/fapolicyd/guardian-fapolicyd-setup.sh` — the correct Arch rollout.
+    allow_filesystem_mark=1 (closes bwrap/unshare bind-mount bypass), trust.d seeded as `path size
+    sha256` dropping `\`/space paths, rules renamed 50→**05-guardian.rules** (precede upstream 42/43
+    that denied the parent/services), Arch prereqs (sysuser, trust=file, buildroot/ld_so), trusts
+    Guardian's own non-pacman files. README rewritten; install.sh #3 points at it.
+  - F4: install.sh `chattr -i`s managed files first (watchdog re-immutables → re-run no longer strands TEST mode).
+  - F8: daemon.pub 0644 + /var/lib/guardian 0755; `guardian-ctl pair` warns loudly if it can't read the key.
+  - F6: control socket 0666-by-design documented (N2 visibility, not a regression).
+- **Batch 2 — session hardening** (commit d08a400): the worst "sole protection" gaps (login-level).
+  - F13: setup-child.sh writes logind drop-in NAutoVTs=0/ReserveVT=0 + masks getty@tty2..6/autovt@;
+    harden-audit checks configured NAutoVTs (was a false PASS).
+  - F18: guardian-lock.sh adds `pkill -STOP -u <uid>` (tty login runs outside user slice); unlock `-CONT`.
+  - F17: lock/notify once per episode via /run/guardian/locked-<uid> stamp (was every tick).
+  - F12: setup-child.sh detects+offers to remove a display-manager autologin into a non-child; warns
+    about Omarchy's single-user SDDM theme; harden-audit FAILs on non-child autologin.
+- **Batch 3 — parent-app gaps + F15** (commit e91f2d0):
+  - In-app Allow/Deny list (NtfyService records verified challenges → Prefs pending → MainActivity
+    cards; shared Decisions.send; 15-min TTL). Decide in the app, not only the push.
+  - Instant Lock: signed **OCPG-LOCK-v1** (crypto::SignedLock/verify_lock) → daemon lock_override OR'd
+    into the schedule tick's `blocked`; app "Lock/Unlock now" button (Crypto.signLock). Needs
+    [schedule].lock_command.
+  - F15: response topic now deterministic `<request_topic>-resp` (was random/run) — grants+locks
+    survive daemon restart + work right after pairing; app derives it in Prefs.lastRespondTo.
+- STILL OPEN (documented): B3 (flatpak --user unaudited install; C1 stops execution), B4 (DoH to
+  unlisted resolvers — needs SNI/maintained list). NEEDS ON-HOST VERIFY: fapolicyd setup script,
+  console/autologin hardening, lock-now, pkill backstop.
+- **Batch 4 — NOT STARTED** (user wants it): weekly per-day schedule + quiet hours (cisza nocna),
+  F16 (logind active-tracking so budget isn't charged by wall clock / while frozen), live "current
+  app/game" view, daily AI digest via local Ollama. Big: needs a signed schedule-config push channel
+  (app→daemon), a child-side foreground-window reporter, usage-stats collection. Design fork: schedule
+  authored IN-APP (new signed protocol) vs in policy.toml.
+
 ## Workflow routing (this machine)
 - **Logic / architecture / integrations →** `agy`.
 - **Simple implementation micro-tasks →** local Ollama `qwen3-coder:30b` via `aider` (host 192.168.0.11).
