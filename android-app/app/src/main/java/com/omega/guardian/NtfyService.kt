@@ -32,7 +32,7 @@ class NtfyService : Service() {
         .retryOnConnectionFailure(true)
         .build()
 
-    private var ws: WebSocket? = null
+    private val sockets = mutableListOf<WebSocket>()
     private var closing = false
     private var backoffMs = 1000L
 
@@ -45,40 +45,37 @@ class NtfyService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        connect()
+        connectAll()
         return START_STICKY   // re-create if the system kills us
     }
 
     override fun onDestroy() {
         closing = true
-        ws?.cancel()
+        sockets.forEach { it.cancel() }
+        sockets.clear()
         super.onDestroy()
     }
 
-    private fun connect() {
-        val topic = Prefs.topic(this) ?: return
+    /** Open one WebSocket per paired child (each daemon has its own topic + key). */
+    private fun connectAll() {
+        sockets.forEach { it.cancel() }
+        sockets.clear()
         val base = Prefs.server(this).trimEnd('/')
-        val wsUrl = base.replaceFirst("https://", "wss://").replaceFirst("http://", "ws://") +
-            "/" + topic + "/ws"
-        ws?.cancel()
-        ws = client.newWebSocket(Request.Builder().url(wsUrl).build(), listener)
-    }
-
-    private val listener = object : WebSocketListener() {
-        override fun onOpen(webSocket: WebSocket, response: Response) {
-            backoffMs = 1000L
-        }
-
-        override fun onMessage(webSocket: WebSocket, text: String) {
-            handleEvent(text)
-        }
-
-        override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-            scheduleReconnect()
-        }
-
-        override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-            scheduleReconnect()
+        val children = Prefs.children(this)
+        for (i in 0 until children.length()) {
+            val c = children.getJSONObject(i)
+            val topic = c.optString("topic", ""); if (topic.isBlank()) continue
+            val name = c.optString("name", "Dziecko ${i + 1}")
+            val dpub = c.optString("dpub", "")
+            val server = c.optString("server", base).trimEnd('/')
+            val wsUrl = server.replaceFirst("https://", "wss://").replaceFirst("http://", "ws://") + "/$topic/ws"
+            val listener = object : WebSocketListener() {
+                override fun onOpen(webSocket: WebSocket, response: Response) { backoffMs = 1000L }
+                override fun onMessage(webSocket: WebSocket, text: String) { handleEvent(text, name, dpub) }
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) { scheduleReconnect() }
+                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) { scheduleReconnect() }
+            }
+            sockets.add(client.newWebSocket(Request.Builder().url(wsUrl).build(), listener))
         }
     }
 
@@ -86,29 +83,29 @@ class NtfyService : Service() {
         if (closing) return
         val delay = backoffMs
         backoffMs = (backoffMs * 2).coerceAtMost(60_000L)
-        android.os.Handler(mainLooper).postDelayed({ if (!closing) connect() }, delay)
+        android.os.Handler(mainLooper).postDelayed({ if (!closing) connectAll() }, delay)
     }
 
-    private fun handleEvent(text: String) {
+    private fun handleEvent(text: String, child: String, dpub: String) {
+        if (dpub.isBlank()) return
         val ev = try { JSONObject(text) } catch (e: Exception) { return }
         if (ev.optString("event") != "message") return   // skip open/keepalive/poll_request
         val msgStr = ev.optString("message", "")
         if (msgStr.isBlank()) return
         val msg = try { JSONObject(msgStr) } catch (e: Exception) { return }
-        val dpub = Prefs.dpub(this) ?: return
 
-        // Security alert (signed). Show only if the signature verifies against the paired daemon key.
+        // Security alert (signed). Show only if the signature verifies against this child's daemon key.
         if (msg.optString("kind") == "alert") {
             val textA = msg.optString("text", getString(R.string.alert_default))
             val ts = msg.optLong("ts", 0L)
             val asig = msg.optString("asig", "")
             if (Crypto.verify(dpub, Crypto.alertCanonical(textA, ts), asig)) {
-                postAlert(textA)
+                postAlert("$child: $textA")
             }
             return
         }
 
-        // Install challenge. Reject anything the real daemon didn't sign.
+        // Install challenge. Reject anything this child's daemon didn't sign.
         val id = msg.optString("id", "")
         val nonce = msg.optString("nonce", "")
         val respondTo = msg.optString("respond_to", "")
@@ -120,11 +117,10 @@ class NtfyService : Service() {
         val canonical = Crypto.challengeCanonical(id, source, pkg, nonce, reason, respondTo)
         if (!Crypto.verify(dpub, canonical, csig)) return   // forged / injected card → ignore silently
 
-        Prefs.setLastRespondTo(this, respondTo)             // remember where grants go
         // Record it so the in-app list can Allow/Deny it too (not only the notification).
-        Prefs.addPending(this, id, source, pkg, nonce, respondTo, reason, System.currentTimeMillis() / 1000)
+        Prefs.addPending(this, id, child, source, pkg, nonce, respondTo, reason, System.currentTimeMillis() / 1000)
         sendBroadcast(Intent(ACTION_PENDING_CHANGED).setPackage(packageName))
-        postRequest(id, source, pkg, nonce, reason, respondTo)
+        postRequest(id, child, source, pkg, nonce, reason, respondTo)
     }
 
     // ---- notifications ----
@@ -138,7 +134,7 @@ class NtfyService : Service() {
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .build()
 
-    private fun postRequest(id: String, source: String, pkg: String, nonce: String, reason: String, respondTo: String) {
+    private fun postRequest(id: String, child: String, source: String, pkg: String, nonce: String, reason: String, respondTo: String) {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val notifId = id.hashCode()
         fun action(decision: String, label: String): NotificationCompat.Action {
@@ -159,7 +155,8 @@ class NtfyService : Service() {
         // child ran + the AI risk note). `reason` carries it and is covered by the daemon's signature,
         // so neither the command nor the AI verdict can be faked by the broker.
         val risk = riskLightFor(reason)
-        val summary = (if (risk.isNotEmpty()) "$risk " else "") + getString(R.string.req_summary, source, pkg)
+        val who = if (child.isNotBlank()) "$child · " else ""
+        val summary = who + (if (risk.isNotEmpty()) "$risk " else "") + getString(R.string.req_summary, source, pkg)
         val expanded = if (reason.isNotBlank()) "$summary\n\n${getString(R.string.details_label)}\n$reason" else summary
         val n = NotificationCompat.Builder(this, CH_REQ)
             .setContentTitle(getString(R.string.approve_title, pkg))

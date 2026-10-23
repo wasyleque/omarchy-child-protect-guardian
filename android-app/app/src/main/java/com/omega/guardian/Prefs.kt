@@ -9,21 +9,24 @@ import org.json.JSONObject
 import java.util.Base64
 
 /**
- * All at-rest state. The private seed, server, topic and daemon pubkey live in
- * EncryptedSharedPreferences (AES256-GCM, key in the hardware-backed AndroidKeyStore). The recent
- * request history is non-sensitive and kept in a plain prefs file.
+ * All at-rest state. ONE parent Ed25519 seed (shared across all children) + a LIST of paired children,
+ * each {name, server, topic, dpub, pair_to} — so one phone controls several kids on several computers.
+ * The seed and the child list live in EncryptedSharedPreferences (AES256-GCM, key in the hardware-backed
+ * AndroidKeyStore); the non-sensitive history/pending live in a plain prefs file.
  */
 object Prefs {
     private const val SECURE_FILE = "guardian_secure"
     private const val PLAIN_FILE = "guardian_plain"
     private const val K_SEED = "seed_b64"
-    private const val K_SERVER = "server"
-    private const val K_TOPIC = "topic"
-    private const val K_DPUB = "dpub"
-    private const val K_PAIR_TO = "pair_to"
-    private const val K_RESPOND = "last_respond_to"
+    private const val K_CHILDREN = "children"      // JSON array of {name, server, topic, dpub, pair_to}
+    private const val K_ACTIVE = "active_child"     // index into K_CHILDREN
     private const val K_HISTORY = "history"
     private const val MAX_HISTORY = 30
+    // legacy single-pairing keys (migrated into K_CHILDREN on first use)
+    private const val K_TOPIC = "topic"
+    private const val K_SERVER = "server"
+    private const val K_DPUB = "dpub"
+    private const val K_PAIR_TO = "pair_to"
 
     private fun secure(ctx: Context): SharedPreferences {
         val master = MasterKey.Builder(ctx)
@@ -52,56 +55,102 @@ object Prefs {
 
     fun publicKeyB64(ctx: Context): String = Crypto.publicKeyB64(seed(ctx))
 
-    fun server(ctx: Context): String = secure(ctx).getString(K_SERVER, "https://ntfy.sh")!!
-    fun topic(ctx: Context): String? = secure(ctx).getString(K_TOPIC, null)
-    fun dpub(ctx: Context): String? = secure(ctx).getString(K_DPUB, null)
-    fun pairTo(ctx: Context): String? = secure(ctx).getString(K_PAIR_TO, null)
-    /**
-     * Where a grant / lock command is POSTed. Prefer the topic the last challenge card named, but fall
-     * back to the deterministic `<server>/<topic>-resp` the daemon now derives from the paired request
-     * topic (review F15) — so grants and "lock now" work right after pairing and survive a daemon
-     * restart, without first waiting for an install request card.
-     */
+    // ---- children ----
+
+    /** The paired children, migrating a legacy single pairing into the list on first read. */
+    fun children(ctx: Context): JSONArray {
+        val p = secure(ctx)
+        val raw = p.getString(K_CHILDREN, null)
+        if (raw != null) return try { JSONArray(raw) } catch (e: Exception) { JSONArray() }
+        // migrate the old single pairing, if any
+        val oldTopic = p.getString(K_TOPIC, null)
+        val arr = JSONArray()
+        if (oldTopic != null) {
+            arr.put(JSONObject()
+                .put("name", "Dziecko")
+                .put("server", p.getString(K_SERVER, "https://ntfy.sh"))
+                .put("topic", oldTopic)
+                .put("dpub", p.getString(K_DPUB, "") ?: "")
+                .put("pair_to", p.getString(K_PAIR_TO, "") ?: ""))
+            p.edit().putString(K_CHILDREN, arr.toString()).putInt(K_ACTIVE, 0).apply()
+        }
+        return arr
+    }
+
+    fun childNames(ctx: Context): List<String> {
+        val c = children(ctx)
+        return (0 until c.length()).map { c.getJSONObject(it).optString("name", "Dziecko ${it + 1}") }
+    }
+
+    fun activeIndex(ctx: Context): Int {
+        val n = children(ctx).length()
+        if (n == 0) return -1
+        return secure(ctx).getInt(K_ACTIVE, 0).coerceIn(0, n - 1)
+    }
+
+    fun setActiveIndex(ctx: Context, i: Int) {
+        secure(ctx).edit().putInt(K_ACTIVE, i).apply()
+    }
+
+    fun activeChild(ctx: Context): JSONObject? {
+        val i = activeIndex(ctx)
+        if (i < 0) return null
+        return children(ctx).optJSONObject(i)
+    }
+
+    /** Add a paired child and make it active. Returns the new index. */
+    fun addChild(ctx: Context, name: String, server: String, topic: String, dpub: String, pairTo: String): Int {
+        val arr = children(ctx)
+        arr.put(JSONObject()
+            .put("name", name).put("server", server).put("topic", topic)
+            .put("dpub", dpub).put("pair_to", pairTo))
+        val idx = arr.length() - 1
+        secure(ctx).edit().putString(K_CHILDREN, arr.toString()).putInt(K_ACTIVE, idx).apply()
+        return idx
+    }
+
+    fun removeActiveChild(ctx: Context) {
+        val i = activeIndex(ctx); if (i < 0) return
+        val arr = children(ctx); val out = JSONArray()
+        for (j in 0 until arr.length()) if (j != i) out.put(arr.get(j))
+        secure(ctx).edit().putString(K_CHILDREN, out.toString()).putInt(K_ACTIVE, 0).apply()
+    }
+
+    // active-child-backed accessors (used by the grant/lock/schedule actions + pairing return)
+    fun server(ctx: Context): String = activeChild(ctx)?.optString("server") ?: "https://ntfy.sh"
+    fun topic(ctx: Context): String? = activeChild(ctx)?.optString("topic")?.ifBlank { null }
+    fun dpub(ctx: Context): String? = activeChild(ctx)?.optString("dpub")?.ifBlank { null }
+    fun pairTo(ctx: Context): String? = activeChild(ctx)?.optString("pair_to")?.ifBlank { null }
+    fun activeChildName(ctx: Context): String = activeChild(ctx)?.optString("name") ?: ""
+
+    /** Where a grant/lock/schedule command for the active child is POSTed (deterministic, review F15). */
     fun lastRespondTo(ctx: Context): String? {
-        secure(ctx).getString(K_RESPOND, null)?.let { return it }
         val t = topic(ctx) ?: return null
         return "${server(ctx).trimEnd('/')}/$t-resp"
     }
 
-    fun setLastRespondTo(ctx: Context, url: String) {
-        secure(ctx).edit().putString(K_RESPOND, url).apply()
-    }
+    fun isPaired(ctx: Context): Boolean = children(ctx).length() > 0
 
-    /** Optimistic local state of the "lock now" toggle (so the button can read Lock/Unlock). */
-    fun lockRequested(ctx: Context): Boolean = plain(ctx).getBoolean("lock_requested", false)
+    /** Optimistic local "lock now" toggle, per active child. */
+    fun lockRequested(ctx: Context): Boolean = plain(ctx).getBoolean("lock_${activeChildName(ctx)}", false)
     fun setLockRequested(ctx: Context, v: Boolean) {
-        plain(ctx).edit().putBoolean("lock_requested", v).apply()
+        plain(ctx).edit().putBoolean("lock_${activeChildName(ctx)}", v).apply()
     }
-
-    fun isPaired(ctx: Context): Boolean = topic(ctx) != null && dpub(ctx) != null
 
     /**
-     * Apply a pairing payload from a scanned QR / link: the fragment after `#pair=` is base64url of
-     * `{server, topic, dpub}`. Returns true if a valid pairing was stored.
+     * Parse a scanned QR / link (`#pair=` base64url of `{server, topic, dpub, pair_to}`). Returns the
+     * fields as a JSONObject (does NOT store — the caller names the child, then calls [addChild]).
      */
-    fun applyPairing(ctx: Context, scanned: String): Boolean {
+    fun parsePairing(scanned: String): JSONObject? {
         val marker = "#pair="
         val i = scanned.indexOf(marker)
         val b64url = if (i >= 0) scanned.substring(i + marker.length) else scanned
         return try {
             val json = String(Base64.getUrlDecoder().decode(b64url.trim()), Charsets.UTF_8)
             val o = JSONObject(json)
-            val topic = o.optString("topic", "")
-            if (topic.isBlank()) return false
-            secure(ctx).edit().apply {
-                if (o.has("server")) putString(K_SERVER, o.getString("server"))
-                putString(K_TOPIC, topic)
-                if (o.has("dpub")) putString(K_DPUB, o.getString("dpub"))
-                if (o.has("pair_to")) putString(K_PAIR_TO, o.getString("pair_to"))
-            }.apply()
-            true
+            if (o.optString("topic", "").isBlank()) null else o
         } catch (e: Exception) {
-            false
+            null
         }
     }
 
@@ -109,19 +158,11 @@ object Prefs {
 
     fun addHistory(ctx: Context, pkg: String, source: String, decision: String, ts: Long) {
         val p = plain(ctx)
-        val arr = try {
-            JSONArray(p.getString(K_HISTORY, "[]"))
-        } catch (e: Exception) {
-            JSONArray()
-        }
-        val entry = JSONObject()
-            .put("pkg", pkg).put("source", source).put("decision", decision).put("ts", ts)
-        // newest first, capped
+        val arr = try { JSONArray(p.getString(K_HISTORY, "[]")) } catch (e: Exception) { JSONArray() }
+        val entry = JSONObject().put("pkg", pkg).put("source", source).put("decision", decision).put("ts", ts)
         val out = JSONArray().put(entry)
         var n = 0
-        while (n < arr.length() && out.length() < MAX_HISTORY) {
-            out.put(arr.get(n)); n++
-        }
+        while (n < arr.length() && out.length() < MAX_HISTORY) { out.put(arr.get(n)); n++ }
         p.edit().putString(K_HISTORY, out.toString()).apply()
     }
 
@@ -137,12 +178,12 @@ object Prefs {
 
     /** Record a verified challenge so MainActivity can list it. De-duped by id, newest first. */
     fun addPending(
-        ctx: Context, id: String, source: String, pkg: String,
+        ctx: Context, id: String, child: String, source: String, pkg: String,
         nonce: String, respondTo: String, reason: String, ts: Long
     ) {
         val cur = pending(ctx)
         val out = JSONArray().put(
-            JSONObject().put("id", id).put("source", source).put("package", pkg)
+            JSONObject().put("id", id).put("child", child).put("source", source).put("package", pkg)
                 .put("nonce", nonce).put("respond_to", respondTo).put("reason", reason).put("ts", ts)
         )
         for (i in 0 until cur.length()) {

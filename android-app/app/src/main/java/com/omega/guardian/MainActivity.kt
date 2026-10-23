@@ -2,6 +2,8 @@ package com.omega.guardian
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.AlertDialog
+import android.app.TimePickerDialog
 import android.content.BroadcastReceiver
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -13,8 +15,13 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.CheckBox
+import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -40,6 +47,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var b: ActivityMainBinding
     private val http = OkHttpClient()
 
+    // Schedule-editor row state (built in code so there's no free-text input to get wrong).
+    private val rowSpinners = mutableListOf<Spinner>()  // budget preset per row
+    private val rowHours = mutableListOf<Button>()      // hours button per row (tag = IntArray[start,end] or null)
+    private val rowDay = mutableListOf<Int>()           // weekday 0=Mon..6=Sun, or -1 = "every day"
+
     // Re-render the pending list when the service records a new (verified) request while we're open.
     private val pendingReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context?, i: Intent?) = render()
@@ -47,16 +59,37 @@ class MainActivity : AppCompatActivity() {
 
     private val scan = registerForActivityResult(ScanContract()) { result ->
         val contents = result.contents
-        if (contents == null) {
-            toast(getString(R.string.scan_cancelled))
-        } else if (Prefs.applyPairing(this, contents)) {
-            toast(getString(R.string.paired_ok))
-            NtfyService.start(this)
-            sendKeyToPc()   // auto-return our public key so the PC finishes pairing without copy/paste
-            render()
-        } else {
-            toast(getString(R.string.qr_not_guardian))
+        val fields = if (contents != null) Prefs.parsePairing(contents) else null
+        when {
+            contents == null -> toast(getString(R.string.scan_cancelled))
+            fields == null -> toast(getString(R.string.qr_not_guardian))
+            else -> promptChildName(fields)
         }
+    }
+
+    /** After a successful scan, ask for a display name (the child's account name for multi-kid PCs). */
+    private fun promptChildName(fields: org.json.JSONObject) {
+        val input = EditText(this).apply {
+            hint = getString(R.string.add_child_name_hint)
+            setText("Dziecko ${Prefs.children(this@MainActivity).length() + 1}")
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.add_child_name_title)
+            .setView(input)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val name = input.text.toString().trim().ifEmpty { "Dziecko" }
+                Prefs.addChild(this, name,
+                    fields.optString("server", "https://ntfy.sh"),
+                    fields.optString("topic", ""),
+                    fields.optString("dpub", ""),
+                    fields.optString("pair_to", ""))
+                toast(getString(R.string.child_added))
+                NtfyService.start(this)   // (re)subscribe to all children incl. the new one
+                sendKeyToPc()             // return our key so the PC finishes pairing
+                render()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private val notifPerm = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -85,7 +118,20 @@ class MainActivity : AppCompatActivity() {
         b.btnLockNow.setOnClickListener { toggleLock() }
         b.btnSendSchedule.setOnClickListener { sendSchedule() }
 
+        b.spChild.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
+                // Only react to a real user change (ignore programmatic re-selection → no render loop).
+                if (pos != Prefs.activeIndex(this@MainActivity)) {
+                    Prefs.setActiveIndex(this@MainActivity, pos)
+                    render()
+                }
+            }
+            override fun onNothingSelected(p: AdapterView<*>?) {}
+        }
+        b.cbSameEveryDay.setOnCheckedChangeListener { _, _ -> buildScheduleRows() }
+
         if (Prefs.isPaired(this)) NtfyService.start(this)
+        buildScheduleRows()
         render()
     }
 
@@ -107,7 +153,10 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("SetTextI18n")
     private fun render() {
-        b.tvStatus.text = getString(if (Prefs.isPaired(this)) R.string.status_paired else R.string.status_not_paired)
+        val n = Prefs.children(this).length()
+        b.tvStatus.text = if (n == 0) getString(R.string.status_not_paired) else getString(R.string.status_children_fmt, n)
+        populateChildSpinner()
+        b.lblScheduleFor.text = if (n > 0) getString(R.string.sched_for_fmt, Prefs.activeChildName(this)) else getString(R.string.hdr_schedule)
         b.tvPubkey.text = Prefs.publicKeyB64(this)
         val h = Prefs.history(this)
         val fmt = SimpleDateFormat("MMM d HH:mm", Locale.getDefault())
@@ -133,6 +182,7 @@ class MainActivity : AppCompatActivity() {
             val o = pend.getJSONObject(i)
             val id = o.optString("id"); val source = o.optString("source"); val pkg = o.optString("package")
             val nonce = o.optString("nonce"); val respondTo = o.optString("respond_to"); val reason = o.optString("reason")
+            val who = o.optString("child")
 
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -140,7 +190,8 @@ class MainActivity : AppCompatActivity() {
             }
             val light = NtfyService.riskLightFor(reason)
             val label = TextView(this).apply {
-                text = (if (light.isNotEmpty()) "$light " else "") +
+                text = (if (who.isNotBlank()) "$who · " else "") +
+                    (if (light.isNotEmpty()) "$light " else "") +
                     getString(R.string.req_summary, source, pkg) +
                     (if (reason.isNotBlank()) "\n$reason" else "")
                 textSize = 13f
@@ -251,44 +302,95 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Parse "HH:MM" to minutes-from-midnight; null if blank; throws on malformed input. */
-    private fun hhmmToMin(s: String): Int? {
-        val t = s.trim()
-        if (t.isEmpty()) return null
-        val parts = t.split(":")
-        require(parts.size == 2)
-        val h = parts[0].toInt(); val m = parts[1].toInt()
-        require(h in 0..23 && m in 0..59)
-        return h * 60 + m
+    private fun populateChildSpinner() {
+        val names = Prefs.childNames(this)
+        b.spChild.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, names)
+        val idx = Prefs.activeIndex(this)
+        if (idx in names.indices) b.spChild.setSelection(idx)
     }
 
-    /** Build the child's schedule from the form, sign it (OCPG-SCHED) and POST it to the daemon. */
+    // Budget dropdown positions → minutes. null = "No limit" (inherit default), 0 = "Blocked".
+    private val presetMinutes = arrayOf<Int?>(null, 30, 60, 90, 120, 150, 180, 240, 0)
+
+    /** Build the schedule rows: one "Every day" row, or seven per-day rows — each a budget dropdown +
+     * an hours button (time pickers). No free-text, so the parent can't enter anything invalid. */
+    private fun buildScheduleRows() {
+        rowSpinners.clear(); rowHours.clear(); rowDay.clear()
+        b.scheduleRows.removeAllViews()
+        val days = if (b.cbSameEveryDay.isChecked) listOf(-1) else (0..6).toList()
+        val dayNames = resources.getStringArray(R.array.weekday_names)
+        for (d in days) {
+            val row = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 10, 0, 10) }
+            row.addView(TextView(this).apply {
+                text = if (d < 0) getString(R.string.lbl_all_days) else dayNames[d]
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            })
+            val controls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            val sp = Spinner(this).apply {
+                adapter = ArrayAdapter.createFromResource(
+                    this@MainActivity, R.array.budget_presets, android.R.layout.simple_spinner_dropdown_item)
+                setSelection(4) // default 2 h
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            val hours = Button(this).apply {
+                text = getString(R.string.hours_any)
+                tag = null
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                setOnClickListener { pickHours(this) }
+                setOnLongClickListener { tag = null; text = getString(R.string.hours_any); true }
+            }
+            controls.addView(sp); controls.addView(hours)
+            row.addView(controls)
+            b.scheduleRows.addView(row)
+            rowSpinners.add(sp); rowHours.add(hours); rowDay.add(d)
+        }
+    }
+
+    /** Two time pickers (from, then to) — no typing. Long-press the button clears to "Any time". */
+    private fun pickHours(btn: Button) {
+        val cur = btn.tag as? IntArray
+        val s0 = cur?.getOrNull(0) ?: 420     // default 07:00
+        TimePickerDialog(this, { _, h1, m1 ->
+            val start = h1 * 60 + m1
+            val e0 = cur?.getOrNull(1) ?: 1260 // default 21:00
+            TimePickerDialog(this, { _, h2, m2 ->
+                val end = h2 * 60 + m2
+                btn.tag = intArrayOf(start, end)
+                btn.text = getString(R.string.hours_fmt, fmtMin(start), fmtMin(end))
+            }, e0 / 60, e0 % 60, true).show()
+        }, s0 / 60, s0 % 60, true).show()
+    }
+
+    private fun fmtMin(min: Int): String = "%02d:%02d".format(min / 60, min % 60)
+
+    /** Build the selected child's schedule from the pickers, sign it (OCPG-SCHED) and POST it. */
     private fun sendSchedule() {
-        val respondTo = Prefs.lastRespondTo(this)
-        val dpub = Prefs.dpub(this)
+        val respondTo = Prefs.lastRespondTo(this); val dpub = Prefs.dpub(this)
         if (respondTo == null || dpub == null) { toast(getString(R.string.lock_needs_pair)); return }
 
-        val sched = JSONObject()
-        try {
-            b.etSchedBudget.text.toString().trim().takeIf { it.isNotEmpty() }?.let {
-                sched.put("daily_budget_minutes", it.toInt())
-            }
-            hhmmToMin(b.etWinStart.text.toString())?.let { sched.put("window_start_min", it) }
-            hhmmToMin(b.etWinEnd.text.toString())?.let { sched.put("window_end_min", it) }
-            hhmmToMin(b.etQuietStart.text.toString())?.let { sched.put("quiet_start_min", it) }
-            hhmmToMin(b.etQuietEnd.text.toString())?.let { sched.put("quiet_end_min", it) }
-            b.etWeekend.text.toString().trim().takeIf { it.isNotEmpty() }?.let {
-                val wknd = it.toInt()
-                val days = JSONObject()
-                days.put("sat", JSONObject().put("budget_minutes", wknd))
-                days.put("sun", JSONObject().put("budget_minutes", wknd))
-                sched.put("days", days)
-            }
-        } catch (e: Exception) {
-            toast(getString(R.string.schedule_bad_input)); return
+        fun dayJson(i: Int): JSONObject {
+            val o = JSONObject()
+            presetMinutes[rowSpinners[i].selectedItemPosition]?.let { o.put("budget_minutes", it) }
+            (rowHours[i].tag as? IntArray)?.let { o.put("window_start_min", it[0]); o.put("window_end_min", it[1]) }
+            return o
         }
 
-        val child = b.etSchedChild.text.toString().trim()
+        val sched = JSONObject()
+        if (b.cbSameEveryDay.isChecked) {
+            val o = dayJson(0)
+            if (o.has("budget_minutes")) sched.put("daily_budget_minutes", o.get("budget_minutes"))
+            if (o.has("window_start_min")) {
+                sched.put("window_start_min", o.get("window_start_min"))
+                sched.put("window_end_min", o.get("window_end_min"))
+            }
+        } else {
+            val keys = arrayOf("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+            val days = JSONObject()
+            for (i in rowDay.indices) days.put(keys[rowDay[i]], dayJson(i))
+            sched.put("days", days)
+        }
+
+        val child = Prefs.activeChildName(this)
         val schedJson = sched.toString()
         lifecycleScope.launch {
             val ok = withContext(Dispatchers.IO) {

@@ -24,12 +24,27 @@
             android:layout_marginTop="4dp"
             android:textSize="15sp" />
 
+        <TextView
+            android:id="@+id/lblChild"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/lbl_select_child"
+            android:textStyle="bold" />
+
+        <Spinner
+            android:id="@+id/spChild"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:minHeight="48dp" />
+
         <Button
             android:id="@+id/btnScan"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="@string/btn_scan" />
+            android:layout_marginTop="8dp"
+            android:text="@string/btn_add_child" />
 
         <TextView
             android:layout_width="wrap_content"
@@ -128,77 +143,28 @@
             android:text="@string/btn_lock_now" />
 
         <TextView
+            android:id="@+id/lblScheduleFor"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp"
             android:text="@string/hdr_schedule"
             android:textStyle="bold" />
 
-        <EditText
-            android:id="@+id/etSchedChild"
+        <CheckBox
+            android:id="@+id/cbSameEveryDay"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:hint="@string/lbl_child_opt"
-            android:inputType="text" />
+            android:checked="true"
+            android:minHeight="48dp"
+            android:text="@string/lbl_same_every_day" />
 
-        <EditText
-            android:id="@+id/etSchedBudget"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="@string/lbl_budget"
-            android:inputType="number" />
-
+        <!-- Day rows (budget dropdown + hours button per day) are built in code so there's no typing. -->
         <LinearLayout
+            android:id="@+id/scheduleRows"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <EditText
-                android:id="@+id/etWinStart"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:hint="@string/lbl_window_start"
-                android:inputType="text" />
-
-            <EditText
-                android:id="@+id/etWinEnd"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:hint="@string/lbl_window_end"
-                android:inputType="text" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <EditText
-                android:id="@+id/etQuietStart"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:hint="@string/lbl_quiet_start"
-                android:inputType="text" />
-
-            <EditText
-                android:id="@+id/etQuietEnd"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:hint="@string/lbl_quiet_end"
-                android:inputType="text" />
-        </LinearLayout>
-
-        <EditText
-            android:id="@+id/etWeekend"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="@string/lbl_weekend"
-            android:inputType="number" />
+            android:orientation="vertical" />
 
         <Button
             android:id="@+id/btnSendSchedule"

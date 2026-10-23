@@ -67,4 +67,40 @@
     <string name="btn_send_schedule">Send schedule to the computer</string>
     <string name="schedule_sent">Schedule sent ✓</string>
     <string name="schedule_bad_input">Check the times — use HH:MM (e.g. 07:00)</string>
+
+    <!-- multi-child + schedule v2 -->
+    <string name="lbl_select_child">Child</string>
+    <string name="btn_add_child">Add a child (scan QR)</string>
+    <string name="status_children_fmt">%1$d child(ren) · listening</string>
+    <string name="no_children">No child paired yet — tap \"Add a child\".</string>
+    <string name="add_child_name_title">Name this child</string>
+    <string name="add_child_name_hint">e.g. Zosia</string>
+    <string name="child_added">Child added ✓</string>
+    <string name="lbl_same_every_day">Same limits every day</string>
+    <string name="lbl_all_days">Every day</string>
+    <string name="hours_any">Any time</string>
+    <string name="hours_set">Set hours</string>
+    <string name="hours_fmt">%1$s–%2$s</string>
+    <string name="sched_for_fmt">Set schedule for %1$s</string>
+
+    <string-array name="budget_presets">
+        <item>No limit</item>
+        <item>30 min</item>
+        <item>1 h</item>
+        <item>1 h 30</item>
+        <item>2 h</item>
+        <item>2 h 30</item>
+        <item>3 h</item>
+        <item>4 h</item>
+        <item>Blocked</item>
+    </string-array>
+    <string-array name="weekday_names">
+        <item>Monday</item>
+        <item>Tuesday</item>
+        <item>Wednesday</item>
+        <item>Thursday</item>
+        <item>Friday</item>
+        <item>Saturday</item>
+        <item>Sunday</item>
+    </string-array>
 </resources>

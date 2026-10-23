@@ -257,9 +257,10 @@ async fn main() -> Result<()> {
                 let default_sched = s.clone();
                 tokio::spawn(async move {
                     while let Some((child, ov)) = srx.recv().await {
-                        // Match the named child; "" targets the single unnamed engine.
+                        // Match the named child; "" or a single-engine daemon targets the one engine
+                        // (so the app can send a display name even when GUARDIAN_CHILD is unset).
                         let target = engs.iter().find(|(n, _)| *n == child)
-                            .or_else(|| if child.is_empty() { engs.first() } else { None });
+                            .or_else(|| if child.is_empty() || engs.len() == 1 { engs.first() } else { None });
                         match target {
                             Some((name, e)) => {
                                 e.lock().unwrap().set_schedule(default_sched.with_child_override(&ov));

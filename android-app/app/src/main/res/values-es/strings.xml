@@ -66,4 +66,40 @@
     <string name="btn_send_schedule">Enviar horario al ordenador</string>
     <string name="schedule_sent">Horario enviado ✓</string>
     <string name="schedule_bad_input">Revisa las horas — formato HH:MM (p. ej. 07:00)</string>
+
+    <!-- multi-niño + horario v2 -->
+    <string name="lbl_select_child">Niño</string>
+    <string name="btn_add_child">Añadir un niño (escanear QR)</string>
+    <string name="status_children_fmt">%1$d niño(s) · escuchando</string>
+    <string name="no_children">Ningún niño vinculado — toca «Añadir un niño».</string>
+    <string name="add_child_name_title">Nombra a este niño</string>
+    <string name="add_child_name_hint">p. ej. Zosia</string>
+    <string name="child_added">Niño añadido ✓</string>
+    <string name="lbl_same_every_day">Mismos límites todos los días</string>
+    <string name="lbl_all_days">Cada día</string>
+    <string name="hours_any">A cualquier hora</string>
+    <string name="hours_set">Definir horas</string>
+    <string name="hours_fmt">%1$s–%2$s</string>
+    <string name="sched_for_fmt">Horario para %1$s</string>
+
+    <string-array name="budget_presets">
+        <item>Sin límite</item>
+        <item>30 min</item>
+        <item>1 h</item>
+        <item>1 h 30</item>
+        <item>2 h</item>
+        <item>2 h 30</item>
+        <item>3 h</item>
+        <item>4 h</item>
+        <item>Bloqueado</item>
+    </string-array>
+    <string-array name="weekday_names">
+        <item>Lunes</item>
+        <item>Martes</item>
+        <item>Miércoles</item>
+        <item>Jueves</item>
+        <item>Viernes</item>
+        <item>Sábado</item>
+        <item>Domingo</item>
+    </string-array>
 </resources>

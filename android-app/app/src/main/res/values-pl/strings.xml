@@ -66,4 +66,40 @@
     <string name="btn_send_schedule">Wyślij harmonogram do komputera</string>
     <string name="schedule_sent">Wysłano harmonogram ✓</string>
     <string name="schedule_bad_input">Sprawdź godziny — format GG:MM (np. 07:00)</string>
+
+    <!-- multi-child + harmonogram v2 -->
+    <string name="lbl_select_child">Dziecko</string>
+    <string name="btn_add_child">Dodaj dziecko (zeskanuj QR)</string>
+    <string name="status_children_fmt">Dzieci: %1$d · nasłuchiwanie</string>
+    <string name="no_children">Brak sparowanego dziecka — dotknij „Dodaj dziecko".</string>
+    <string name="add_child_name_title">Nazwij to dziecko</string>
+    <string name="add_child_name_hint">np. Zosia</string>
+    <string name="child_added">Dodano dziecko ✓</string>
+    <string name="lbl_same_every_day">Te same limity codziennie</string>
+    <string name="lbl_all_days">Codziennie</string>
+    <string name="hours_any">O dowolnej porze</string>
+    <string name="hours_set">Ustaw godziny</string>
+    <string name="hours_fmt">%1$s–%2$s</string>
+    <string name="sched_for_fmt">Harmonogram dla: %1$s</string>
+
+    <string-array name="budget_presets">
+        <item>Bez limitu</item>
+        <item>30 min</item>
+        <item>1 godz.</item>
+        <item>1 godz. 30</item>
+        <item>2 godz.</item>
+        <item>2 godz. 30</item>
+        <item>3 godz.</item>
+        <item>4 godz.</item>
+        <item>Zablokowane</item>
+    </string-array>
+    <string-array name="weekday_names">
+        <item>Poniedziałek</item>
+        <item>Wtorek</item>
+        <item>Środa</item>
+        <item>Czwartek</item>
+        <item>Piątek</item>
+        <item>Sobota</item>
+        <item>Niedziela</item>
+    </string-array>
 </resources>
