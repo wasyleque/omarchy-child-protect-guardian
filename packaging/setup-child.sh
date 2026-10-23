@@ -143,11 +143,25 @@ for conf in /etc/sddm.conf.d/*.conf /etc/sddm.conf; do
 done
 
 # F12 greeter: Omarchy's SDDM theme shows only the last user (no picker), so a freshly-created child
-#      can't pick their account. Point at a stock theme with a user list.
+#      can't pick their account. Recommend ONLY a theme that is actually installed — suggesting a
+#      missing theme (breeze/maldives/…) gives a BLANK login screen, which is worse than the default.
 THEME="$(sed -nE 's/^[[:space:]]*Current[[:space:]]*=[[:space:]]*(.+)/\1/p' /etc/sddm.conf /etc/sddm.conf.d/*.conf 2>/dev/null | head -1)"
 if [ "$THEME" = "omarchy" ]; then
-  echo "    NOTE: SDDM theme 'omarchy' shows only the last user. For multi-user login switch to a theme"
-  echo "          with a picker, e.g.:  sudo sed -i 's/^Current=.*/Current=breeze/' /etc/sddm.conf.d/*.conf"
+  AVAIL="$(ls -1 /usr/share/sddm/themes/ 2>/dev/null | grep -vix omarchy || true)"
+  PICK=""
+  for t in breeze maldives maya elarun; do
+    printf '%s\n' "$AVAIL" | grep -qix "$t" && { PICK="$t"; break; }
+  done
+  echo "    NOTE: the SDDM theme 'omarchy' shows only the last user, so a new child can't pick their account."
+  echo "          Installed themes: ${AVAIL:-<none>}"
+  if [ -n "$PICK" ]; then
+    echo "          Switch to one with a user list (installed):  sudo sed -i 's/^Current=.*/Current=$PICK/' /etc/sddm.conf.d/*.conf"
+  else
+    echo "          No alternative theme is installed — DON'T set a missing theme (= blank screen). Either:"
+    echo "            • install one, e.g.:  sudo pacman -S --needed sddm   (ships a basic theme), or"
+    echo "            • comment out the Current= line to use SDDM's built-in greeter,"
+    echo "          then REBOOT and confirm the child can actually log in before relying on it."
+  fi
 fi
 
 echo
