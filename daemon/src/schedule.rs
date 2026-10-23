@@ -46,9 +46,30 @@ pub struct DaySchedule {
     pub window_end_min: Option<u32>,
 }
 
+/// Per-child override of the default schedule (keys under `[schedule.children.<name>]`). Any field
+/// left unset inherits the top-level default. `enabled`, the lock/unlock commands and `tick_secs`
+/// always come from the default (they're machine-wide, not per child).
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChildSchedule {
+    #[serde(default)]
+    pub daily_budget_minutes: Option<u32>,
+    #[serde(default)]
+    pub window_start_min: Option<u32>,
+    #[serde(default)]
+    pub window_end_min: Option<u32>,
+    #[serde(default)]
+    pub quiet_start_min: Option<u32>,
+    #[serde(default)]
+    pub quiet_end_min: Option<u32>,
+    #[serde(default)]
+    pub days: HashMap<String, DaySchedule>,
+}
+
 /// Screen-time policy. Absent/`enabled = false` ⇒ no time limits. The top-level budget/window are the
 /// DEFAULT for every day; `days` overrides per weekday (keys "mon".."sun"); `quiet_*` is a nightly
-/// curfew (blackout) that blocks regardless of budget and may wrap past midnight.
+/// curfew (blackout) that blocks regardless of budget and may wrap past midnight. `children` holds
+/// per-child overrides so several kids on one machine each get their own budget/window/curfew.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Schedule {
@@ -66,6 +87,9 @@ pub struct Schedule {
     /// Per-weekday overrides, keyed "mon","tue","wed","thu","fri","sat","sun". Missing ⇒ use defaults.
     #[serde(default)]
     pub days: HashMap<String, DaySchedule>,
+    /// Per-child overrides, keyed by child username (`[schedule.children.<name>]`). Missing ⇒ default.
+    #[serde(default)]
+    pub children: HashMap<String, ChildSchedule>,
     /// Nightly curfew ("cisza nocna") start, minutes from midnight. Blocks regardless of budget.
     #[serde(default)]
     pub quiet_start_min: Option<u32>,
@@ -86,6 +110,37 @@ pub struct Schedule {
 
 fn default_tick_secs() -> u64 {
     30
+}
+
+impl Schedule {
+    /// The effective schedule for one child: the default with that child's overrides applied. Machine-
+    /// wide fields (enabled / lock / unlock / tick_secs) come from the default; the returned schedule
+    /// has an empty `children` map (it describes a single child).
+    pub fn effective_for(&self, child: &str) -> Schedule {
+        let mut s = self.clone();
+        s.children = HashMap::new();
+        if let Some(c) = self.children.get(child) {
+            if c.daily_budget_minutes.is_some() {
+                s.daily_budget_minutes = c.daily_budget_minutes;
+            }
+            if c.window_start_min.is_some() {
+                s.window_start_min = c.window_start_min;
+            }
+            if c.window_end_min.is_some() {
+                s.window_end_min = c.window_end_min;
+            }
+            if c.quiet_start_min.is_some() {
+                s.quiet_start_min = c.quiet_start_min;
+            }
+            if c.quiet_end_min.is_some() {
+                s.quiet_end_min = c.quiet_end_min;
+            }
+            if !c.days.is_empty() {
+                s.days = c.days.clone();
+            }
+        }
+        s
+    }
 }
 
 /// What the enforcer should do right now.
@@ -242,6 +297,7 @@ mod tests {
             window_start_min: start,
             window_end_min: end,
             days: HashMap::new(),
+            children: HashMap::new(),
             quiet_start_min: None,
             quiet_end_min: None,
             lock_command: None,
@@ -326,6 +382,26 @@ mod tests {
         assert_eq!(e.status(1, MON, 22 * 60), Status::OutsideWindow); // 22:00 in curfew
         assert_eq!(e.status(1, MON, 3 * 60), Status::OutsideWindow);  // 03:00 in curfew (wrapped)
         assert!(matches!(e.status(1, MON, 12 * 60), Status::Allowed { .. })); // noon fine
+    }
+
+    #[test]
+    fn effective_for_applies_child_override() {
+        let mut s = sched(true, Some(120), Some(7 * 60), Some(20 * 60));
+        s.children.insert("zosia".into(), ChildSchedule {
+            daily_budget_minutes: Some(60),
+            quiet_start_min: Some(21 * 60),
+            quiet_end_min: Some(7 * 60),
+            ..Default::default()
+        });
+        // Zosia: tighter budget + a curfew; window inherited from the default.
+        let z = s.effective_for("zosia");
+        assert_eq!(z.daily_budget_minutes, Some(60));
+        assert_eq!(z.window_start_min, Some(7 * 60));
+        assert_eq!(z.quiet_start_min, Some(21 * 60));
+        // An unknown child just gets the defaults.
+        let d = s.effective_for("someone-else");
+        assert_eq!(d.daily_budget_minutes, Some(120));
+        assert_eq!(d.quiet_start_min, None);
     }
 
     #[test]

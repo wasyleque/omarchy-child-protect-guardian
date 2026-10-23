@@ -82,8 +82,8 @@ pub struct Server {
     pub max_pending_per_uid: usize,
     /// Optional append-only audit log.
     pub audit: Option<Arc<Audit>>,
-    /// Optional screen-time engine (for status queries).
-    pub schedule: Option<Arc<Mutex<TimeEngine>>>,
+    /// Per-child screen-time engines (name → engine), for status queries. Empty = no schedule.
+    pub schedule: Vec<(String, Arc<Mutex<TimeEngine>>)>,
 }
 
 fn bind(path: &Path, mode: u32) -> Result<UnixListener> {
@@ -249,16 +249,29 @@ impl Server {
                     send(&mut write_half, &ServerMessage::Alerted { ok: delivered }).await?;
                 }
                 (true, ClientMessage::ScheduleStatus) => {
-                    let (status, remaining_secs) = match &self.schedule {
-                        Some(eng) => {
-                            let (day, wday, minute) = crate::schedule::local_now();
+                    // Aggregate across children: report the most restrictive status (so "is anyone
+                    // blocked?" is answerable from one line), and the smallest remaining budget.
+                    let (status, remaining_secs) = if self.schedule.is_empty() {
+                        ("no_schedule".to_string(), None)
+                    } else {
+                        let (day, wday, minute) = crate::schedule::local_now();
+                        let mut worst = "allowed";
+                        let mut min_rem: Option<u64> = None;
+                        for (_name, eng) in &self.schedule {
                             match eng.lock().unwrap().status(day, wday, minute) {
-                                SchedStatus::Allowed { remaining_secs } => ("allowed".to_string(), remaining_secs),
-                                SchedStatus::OutsideWindow => ("outside_window".to_string(), Some(0)),
-                                SchedStatus::BudgetExhausted => ("budget_exhausted".to_string(), Some(0)),
+                                SchedStatus::Allowed { remaining_secs } => {
+                                    if let Some(r) = remaining_secs {
+                                        min_rem = Some(min_rem.map_or(r, |m| m.min(r)));
+                                    }
+                                }
+                                SchedStatus::OutsideWindow => {
+                                    if worst == "allowed" { worst = "outside_window"; }
+                                }
+                                SchedStatus::BudgetExhausted => { worst = "budget_exhausted"; }
                             }
                         }
-                        None => ("no_schedule".to_string(), None),
+                        let rem = if worst == "allowed" { min_rem } else { Some(0) };
+                        (worst.to_string(), rem)
                     };
                     send(&mut write_half, &ServerMessage::Schedule { status, remaining_secs }).await?;
                 }

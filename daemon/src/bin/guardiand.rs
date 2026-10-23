@@ -15,13 +15,20 @@ use guardian::ipc::Server;
 use guardian::ntfy::Ntfy;
 use guardian::queue::Queue;
 
-/// Fire a host-side screen-time hook (session lock / unlock). Spawned detached; never blocks the tick.
-fn run_hook(kind: &str, cmd: &str) {
-    match std::process::Command::new("sh").arg("-c").arg(cmd).spawn() {
-        Ok(mut child) => {
+/// Fire a host-side screen-time hook (session lock / unlock) for one child. Spawned detached; never
+/// blocks the tick. `GUARDIAN_CHILD=<child>` is set in the environment so a bare command targets this
+/// child; a command that bakes its own GUARDIAN_CHILD= still wins (backward compatible).
+fn run_hook(kind: &str, cmd: &str, child: &str) {
+    let mut c = std::process::Command::new("sh");
+    c.arg("-c").arg(cmd);
+    if !child.is_empty() {
+        c.env("GUARDIAN_CHILD", child);
+    }
+    match c.spawn() {
+        Ok(mut proc) => {
             let kind = kind.to_string();
-            // Reap the child so hooks firing every tick don't pile up zombies (review L6).
-            std::thread::spawn(move || match child.wait() {
+            // Reap the process so hooks firing every tick don't pile up zombies (review L6).
+            std::thread::spawn(move || match proc.wait() {
                 Ok(s) if !s.success() => eprintln!("guardiand: screen-time {kind} hook exited {s}"),
                 Ok(_) => {}
                 Err(e) => eprintln!("guardiand: screen-time {kind} hook wait failed: {e}"),
@@ -40,6 +47,19 @@ fn save_sched_state(path: &std::path::Path, eng: &std::sync::Mutex<guardian::sch
         path,
         format!("{{\"day\":{day},\"used_secs\":{used},\"granted_secs\":{granted}}}\n"),
     );
+}
+
+/// Per-child schedule-state file: the base path for an unnamed (single) child, else `<base>.<name>`
+/// so each child's used/granted minutes persist independently.
+fn child_state_path(base: &std::path::Path, name: &str) -> std::path::PathBuf {
+    if name.is_empty() {
+        base.to_path_buf()
+    } else {
+        let mut s = base.as_os_str().to_os_string();
+        s.push(".");
+        s.push(name);
+        std::path::PathBuf::from(s)
+    }
 }
 
 fn load_sched_state(path: &std::path::Path, eng: &std::sync::Mutex<guardian::schedule::TimeEngine>) {
@@ -160,73 +180,99 @@ async fn main() -> Result<()> {
 
     // Screen-time engine. Enforcement (session lock/freeze on Wayland) is a host-side hook; here we
     // track usage, expose status to guardian-ctl, and apply parent-granted minutes over the signed channel.
-    let schedule = match &policy.schedule {
+    let schedule: Vec<(String, Arc<std::sync::Mutex<guardian::schedule::TimeEngine>>)> = match &policy.schedule {
         Some(s) if s.enabled => {
-            let eng = Arc::new(std::sync::Mutex::new(guardian::schedule::TimeEngine::new(s.clone())));
-            // Persisted usage survives reboot/restart so the budget isn't reset (review H2).
-            load_sched_state(&policy.schedule_state_path, &eng);
+            // Which children to track? GUARDIAN_CHILD (space-separated usernames — the same var the
+            // lock hooks use, written by setup-child.sh). Unset ⇒ one unnamed engine on the default
+            // schedule (preserves the pre-multi-child single-child behavior).
+            let names: Vec<String> = std::env::var("GUARDIAN_CHILD")
+                .ok()
+                .map(|v| v.split_whitespace().map(|x| x.to_string()).collect::<Vec<_>>())
+                .filter(|v| !v.is_empty())
+                .unwrap_or_else(|| vec![String::new()]);
+            eprintln!("guardiand: screen-time for {} child(ren): {:?}", names.len(), names);
+
+            // One engine per child, each with its own effective schedule + persisted state file.
+            let engines: Vec<(String, Arc<std::sync::Mutex<guardian::schedule::TimeEngine>>)> = names
+                .iter()
+                .map(|name| {
+                    let eng = Arc::new(std::sync::Mutex::new(
+                        guardian::schedule::TimeEngine::new(s.effective_for(name)),
+                    ));
+                    load_sched_state(&child_state_path(&policy.schedule_state_path, name), &eng);
+                    (name.clone(), eng)
+                })
+                .collect();
+
+            // Parent grants: applied to EVERY child for now (per-child targeting lands with the app's
+            // child selector). Signed + nonce-checked upstream in ntfy.
             if let Some(ntfy) = &ntfy {
                 let (gtx, mut grx) = tokio::sync::mpsc::unbounded_channel::<u32>();
                 ntfy.set_grant_sink(gtx);
-                let e = Arc::clone(&eng);
+                let engs = engines.clone();
                 let aud = audit.clone();
-                let sp = policy.schedule_state_path.clone();
+                let base = policy.schedule_state_path.clone();
                 tokio::spawn(async move {
                     while let Some(m) = grx.recv().await {
                         let (day, _) = guardian::schedule::local_day_minute();
-                        e.lock().unwrap().grant_minutes(day, m);
-                        save_sched_state(&sp, &e);
+                        for (name, e) in &engs {
+                            e.lock().unwrap().grant_minutes(day, m);
+                            save_sched_state(&child_state_path(&base, name), e);
+                        }
                         if let Some(a) = &aud {
                             a.record(AuditEvent::GrantApplied { minutes: m });
                         }
-                        eprintln!("guardiand: applied +{m} min screen-time grant");
+                        eprintln!("guardiand: applied +{m} min screen-time grant to all children");
                     }
                 });
             }
+
             let tick_secs = s.tick_secs.max(1);
             let lock_cmd = s.lock_command.clone();
             let unlock_cmd = s.unlock_command.clone();
-            let e = Arc::clone(&eng);
+            let engs = engines.clone();
             let aud = audit.clone();
-            let sp = policy.schedule_state_path.clone();
+            let base = policy.schedule_state_path.clone();
             let lo = Arc::clone(&lock_override);
             tokio::spawn(async move {
-                let mut last_blocked = false;
+                let mut last_blocked: std::collections::HashMap<String, bool> = std::collections::HashMap::new();
                 let mut tick = tokio::time::interval(std::time::Duration::from_secs(tick_secs));
                 loop {
                     tick.tick().await;
                     let (day, wday, minute) = guardian::schedule::local_now();
-                    // active=true is a stub until the logind idle hook lands (host-side).
-                    let st = e.lock().unwrap().on_tick(day, wday, minute, true, tick_secs);
-                    save_sched_state(&sp, &e);
-                    // Blocked if the schedule says so OR the parent pressed "lock now" (review: instant lock).
+                    // "lock now" override blocks every child; per-schedule block is per child.
                     let forced = lo.load(std::sync::atomic::Ordering::SeqCst);
-                    let blocked = forced || !matches!(st, guardian::schedule::Status::Allowed { .. });
-                    if blocked && !last_blocked {
-                        let reason = format!("{st:?}");
-                        if let Some(a) = &aud {
-                            a.record(AuditEvent::ScheduleBlocked { reason: reason.clone() });
+                    for (name, e) in &engs {
+                        // active=true is a stub until the logind idle hook lands (host-side, F16).
+                        let st = e.lock().unwrap().on_tick(day, wday, minute, true, tick_secs);
+                        save_sched_state(&child_state_path(&base, name), e);
+                        let blocked = forced || !matches!(st, guardian::schedule::Status::Allowed { .. });
+                        let was = last_blocked.get(name).copied().unwrap_or(false);
+                        if blocked && !was {
+                            let reason = format!("{st:?}");
+                            if let Some(a) = &aud {
+                                a.record(AuditEvent::ScheduleBlocked { reason: format!("{name}: {reason}") });
+                            }
+                            eprintln!("guardiand: screen-time BLOCKING for '{name}' ({reason})");
+                        } else if !blocked && was {
+                            eprintln!("guardiand: screen-time UNBLOCKED for '{name}'");
+                            if let Some(c) = &unlock_cmd {
+                                run_hook("unlock", c, name);
+                            }
                         }
-                        eprintln!("guardiand: screen-time BLOCKING ({reason})");
-                    } else if !blocked && last_blocked {
-                        eprintln!("guardiand: screen-time UNBLOCKED");
-                        if let Some(c) = &unlock_cmd {
-                            run_hook("unlock", c);
+                        // Re-assert the lock every tick while blocked (review H2); hooks are idempotent.
+                        if blocked {
+                            if let Some(c) = &lock_cmd {
+                                run_hook("lock", c, name);
+                            }
                         }
+                        last_blocked.insert(name.clone(), blocked);
                     }
-                    // Re-assert the lock on EVERY tick while blocked (review H2): covers a child who
-                    // logs in / reboots after the budget was already spent. (Lock hooks must be idempotent.)
-                    if blocked {
-                        if let Some(c) = &lock_cmd {
-                            run_hook("lock", c);
-                        }
-                    }
-                    last_blocked = blocked;
                 }
             });
-            Some(eng)
+            engines
         }
-        _ => None,
+        _ => Vec::new(),
     };
 
     let server = Arc::new(Server {

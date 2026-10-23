@@ -1,6 +1,6 @@
 [package]
 name = "guardian"
-version = "0.2.6"
+version = "0.2.7"
 edition = "2021"
 license = "GPL-3.0-or-later"
 description = "Omarchy Child Protect Guardian daemon (Stage 1): hold install requests and resolve them via a local decision."
