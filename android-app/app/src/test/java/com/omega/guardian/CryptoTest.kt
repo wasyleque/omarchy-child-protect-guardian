@@ -31,8 +31,9 @@ class CryptoTest {
 
     @Test
     fun grantSignatureMatchesVector() {
-        val sig = Crypto.signGrant(seed, pub, "abc123", 30, 1700000001L)
-        assertEquals("Kie6pAa/Y3PrQFF8ZygyyjzXJS8L+YJYW+VGXd1lKvBqetTq8FQyIxQs+VVsTYfZLtdJMQoth+sUaY9hPAHKAg==", sig)
+        // OCPG-GRANT-v3 binds the target child; signature computed by ed25519-dalek over the same msg.
+        val sig = Crypto.signGrant(seed, pub, "abc123", "zosia", 30, 1700000001L)
+        assertEquals("uQBGEZQyB0kaooLmVnnSU9e59bArZV/3IsaJg8A7Kgw/hs898k5pa6rGgLCitA20ZMHtxsJymrnb5ahukQgpDA==", sig)
     }
 
     @Test

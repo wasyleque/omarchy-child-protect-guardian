@@ -61,8 +61,8 @@ pub struct Ntfy {
     /// Fire-and-forget tamper/security alerts to the parent: (dedupe-key, title, body).
     alert_tx: mpsc::UnboundedSender<(String, String, String)>,
     alert_rx: Mutex<Option<mpsc::UnboundedReceiver<(String, String, String)>>>,
-    /// Where verified grant-time commands (minutes) are delivered to the schedule engine.
-    grant_tx: Mutex<Option<mpsc::UnboundedSender<u32>>>,
+    /// Where verified grant-time commands (child, minutes) are delivered to the schedule engine.
+    grant_tx: Mutex<Option<mpsc::UnboundedSender<(String, u32)>>>,
     /// One-time nonces already honored for grants (anti-replay).
     grant_nonces: Mutex<HashSet<String>>,
     /// Where honored grant nonces are persisted (so a restart can't re-allow a replay).
@@ -206,7 +206,7 @@ impl Ntfy {
     }
 
     /// Deliver verified grant-time minutes here (the daemon applies them to the schedule engine).
-    pub fn set_grant_sink(&self, tx: mpsc::UnboundedSender<u32>) {
+    pub fn set_grant_sink(&self, tx: mpsc::UnboundedSender<(String, u32)>) {
         *self.grant_tx.lock().unwrap() = Some(tx);
     }
 
@@ -243,9 +243,9 @@ impl Ntfy {
         }
         let minutes = g.minutes.min(1440); // cap at a day
         if let Some(tx) = self.grant_tx.lock().unwrap().as_ref() {
-            let _ = tx.send(minutes);
+            let _ = tx.send((g.child.clone(), minutes));
         }
-        eprintln!("guardiand: ntfy grant of {minutes} min accepted");
+        eprintln!("guardiand: ntfy grant of {minutes} min accepted for '{}'", g.child);
     }
 
     /// Apply a verified instant "lock now" / "unlock" command: set/clear the override flag the

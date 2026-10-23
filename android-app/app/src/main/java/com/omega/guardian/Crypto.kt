@@ -18,7 +18,7 @@ import java.util.Base64
 object Crypto {
     private const val DECISION = "OCPG-v2"
     private const val CHALLENGE = "OCPG-CH-v2"
-    private const val GRANT = "OCPG-GRANT-v2"
+    private const val GRANT = "OCPG-GRANT-v3"
     private const val LOCK = "OCPG-LOCK-v1"
     private const val SCHED = "OCPG-SCHED-v1"
 
@@ -47,8 +47,8 @@ object Crypto {
     fun decisionCanonical(id: String, decision: String, nonce: String, ts: Long, source: String, pkg: String) =
         "$DECISION|$id|$decision|$nonce|$ts|$source|$pkg"
 
-    fun grantCanonical(daemonPubB64: String, nonce: String, minutes: Int, ts: Long) =
-        "$GRANT|$daemonPubB64|$nonce|$minutes|$ts"
+    fun grantCanonical(daemonPubB64: String, nonce: String, child: String, minutes: Int, ts: Long) =
+        "$GRANT|$daemonPubB64|$nonce|$child|$minutes|$ts"
 
     fun challengeCanonical(id: String, source: String, pkg: String, nonce: String, reason: String, respondTo: String) =
         "$CHALLENGE|$id|$source|$pkg|$nonce|$reason|$respondTo"
@@ -57,9 +57,9 @@ object Crypto {
     fun signDecision(seed: ByteArray, id: String, decision: String, nonce: String, ts: Long, source: String, pkg: String): String =
         b64e(signRaw(seed, decisionCanonical(id, decision, nonce, ts, source, pkg)))
 
-    /** Sign a screen-time grant. */
-    fun signGrant(seed: ByteArray, daemonPubB64: String, nonce: String, minutes: Int, ts: Long): String =
-        b64e(signRaw(seed, grantCanonical(daemonPubB64, nonce, minutes, ts)))
+    /** Sign a screen-time grant for `child` ("" = all/single). */
+    fun signGrant(seed: ByteArray, daemonPubB64: String, nonce: String, child: String, minutes: Int, ts: Long): String =
+        b64e(signRaw(seed, grantCanonical(daemonPubB64, nonce, child, minutes, ts)))
 
     fun lockCanonical(daemonPubB64: String, nonce: String, action: String, ts: Long) =
         "$LOCK|$daemonPubB64|$nonce|$action|$ts"

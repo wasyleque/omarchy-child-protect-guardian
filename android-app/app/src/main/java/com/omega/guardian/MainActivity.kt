@@ -258,14 +258,15 @@ class MainActivity : AppCompatActivity() {
             toast(getString(R.string.grant_need_request))
             return
         }
+        val child = Prefs.activeChildName(this)
         lifecycleScope.launch {
             val ok = withContext(Dispatchers.IO) {
                 try {
                     val ts = System.currentTimeMillis() / 1000
                     val nonce = randomHex(16)
-                    val sig = Crypto.signGrant(Prefs.seed(this@MainActivity), dpub, nonce, minutes, ts)
+                    val sig = Crypto.signGrant(Prefs.seed(this@MainActivity), dpub, nonce, child, minutes, ts)
                     val payload = JSONObject()
-                        .put("kind", "grant_time").put("daemon_pub", dpub)
+                        .put("kind", "grant_time").put("daemon_pub", dpub).put("child", child)
                         .put("nonce", nonce).put("minutes", minutes).put("ts", ts).put("sig", sig)
                     val req = Request.Builder().url(respondTo)
                         .post(payload.toString().toRequestBody()).build()

@@ -406,22 +406,25 @@ async fn main() -> Result<()> {
             // Parent grants: applied to EVERY child for now (per-child targeting lands with the app's
             // child selector). Signed + nonce-checked upstream in ntfy.
             if let Some(ntfy) = &ntfy {
-                let (gtx, mut grx) = tokio::sync::mpsc::unbounded_channel::<u32>();
+                let (gtx, mut grx) = tokio::sync::mpsc::unbounded_channel::<(String, u32)>();
                 ntfy.set_grant_sink(gtx);
                 let engs = engines.clone();
                 let aud = audit.clone();
                 let base = policy.schedule_state_path.clone();
                 tokio::spawn(async move {
-                    while let Some(m) = grx.recv().await {
+                    while let Some((child, m)) = grx.recv().await {
                         let (day, _) = guardian::schedule::local_day_minute();
+                        let single = engs.len() == 1; // one engine ⇒ a named grant still targets it
                         for (name, e) in &engs {
-                            e.lock().unwrap().grant_minutes(day, m);
-                            save_sched_state(&child_state_path(&base, name), e);
+                            if child.is_empty() || single || *name == child {
+                                e.lock().unwrap().grant_minutes(day, m);
+                                save_sched_state(&child_state_path(&base, name), e);
+                            }
                         }
                         if let Some(a) = &aud {
                             a.record(AuditEvent::GrantApplied { minutes: m });
                         }
-                        eprintln!("guardiand: applied +{m} min screen-time grant to all children");
+                        eprintln!("guardiand: applied +{m} min grant to '{}'", if child.is_empty() { "all" } else { &child });
                     }
                 });
 

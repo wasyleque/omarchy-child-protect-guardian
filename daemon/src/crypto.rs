@@ -49,12 +49,12 @@ pub fn alert_message(text: &str, ts: u64) -> String {
 /// Domain tag for a parent-initiated "grant extra screen-time" command. v2 binds the target daemon's
 /// public key so a captured grant can't be replayed onto a sibling's machine paired to the same parent
 /// key (review M7).
-pub const GRANT_DOMAIN: &str = "OCPG-GRANT-v2";
+pub const GRANT_DOMAIN: &str = "OCPG-GRANT-v3";
 
-/// Bytes the parent app signs to grant `minutes` of extra time (daemon_pub binds the target machine;
-/// nonce + ts give anti-replay).
-pub fn grant_message(daemon_pub: &str, nonce: &str, minutes: u32, ts: u64) -> String {
-    format!("{GRANT_DOMAIN}|{daemon_pub}|{nonce}|{minutes}|{ts}")
+/// Bytes the parent app signs to grant `minutes` of extra time to `child` (daemon_pub binds the
+/// target machine; nonce + ts give anti-replay). `child` is the account name, "" = all/single child.
+pub fn grant_message(daemon_pub: &str, nonce: &str, child: &str, minutes: u32, ts: u64) -> String {
+    format!("{GRANT_DOMAIN}|{daemon_pub}|{nonce}|{child}|{minutes}|{ts}")
 }
 
 /// A signed grant-time command posted by the parent app.
@@ -65,6 +65,9 @@ pub struct SignedGrant {
     /// The intended daemon's public key (base64) — the daemon rejects a grant not addressed to it.
     pub daemon_pub: String,
     pub nonce: String,
+    /// Target child account ("" = all/single child).
+    #[serde(default)]
+    pub child: String,
     pub minutes: u32,
     pub ts: u64,
     pub sig: String,
@@ -81,7 +84,7 @@ pub fn verify_grant(vk: &VerifyingKey, g: &SignedGrant) -> bool {
         Err(_) => return false,
     };
     let sig = Signature::from_bytes(&arr);
-    vk.verify_strict(grant_message(&g.daemon_pub, &g.nonce, g.minutes, g.ts).as_bytes(), &sig).is_ok()
+    vk.verify_strict(grant_message(&g.daemon_pub, &g.nonce, &g.child, g.minutes, g.ts).as_bytes(), &sig).is_ok()
 }
 
 /// Domain for a parent-initiated "lock the computer now" / "unlock" command.
