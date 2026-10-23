@@ -310,12 +310,21 @@ fixed across 3 batches (daemon 0.2.4→0.2.5, app 0.1.6→0.1.7/vc8). Docs commi
     "same every day" toggle (1 row ↔ 7 per-day rows). REMOVED night-curfew fields (redundant with the
     allowed-hours window, per user). Daemon sched-push falls back to the single engine when the named
     child isn't found.
-  - REMAINING: per-child targeting for grant/lock-now (add `child` to OCPG-GRANT/LOCK — today both apply
-    to ALL children); F16 (feed logind active so budget isn't charged by wall clock / while frozen);
-    live "current app/game" reporter (hyprctl → daemon → app); daily AI DIGEST (usage stats → local
-    Ollama → push) — **MUST flag if the child tried something bad (blocked installs/denials from the
-    audit log) and worrying search topics (drugs, suicide, weapons, …) from the DNS query log, with a
-    clear parent alert** (user requirement 2026-10-23). AI defaults: llama3.2 local; PL digest = bielik-4.5b.
+  - Step 5 — DAILY AI DIGEST (5c507b5, daemon 0.3.0): ai::daily_digest + a prompt that REQUIRES
+    flagging (1) attempts to do something the child shouldn't and (2) worrying lookup topics (drugs,
+    self-harm/suicide, weapons, violence, extremism, porn) with a "⚠ UWAGA:/ALERT:" marker — the user's
+    safeguarding requirement. guardiand build_day_summary (today's audit events + package names) +
+    scan_dns_for_concerns (optional DNS query log) → daily timer at [ai].digest_hour → pushed as a
+    SIGNED alert the app already shows. config [ai]: digest_enabled/digest_hour/digest_lang (default
+    Polish)/dns_query_log. Off by default. NEEDS child box + Ollama to verify.
+  - Step 6 — F16 (979cdc3, daemon 0.3.1): the tick now charges the budget only when the child has an
+    ACTIVE, non-idle logind session (child_active via loginctl) and never while parent-locked; falls
+    back to active=true without logind. Fixes budget draining by wall clock / while frozen. NEEDS host.
+  - REMAINING Batch 4: live "current app/game" view (hard over one-way ntfy — the app can't poll;
+    needs a low-rate activity publish or a child-side reporter feeding app-usage into the digest —
+    DEFERRED, design needed); per-child targeting for grant/lock-now (add `child` to OCPG-GRANT/LOCK;
+    today both apply to ALL children — minor, own-PC case already fine). ON-HOST VERIFY pending for the
+    whole screen-time/digest/F16 path + Batch 1-2 security fixes.
 
 ## Workflow routing (this machine)
 - **Logic / architecture / integrations →** `agy`.
