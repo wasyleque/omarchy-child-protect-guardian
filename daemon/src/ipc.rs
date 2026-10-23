@@ -251,8 +251,8 @@ impl Server {
                 (true, ClientMessage::ScheduleStatus) => {
                     let (status, remaining_secs) = match &self.schedule {
                         Some(eng) => {
-                            let (day, minute) = crate::schedule::local_day_minute();
-                            match eng.lock().unwrap().status(day, minute) {
+                            let (day, wday, minute) = crate::schedule::local_now();
+                            match eng.lock().unwrap().status(day, wday, minute) {
                                 SchedStatus::Allowed { remaining_secs } => ("allowed".to_string(), remaining_secs),
                                 SchedStatus::OutsideWindow => ("outside_window".to_string(), Some(0)),
                                 SchedStatus::BudgetExhausted => ("budget_exhausted".to_string(), Some(0)),

@@ -71,10 +71,12 @@ pub struct AiConfig {
     /// "ollama" (POST /api/generate) or "openai" (POST /v1/chat/completions, OpenAI-compatible).
     #[serde(default = "default_ai_provider")]
     pub provider: String,
-    /// Full endpoint URL. Ollama example: http://192.168.0.11:11434/api/generate
+    /// Full endpoint URL. Default is the child box's OWN Ollama (most private — nothing leaves the
+    /// machine); point it at a LAN box for a bigger model. Ollama path: .../api/generate
     #[serde(default = "default_ai_endpoint")]
     pub endpoint: String,
-    /// Model name, e.g. "qwen3.8:latest" (Ollama) or "gpt-4o-mini" (OpenAI-compatible).
+    /// Model name. Default "llama3.2:latest" (3B, ~2 GB — fast, aligned, fits an 8 GB child GPU). For
+    /// a Polish daily digest, "qooba/bielik-4.5b-v3.0-instruct" is a good fit; avoid uncensored models.
     #[serde(default = "default_ai_model")]
     pub model: String,
     /// Optional bearer token for the "openai" provider (left out for local Ollama).
@@ -86,8 +88,8 @@ pub struct AiConfig {
 }
 
 fn default_ai_provider() -> String { "ollama".to_string() }
-fn default_ai_endpoint() -> String { "http://192.168.0.11:11434/api/generate".to_string() }
-fn default_ai_model() -> String { "qwen3.8:latest".to_string() }
+fn default_ai_endpoint() -> String { "http://127.0.0.1:11434/api/generate".to_string() }
+fn default_ai_model() -> String { "llama3.2:latest".to_string() }
 fn default_ai_timeout() -> u64 { 12 }
 
 /// Remote push-approval settings (ntfy). The parent's phone subscribes to `request_topic`.

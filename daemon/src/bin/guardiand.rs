@@ -195,9 +195,9 @@ async fn main() -> Result<()> {
                 let mut tick = tokio::time::interval(std::time::Duration::from_secs(tick_secs));
                 loop {
                     tick.tick().await;
-                    let (day, minute) = guardian::schedule::local_day_minute();
+                    let (day, wday, minute) = guardian::schedule::local_now();
                     // active=true is a stub until the logind idle hook lands (host-side).
-                    let st = e.lock().unwrap().on_tick(day, minute, true, tick_secs);
+                    let st = e.lock().unwrap().on_tick(day, wday, minute, true, tick_secs);
                     save_sched_state(&sp, &e);
                     // Blocked if the schedule says so OR the parent pressed "lock now" (review: instant lock).
                     let forced = lo.load(std::sync::atomic::Ordering::SeqCst);

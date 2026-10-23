@@ -50,9 +50,21 @@ default_on_timeout = "deny"
 # engine + its logic are implemented and unit-tested now). Minutes are from local midnight.
 #[schedule]
 #enabled = true
-#daily_budget_minutes = 120        # 2 h/day; omit for unlimited (a window may still apply)
+# Defaults applied to every day (minutes from local midnight):
+#daily_budget_minutes = 120        # 2 h/day; omit for unlimited (a window/curfew may still apply)
 #window_start_min = 420            # 07:00
 #window_end_min = 1230             # 20:30
+# Nightly curfew ("cisza nocna") — blocks regardless of budget; wraps past midnight when end < start:
+#quiet_start_min = 1260            # 21:00
+#quiet_end_min   = 420             # 07:00  (so 21:00 → 07:00 is always blocked)
+# Per-weekday overrides (keys mon/tue/wed/thu/fri/sat/sun); any field omitted falls back to the
+# defaults above. Example: more time at the weekend, later window on Friday:
+#[schedule.days.sat]
+#budget_minutes = 240
+#[schedule.days.sun]
+#budget_minutes = 240
+#[schedule.days.fri]
+#window_end_min = 1320             # 22:00
 # Host-side lock/unlock hooks run on block/unblock transitions (see packaging/schedule/README.md):
 #lock_command   = "GUARDIAN_CHILD=kid /usr/lib/guardian/guardian-lock"
 #unlock_command = "GUARDIAN_CHILD=kid /usr/lib/guardian/guardian-unlock"
@@ -65,8 +77,8 @@ default_on_timeout = "deny"
 #[ai]
 #enabled = true
 #provider = "ollama"                               # "ollama" or "openai" (OpenAI-compatible)
-#endpoint = "http://192.168.0.11:11434/api/generate"
-#model = "qwen3.8:latest"                          # any general chat model; avoid code-only models
+#endpoint = "http://127.0.0.1:11434/api/generate"  # the child box's OWN Ollama (most private); or a LAN box
+#model = "llama3.2:latest"                         # 3B, fast, fits an 8 GB GPU; avoid code-only/uncensored models
 #timeout_secs = 12
 # For an OpenAI-compatible endpoint instead:
 #provider = "openai"
