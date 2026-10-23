@@ -81,6 +81,53 @@ fn load_child_override(base: &std::path::Path, name: &str) -> Option<guardian::s
     serde_json::from_str(&txt).ok()
 }
 
+/// Resolve a child username to its uid (startup-time; for logind activity checks).
+fn uid_of(name: &str) -> Option<u32> {
+    let o = std::process::Command::new("id").arg("-u").arg(name).output().ok()?;
+    String::from_utf8_lossy(&o.stdout).trim().parse().ok()
+}
+
+/// Whether the child (uid) is actually using the machine right now: an ACTIVE, non-idle logind
+/// session. Review F16: the tick used to pass `active=true` always, so the budget drained by wall
+/// clock even when the child was logged out or idle. Defaults to `true` if logind can't be queried,
+/// so we never UNDER-count on a system without it.
+fn child_active(uid: u32) -> bool {
+    let state = match std::process::Command::new("loginctl")
+        .args(["show-user", &uid.to_string(), "-p", "State", "-p", "Sessions"])
+        .output()
+    {
+        Ok(o) => String::from_utf8_lossy(&o.stdout).to_string(),
+        Err(_) => return true, // no loginctl → assume active
+    };
+    if state.trim().is_empty() {
+        return true;
+    }
+    if !state.contains("State=active") {
+        return false; // nobody logged in on the seat as this user
+    }
+    // Active seat: count it only if a session is non-idle.
+    let ids = state
+        .lines()
+        .find_map(|l| l.strip_prefix("Sessions="))
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if ids.is_empty() {
+        return true;
+    }
+    for id in ids.split_whitespace() {
+        if let Ok(o) = std::process::Command::new("loginctl")
+            .args(["show-session", id, "-p", "IdleHint"])
+            .output()
+        {
+            if String::from_utf8_lossy(&o.stdout).contains("IdleHint=no") {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 /// Seconds until the next local occurrence of `target_hour`:00 (for the daily digest timer).
 fn secs_until_hour(target_hour: u8) -> u64 {
     let (_, _, minute) = guardian::schedule::local_now();
@@ -334,6 +381,12 @@ async fn main() -> Result<()> {
                 .filter(|v| !v.is_empty())
                 .unwrap_or_else(|| vec![String::new()]);
             eprintln!("guardiand: screen-time for {} child(ren): {:?}", names.len(), names);
+            // Resolve uids once for the logind activity check (F16).
+            let uids: std::collections::HashMap<String, u32> = names
+                .iter()
+                .filter(|n| !n.is_empty())
+                .filter_map(|n| uid_of(n).map(|u| (n.clone(), u)))
+                .collect();
 
             // One engine per child, each with its own effective schedule + persisted state file.
             let engines: Vec<(String, Arc<std::sync::Mutex<guardian::schedule::TimeEngine>>)> = names
@@ -406,6 +459,7 @@ async fn main() -> Result<()> {
             let aud = audit.clone();
             let base = policy.schedule_state_path.clone();
             let lo = Arc::clone(&lock_override);
+            let uids = uids.clone();
             tokio::spawn(async move {
                 let mut last_blocked: std::collections::HashMap<String, bool> = std::collections::HashMap::new();
                 let mut tick = tokio::time::interval(std::time::Duration::from_secs(tick_secs));
@@ -415,8 +469,11 @@ async fn main() -> Result<()> {
                     // "lock now" override blocks every child; per-schedule block is per child.
                     let forced = lo.load(std::sync::atomic::Ordering::SeqCst);
                     for (name, e) in &engs {
-                        // active=true is a stub until the logind idle hook lands (host-side, F16).
-                        let st = e.lock().unwrap().on_tick(day, wday, minute, true, tick_secs);
+                        // Charge the budget only when the child is really using the machine: logged in,
+                        // active, not idle — and never while parent-locked (review F16). Falls back to
+                        // active=true when there's no uid/logind so we don't under-count.
+                        let active = !forced && uids.get(name).map(|u| child_active(*u)).unwrap_or(true);
+                        let st = e.lock().unwrap().on_tick(day, wday, minute, active, tick_secs);
                         save_sched_state(&child_state_path(&base, name), e);
                         let blocked = forced || !matches!(st, guardian::schedule::Status::Allowed { .. });
                         let was = last_blocked.get(name).copied().unwrap_or(false);
