@@ -84,6 +84,42 @@ pub fn verify_grant(vk: &VerifyingKey, g: &SignedGrant) -> bool {
     vk.verify_strict(grant_message(&g.daemon_pub, &g.nonce, g.minutes, g.ts).as_bytes(), &sig).is_ok()
 }
 
+/// Domain for a parent-initiated "lock the computer now" / "unlock" command.
+pub const LOCK_DOMAIN: &str = "OCPG-LOCK-v1";
+
+/// Bytes the parent app signs to lock or unlock the child's machine immediately. `action` is "lock"
+/// or "unlock"; daemon_pub binds the target machine, nonce + ts give anti-replay.
+pub fn lock_message(daemon_pub: &str, nonce: &str, action: &str, ts: u64) -> String {
+    format!("{LOCK_DOMAIN}|{daemon_pub}|{nonce}|{action}|{ts}")
+}
+
+/// A signed instant-lock command posted by the parent app.
+#[derive(Debug, Deserialize)]
+pub struct SignedLock {
+    /// Discriminator ("lock_now") so the daemon can tell it from a grant/decision on the same channel.
+    pub kind: String,
+    pub daemon_pub: String,
+    pub nonce: String,
+    /// "lock" or "unlock".
+    pub action: String,
+    pub ts: u64,
+    pub sig: String,
+}
+
+/// Verify a signed lock command against the parent key.
+pub fn verify_lock(vk: &VerifyingKey, l: &SignedLock) -> bool {
+    let sig_bytes = match STANDARD.decode(l.sig.trim()) {
+        Ok(b) => b,
+        Err(_) => return false,
+    };
+    let arr: [u8; 64] = match sig_bytes.try_into() {
+        Ok(a) => a,
+        Err(_) => return false,
+    };
+    let sig = Signature::from_bytes(&arr);
+    vk.verify_strict(lock_message(&l.daemon_pub, &l.nonce, &l.action, l.ts).as_bytes(), &sig).is_ok()
+}
+
 /// Load the daemon's Ed25519 signing key from `path` (base64 of a 32-byte seed), creating a fresh
 /// one (0600) on first run. The matching public key is what the parent app pairs to verify challenges.
 pub fn load_or_create_daemon_key(path: &Path) -> Result<SigningKey> {
@@ -266,5 +302,34 @@ mod tests {
         let other = SigningKey::from_bytes(&[9u8; 32]);
         let sd = sign(&sk, Uuid::new_v4(), Decision::Allow, "n", 1, InstallSource::Pacman, "p");
         assert!(!verify(&other.verifying_key(), &sd), "a different key must not verify");
+    }
+
+    fn sign_lock(sk: &SigningKey, dpub: &str, nonce: &str, action: &str, ts: u64) -> SignedLock {
+        let sig = sk.sign(lock_message(dpub, nonce, action, ts).as_bytes());
+        SignedLock {
+            kind: "lock_now".into(),
+            daemon_pub: dpub.into(),
+            nonce: nonce.into(),
+            action: action.into(),
+            ts,
+            sig: STANDARD.encode(sig.to_bytes()),
+        }
+    }
+
+    #[test]
+    fn valid_lock_verifies() {
+        let sk = signing_key();
+        let dpub = pubkey_b64(&sk);
+        let l = sign_lock(&sk, &dpub, "n1", "lock", 1_000);
+        assert!(verify_lock(&sk.verifying_key(), &l));
+    }
+
+    #[test]
+    fn tampered_lock_action_fails() {
+        let sk = signing_key();
+        let dpub = pubkey_b64(&sk);
+        let mut l = sign_lock(&sk, &dpub, "n1", "lock", 1_000);
+        l.action = "unlock".to_string(); // flip the action after signing
+        assert!(!verify_lock(&sk.verifying_key(), &l), "flipping the action must break the signature");
     }
 }

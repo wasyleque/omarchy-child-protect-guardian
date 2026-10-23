@@ -43,4 +43,15 @@
     <string name="alert_title">⚠ Guardian alert</string>
     <string name="ch_fg_name">Background listener</string>
     <string name="ch_req_name">Install requests</string>
+
+    <!-- in-app pending list + instant lock -->
+    <string name="hdr_pending">Pending requests</string>
+    <string name="pending_empty">Nothing waiting.</string>
+    <string name="btn_lock_now">Lock the computer now</string>
+    <string name="btn_unlock_now">Unlock the computer</string>
+    <string name="sent_ok">Sent ✓</string>
+    <string name="send_failed">Couldn\'t reach the PC — try again</string>
+    <string name="lock_sent">Lock sent</string>
+    <string name="unlock_sent">Unlock sent</string>
+    <string name="lock_needs_pair">Pair the phone first</string>
 </resources>

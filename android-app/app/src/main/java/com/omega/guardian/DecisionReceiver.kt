@@ -7,10 +7,6 @@ import android.content.Intent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONObject
 
 /**
  * Handles an Allow / Deny tap from a request notification: signs the decision on-device and POSTs it
@@ -32,27 +28,10 @@ class DecisionReceiver : BroadcastReceiver() {
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val ts = System.currentTimeMillis() / 1000
-                val seed = Prefs.seed(context)
-                val sig = Crypto.signDecision(seed, id, decision, nonce, ts, source, pkg)
-                val payload = JSONObject()
-                    .put("id", id).put("decision", decision).put("nonce", nonce)
-                    .put("ts", ts).put("source", source).put("package", pkg).put("sig", sig)
-                val req = Request.Builder()
-                    .url(respondTo)
-                    .post(payload.toString().toRequestBody())
-                    .build()
-                client.newCall(req).execute().use { /* resolve on daemon side */ }
-                Prefs.addHistory(context, pkg, source, decision, ts)
-            } catch (e: Exception) {
-                // Best-effort: if the POST fails the daemon's timeout fails closed (deny).
+                Decisions.send(context, decision, id, nonce, source, pkg, respondTo)
             } finally {
                 pending.finish()
             }
         }
-    }
-
-    companion object {
-        private val client = OkHttpClient()
     }
 }

@@ -71,6 +71,9 @@ pub struct Ntfy {
     audit: Mutex<Option<Arc<crate::audit::Audit>>>,
     /// Optional AI risk-summary config (enriches each challenge, signed). None = off.
     ai: Mutex<Option<crate::config::AiConfig>>,
+    /// Parent-initiated "lock now" override. The schedule tick ORs this into "blocked", so a signed
+    /// lock command keeps the child locked until a signed unlock (independent of the time budget).
+    lock_override: Mutex<Option<Arc<std::sync::atomic::AtomicBool>>>,
 }
 
 #[derive(Deserialize)]
@@ -147,10 +150,17 @@ impl Ntfy {
             .context("building reqwest client")?;
 
         let (alert_tx, alert_rx) = mpsc::unbounded_channel();
+        // Deterministic response topic derived from the (paired) request topic, NOT random-per-run.
+        // A random topic was lost after any daemon restart/reboot: the phone kept posting grants/locks
+        // to the previous run's topic and nothing arrived, no error, child stayed frozen (review F15).
+        // With `<request_topic>-resp` the app can compute it at pairing time and it survives restarts.
+        // Predictability is safe: decisions are Ed25519-signed and nonce-bound, so a known topic can't
+        // be used to forge or replay an approval.
+        let response_topic = format!("{}-resp", cfg.request_topic);
         Ok(Arc::new(Self {
             cfg,
             client,
-            response_topic: format!("guardian-resp-{}", random_hex()),
+            response_topic,
             mode,
             daemon_key,
             pending: Mutex::new(HashMap::new()),
@@ -161,12 +171,18 @@ impl Ntfy {
             grant_nonce_path,
             audit: Mutex::new(None),
             ai: Mutex::new(None),
+            lock_override: Mutex::new(None),
         }))
     }
 
     /// Attach the audit log so rejected approvals are recorded (N5).
     pub fn set_audit(&self, audit: Arc<crate::audit::Audit>) {
         *self.audit.lock().unwrap() = Some(audit);
+    }
+
+    /// Attach the shared "lock now" override flag (the schedule tick reads it).
+    pub fn set_lock_override(&self, flag: Arc<std::sync::atomic::AtomicBool>) {
+        *self.lock_override.lock().unwrap() = Some(flag);
     }
 
     /// Enable AI risk-summaries (enriches each published challenge).
@@ -222,6 +238,52 @@ impl Ntfy {
             let _ = tx.send(minutes);
         }
         eprintln!("guardiand: ntfy grant of {minutes} min accepted");
+    }
+
+    /// Apply a verified instant "lock now" / "unlock" command: set/clear the override flag the
+    /// schedule tick honors. Same anti-replay + addressing checks as a grant.
+    fn handle_lock(&self, vk: &VerifyingKey, l: crypto::SignedLock) {
+        if l.daemon_pub != crypto::pubkey_b64(&self.daemon_key) {
+            eprintln!("guardiand: ntfy rejected lock (addressed to a different daemon)");
+            return;
+        }
+        let now = now_secs();
+        if l.ts > now.saturating_add(60) || now.saturating_sub(l.ts) > MAX_TS_SKEW_SECS {
+            eprintln!("guardiand: ntfy rejected lock (timestamp out of window)");
+            return;
+        }
+        if self.grant_nonces.lock().unwrap().contains(&l.nonce) {
+            eprintln!("guardiand: ntfy rejected lock (replayed nonce)");
+            return;
+        }
+        if l.action != "lock" && l.action != "unlock" {
+            eprintln!("guardiand: ntfy rejected lock (unknown action '{}')", l.action);
+            return;
+        }
+        if !crypto::verify_lock(vk, &l) {
+            eprintln!("guardiand: ntfy rejected lock (bad signature)");
+            self.alert("lock-forged", "Guardian: FORGED lock blocked", "A lock command with an invalid signature was rejected.");
+            return;
+        }
+        self.grant_nonces.lock().unwrap().insert(l.nonce.clone());
+        if let Some(p) = &self.grant_nonce_path {
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) {
+                use std::io::Write as _;
+                let _ = writeln!(f, "{}", l.nonce);
+            }
+        }
+        let lock = l.action == "lock";
+        if let Some(flag) = self.lock_override.lock().unwrap().as_ref() {
+            flag.store(lock, std::sync::atomic::Ordering::SeqCst);
+            eprintln!("guardiand: ntfy {} accepted", if lock { "lock-now" } else { "unlock" });
+            if let Some(a) = self.audit.lock().unwrap().as_ref() {
+                a.record(crate::audit::AuditEvent::ScheduleBlocked {
+                    reason: if lock { "parent locked the computer".into() } else { "parent unlocked the computer".into() },
+                });
+            }
+        } else {
+            eprintln!("guardiand: lock command received but no [schedule] is configured — nothing to lock");
+        }
     }
 
     /// Queue a tamper/security alert to the parent (non-blocking, safe from any context). Alerts of
@@ -497,6 +559,13 @@ impl Ntfy {
         if let Ok(g) = serde_json::from_str::<crypto::SignedGrant>(msg) {
             if g.kind == "grant_time" {
                 self.handle_grant(vk, g);
+                return;
+            }
+        }
+        // ...so does an instant "lock now" / "unlock" command.
+        if let Ok(l) = serde_json::from_str::<crypto::SignedLock>(msg) {
+            if l.kind == "lock_now" {
+                self.handle_lock(vk, l);
                 return;
             }
         }

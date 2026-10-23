@@ -56,10 +56,26 @@ object Prefs {
     fun topic(ctx: Context): String? = secure(ctx).getString(K_TOPIC, null)
     fun dpub(ctx: Context): String? = secure(ctx).getString(K_DPUB, null)
     fun pairTo(ctx: Context): String? = secure(ctx).getString(K_PAIR_TO, null)
-    fun lastRespondTo(ctx: Context): String? = secure(ctx).getString(K_RESPOND, null)
+    /**
+     * Where a grant / lock command is POSTed. Prefer the topic the last challenge card named, but fall
+     * back to the deterministic `<server>/<topic>-resp` the daemon now derives from the paired request
+     * topic (review F15) — so grants and "lock now" work right after pairing and survive a daemon
+     * restart, without first waiting for an install request card.
+     */
+    fun lastRespondTo(ctx: Context): String? {
+        secure(ctx).getString(K_RESPOND, null)?.let { return it }
+        val t = topic(ctx) ?: return null
+        return "${server(ctx).trimEnd('/')}/$t-resp"
+    }
 
     fun setLastRespondTo(ctx: Context, url: String) {
         secure(ctx).edit().putString(K_RESPOND, url).apply()
+    }
+
+    /** Optimistic local state of the "lock now" toggle (so the button can read Lock/Unlock). */
+    fun lockRequested(ctx: Context): Boolean = plain(ctx).getBoolean("lock_requested", false)
+    fun setLockRequested(ctx: Context, v: Boolean) {
+        plain(ctx).edit().putBoolean("lock_requested", v).apply()
     }
 
     fun isPaired(ctx: Context): Boolean = topic(ctx) != null && dpub(ctx) != null
@@ -113,5 +129,49 @@ object Prefs {
         JSONArray(plain(ctx).getString(K_HISTORY, "[]"))
     } catch (e: Exception) {
         JSONArray()
+    }
+
+    // ---- pending requests (shown in-app so you can Allow/Deny without the notification) ----
+    private const val K_PENDING = "pending"
+    private const val PENDING_TTL_SEC = 15 * 60   // the daemon times out long before this
+
+    /** Record a verified challenge so MainActivity can list it. De-duped by id, newest first. */
+    fun addPending(
+        ctx: Context, id: String, source: String, pkg: String,
+        nonce: String, respondTo: String, reason: String, ts: Long
+    ) {
+        val cur = pending(ctx)
+        val out = JSONArray().put(
+            JSONObject().put("id", id).put("source", source).put("package", pkg)
+                .put("nonce", nonce).put("respond_to", respondTo).put("reason", reason).put("ts", ts)
+        )
+        for (i in 0 until cur.length()) {
+            val o = cur.getJSONObject(i)
+            if (o.optString("id") != id) out.put(o)
+        }
+        plain(ctx).edit().putString(K_PENDING, out.toString()).apply()
+    }
+
+    fun removePending(ctx: Context, id: String) {
+        val cur = pending(ctx)
+        val out = JSONArray()
+        for (i in 0 until cur.length()) {
+            val o = cur.getJSONObject(i)
+            if (o.optString("id") != id) out.put(o)
+        }
+        plain(ctx).edit().putString(K_PENDING, out.toString()).apply()
+    }
+
+    /** Current pending requests, dropping any older than the TTL (expired cards the daemon denied). */
+    fun pending(ctx: Context): JSONArray {
+        val raw = try { JSONArray(plain(ctx).getString(K_PENDING, "[]")) } catch (e: Exception) { JSONArray() }
+        val now = System.currentTimeMillis() / 1000
+        val out = JSONArray()
+        for (i in 0 until raw.length()) {
+            val o = raw.getJSONObject(i)
+            if (now - o.optLong("ts") <= PENDING_TTL_SEC) out.put(o)
+        }
+        if (out.length() != raw.length()) plain(ctx).edit().putString(K_PENDING, out.toString()).apply()
+        return out
     }
 }

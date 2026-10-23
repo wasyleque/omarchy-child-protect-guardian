@@ -2,14 +2,20 @@ package com.omega.guardian
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.view.View
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -33,6 +39,11 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var b: ActivityMainBinding
     private val http = OkHttpClient()
+
+    // Re-render the pending list when the service records a new (verified) request while we're open.
+    private val pendingReceiver = object : BroadcastReceiver() {
+        override fun onReceive(c: Context?, i: Intent?) = render()
+    }
 
     private val scan = registerForActivityResult(ScanContract()) { result ->
         val contents = result.contents
@@ -71,6 +82,7 @@ class MainActivity : AppCompatActivity() {
         b.btnBattery.setOnClickListener { requestIgnoreBatteryOptimizations() }
         b.btnGrant15.setOnClickListener { sendGrant(15) }
         b.btnGrant30.setOnClickListener { sendGrant(30) }
+        b.btnLockNow.setOnClickListener { toggleLock() }
 
         if (Prefs.isPaired(this)) NtfyService.start(this)
         render()
@@ -78,7 +90,18 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        val filter = IntentFilter(NtfyService.ACTION_PENDING_CHANGED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(pendingReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag") registerReceiver(pendingReceiver, filter)
+        }
         render()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        try { unregisterReceiver(pendingReceiver) } catch (e: Exception) { }
     }
 
     @SuppressLint("SetTextI18n")
@@ -95,6 +118,84 @@ class MainActivity : AppCompatActivity() {
                 append("  ").append(o.optString("package"))
                 append("  (").append(o.optString("source")).append(")\n")
             }
+        }
+        b.btnLockNow.setText(if (Prefs.lockRequested(this)) R.string.btn_unlock_now else R.string.btn_lock_now)
+        renderPending()
+    }
+
+    /** Build an Allow/Deny card per pending request, so you can decide in-app (not only the push). */
+    private fun renderPending() {
+        val pend = Prefs.pending(this)
+        b.pendingContainer.removeAllViews()
+        b.tvPendingEmpty.visibility = if (pend.length() == 0) View.VISIBLE else View.GONE
+        for (i in 0 until pend.length()) {
+            val o = pend.getJSONObject(i)
+            val id = o.optString("id"); val source = o.optString("source"); val pkg = o.optString("package")
+            val nonce = o.optString("nonce"); val respondTo = o.optString("respond_to"); val reason = o.optString("reason")
+
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(0, 12, 0, 12)
+            }
+            val light = NtfyService.riskLightFor(reason)
+            val label = TextView(this).apply {
+                text = (if (light.isNotEmpty()) "$light " else "") +
+                    getString(R.string.req_summary, source, pkg) +
+                    (if (reason.isNotBlank()) "\n$reason" else "")
+                textSize = 13f
+            }
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 6, 0, 0) }
+            val deny = Button(this).apply {
+                text = getString(R.string.action_deny)
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                setOnClickListener { decideInApp("deny", id, nonce, source, pkg, respondTo) }
+            }
+            val allow = Button(this).apply {
+                text = getString(R.string.action_allow)
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                setOnClickListener { decideInApp("allow", id, nonce, source, pkg, respondTo) }
+            }
+            row.addView(deny); row.addView(allow)
+            card.addView(label); card.addView(row)
+            b.pendingContainer.addView(card)
+        }
+    }
+
+    private fun decideInApp(decision: String, id: String, nonce: String, source: String, pkg: String, respondTo: String) {
+        Prefs.removePending(this, id)   // optimistic: drop it from the list immediately
+        renderPending()
+        lifecycleScope.launch {
+            val ok = withContext(Dispatchers.IO) { Decisions.send(this@MainActivity, decision, id, nonce, source, pkg, respondTo) }
+            toast(if (ok) getString(R.string.sent_ok) else getString(R.string.send_failed))
+            render()
+        }
+    }
+
+    /** Toggle an immediate lock / unlock of the child's computer (signed OCPG-LOCK command). */
+    private fun toggleLock() {
+        val respondTo = Prefs.lastRespondTo(this)
+        val dpub = Prefs.dpub(this)
+        if (respondTo == null || dpub == null) {
+            toast(getString(R.string.lock_needs_pair)); return
+        }
+        val lock = !Prefs.lockRequested(this)
+        val action = if (lock) "lock" else "unlock"
+        lifecycleScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                try {
+                    val ts = System.currentTimeMillis() / 1000
+                    val nonce = randomHex(16)
+                    val sig = Crypto.signLock(Prefs.seed(this@MainActivity), dpub, nonce, action, ts)
+                    val payload = JSONObject()
+                        .put("kind", "lock_now").put("daemon_pub", dpub)
+                        .put("nonce", nonce).put("action", action).put("ts", ts).put("sig", sig)
+                    val req = Request.Builder().url(respondTo).post(payload.toString().toRequestBody()).build()
+                    http.newCall(req).execute().use { it.isSuccessful }
+                } catch (e: Exception) { false }
+            }
+            if (ok) Prefs.setLockRequested(this@MainActivity, lock)
+            toast(if (ok) getString(if (lock) R.string.lock_sent else R.string.unlock_sent) else getString(R.string.send_failed))
+            render()
         }
     }
 

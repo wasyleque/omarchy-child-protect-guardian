@@ -121,6 +121,9 @@ class NtfyService : Service() {
         if (!Crypto.verify(dpub, canonical, csig)) return   // forged / injected card → ignore silently
 
         Prefs.setLastRespondTo(this, respondTo)             // remember where grants go
+        // Record it so the in-app list can Allow/Deny it too (not only the notification).
+        Prefs.addPending(this, id, source, pkg, nonce, respondTo, reason, System.currentTimeMillis() / 1000)
+        sendBroadcast(Intent(ACTION_PENDING_CHANGED).setPackage(packageName))
         postRequest(id, source, pkg, nonce, reason, respondTo)
     }
 
@@ -155,7 +158,7 @@ class NtfyService : Service() {
         // Collapsed: risk light + short summary. Expanded: full signed details (the exact command the
         // child ran + the AI risk note). `reason` carries it and is covered by the daemon's signature,
         // so neither the command nor the AI verdict can be faked by the broker.
-        val risk = riskLight(reason)
+        val risk = riskLightFor(reason)
         val summary = (if (risk.isNotEmpty()) "$risk " else "") + getString(R.string.req_summary, source, pkg)
         val expanded = if (reason.isNotBlank()) "$summary\n\n${getString(R.string.details_label)}\n$reason" else summary
         val n = NotificationCompat.Builder(this, CH_REQ)
@@ -170,20 +173,6 @@ class NtfyService : Service() {
             .addAction(action("allow", getString(R.string.action_allow)))
             .build()
         nm.notify(notifId, n)
-    }
-
-    /** Traffic-light emoji from a "RISK: low|medium|high" line in the (signed) AI summary, if present. */
-    private fun riskLight(reason: String): String {
-        val lower = reason.lowercase()
-        val i = lower.lastIndexOf("risk:")
-        if (i < 0) return ""
-        val tail = lower.substring(i + 5)
-        return when {
-            tail.contains("high") -> "🔴"   // red
-            tail.contains("medium") -> "🟡" // yellow
-            tail.contains("low") -> "🟢"     // green
-            else -> ""
-        }
     }
 
     private fun postAlert(text: String) {
@@ -203,6 +192,22 @@ class NtfyService : Service() {
         const val CH_FG = "guardian_fg"
         const val CH_REQ = "guardian_requests"
         const val FG_ID = 1001
+        /** Broadcast when the pending-requests set changes, so an open MainActivity re-renders. */
+        const val ACTION_PENDING_CHANGED = "com.omega.guardian.PENDING_CHANGED"
+
+        /** Traffic-light emoji from a "RISK: low|medium|high" line in the (signed) AI summary, if present. */
+        fun riskLightFor(reason: String): String {
+            val lower = reason.lowercase()
+            val i = lower.lastIndexOf("risk:")
+            if (i < 0) return ""
+            val tail = lower.substring(i + 5)
+            return when {
+                tail.contains("high") -> "🔴"
+                tail.contains("medium") -> "🟡"
+                tail.contains("low") -> "🟢"
+                else -> ""
+            }
+        }
 
         fun ensureChannels(ctx: Context) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return

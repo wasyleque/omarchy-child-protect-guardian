@@ -19,6 +19,7 @@ object Crypto {
     private const val DECISION = "OCPG-v2"
     private const val CHALLENGE = "OCPG-CH-v2"
     private const val GRANT = "OCPG-GRANT-v2"
+    private const val LOCK = "OCPG-LOCK-v1"
 
     private fun b64e(b: ByteArray): String = Base64.getEncoder().encodeToString(b)
     private fun b64d(s: String): ByteArray = Base64.getDecoder().decode(s)
@@ -58,6 +59,13 @@ object Crypto {
     /** Sign a screen-time grant. */
     fun signGrant(seed: ByteArray, daemonPubB64: String, nonce: String, minutes: Int, ts: Long): String =
         b64e(signRaw(seed, grantCanonical(daemonPubB64, nonce, minutes, ts)))
+
+    fun lockCanonical(daemonPubB64: String, nonce: String, action: String, ts: Long) =
+        "$LOCK|$daemonPubB64|$nonce|$action|$ts"
+
+    /** Sign an instant lock/unlock command (action = "lock" | "unlock"). */
+    fun signLock(seed: ByteArray, daemonPubB64: String, nonce: String, action: String, ts: Long): String =
+        b64e(signRaw(seed, lockCanonical(daemonPubB64, nonce, action, ts)))
 
     /** Verify a daemon-signed challenge/alert message with the paired daemon public key (base64). */
     fun verify(daemonPubB64: String, msg: String, sigB64: String): Boolean = try {

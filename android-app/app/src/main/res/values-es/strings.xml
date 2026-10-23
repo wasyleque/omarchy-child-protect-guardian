@@ -42,4 +42,15 @@
     <string name="alert_title">⚠ Alerta de Guardian</string>
     <string name="ch_fg_name">Escucha en segundo plano</string>
     <string name="ch_req_name">Solicitudes de instalación</string>
+
+    <!-- lista de pendientes + bloqueo inmediato -->
+    <string name="hdr_pending">Solicitudes pendientes</string>
+    <string name="pending_empty">Nada en espera.</string>
+    <string name="btn_lock_now">Bloquear el ordenador ahora</string>
+    <string name="btn_unlock_now">Desbloquear el ordenador</string>
+    <string name="sent_ok">Enviado ✓</string>
+    <string name="send_failed">No se pudo contactar con el PC — inténtalo de nuevo</string>
+    <string name="lock_sent">Bloqueo enviado</string>
+    <string name="unlock_sent">Desbloqueo enviado</string>
+    <string name="lock_needs_pair">Primero vincula el teléfono</string>
 </resources>

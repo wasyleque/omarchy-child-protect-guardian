@@ -112,6 +112,9 @@ async fn main() -> Result<()> {
 
     let queue = Arc::new(Queue::new());
 
+    // Parent-initiated "lock now" override (set by a signed ntfy command, read by the schedule tick).
+    let lock_override = Arc::new(std::sync::atomic::AtomicBool::new(false));
+
     // Set up remote push-approval if configured and enabled.
     let ntfy = match &policy.ntfy {
         Some(cfg) if cfg.enabled => match Ntfy::new(cfg.clone(), daemon_key.clone(), Some(policy.grant_nonce_path.clone())) {
@@ -123,6 +126,7 @@ async fn main() -> Result<()> {
                     eprintln!("guardiand: AI risk-summary enabled ({} @ {})", ai.model, ai.endpoint);
                     ntfy.set_ai(ai.clone());
                 }
+                ntfy.set_lock_override(Arc::clone(&lock_override));
                 tokio::spawn(Arc::clone(&ntfy).subscribe_loop(Arc::clone(&queue)));
                 tokio::spawn(Arc::clone(&ntfy).alert_worker());
                 Some(ntfy)
@@ -185,6 +189,7 @@ async fn main() -> Result<()> {
             let e = Arc::clone(&eng);
             let aud = audit.clone();
             let sp = policy.schedule_state_path.clone();
+            let lo = Arc::clone(&lock_override);
             tokio::spawn(async move {
                 let mut last_blocked = false;
                 let mut tick = tokio::time::interval(std::time::Duration::from_secs(tick_secs));
@@ -194,7 +199,9 @@ async fn main() -> Result<()> {
                     // active=true is a stub until the logind idle hook lands (host-side).
                     let st = e.lock().unwrap().on_tick(day, minute, true, tick_secs);
                     save_sched_state(&sp, &e);
-                    let blocked = !matches!(st, guardian::schedule::Status::Allowed { .. });
+                    // Blocked if the schedule says so OR the parent pressed "lock now" (review: instant lock).
+                    let forced = lo.load(std::sync::atomic::Ordering::SeqCst);
+                    let blocked = forced || !matches!(st, guardian::schedule::Status::Allowed { .. });
                     if blocked && !last_blocked {
                         let reason = format!("{st:?}");
                         if let Some(a) = &aud {

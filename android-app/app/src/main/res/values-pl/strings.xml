@@ -42,4 +42,15 @@
     <string name="alert_title">⚠ Alert Guardian</string>
     <string name="ch_fg_name">Nasłuch w tle</string>
     <string name="ch_req_name">Prośby o instalację</string>
+
+    <!-- lista oczekujących + natychmiastowa blokada -->
+    <string name="hdr_pending">Oczekujące prośby</string>
+    <string name="pending_empty">Nic nie czeka.</string>
+    <string name="btn_lock_now">Zablokuj komputer teraz</string>
+    <string name="btn_unlock_now">Odblokuj komputer</string>
+    <string name="sent_ok">Wysłano ✓</string>
+    <string name="send_failed">Brak połączenia z komputerem — spróbuj ponownie</string>
+    <string name="lock_sent">Wysłano blokadę</string>
+    <string name="unlock_sent">Wysłano odblokowanie</string>
+    <string name="lock_needs_pair">Najpierw sparuj telefon</string>
 </resources>
