@@ -64,6 +64,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Pairing-return topic: the app POSTs its own public key here so the PC captures it
         // automatically (packaging/pair.sh), removing the manual copy/paste of the key.
         let pair_to = format!("{topic}-pair");
+        // Fail loudly (don't silently ship a QR the app can't verify with) when the daemon key is
+        // unreadable — review F8: run as a normal user, /var/lib/guardian/daemon.pub wasn't readable,
+        // so `dpub` was dropped from the QR with no warning and the app accepted no signed challenges.
+        if dpub.is_none() {
+            eprintln!("WARNING: could not read the daemon public key, so the pairing QR has NO `dpub`.");
+            eprintln!("         The app will NOT be able to verify the daemon's signatures — approvals");
+            eprintln!("         would be unprotected. Re-run with sudo, or pass --daemon-pubkey <key>");
+            eprintln!("         (from `sudo guardiand`'s startup line or /var/lib/guardian/daemon.pub).");
+        }
         let payload = match &dpub {
             Some(d) => serde_json::json!({"server": server, "topic": topic, "dpub": d, "pair_to": pair_to}).to_string(),
             None => serde_json::json!({"server": server, "topic": topic, "pair_to": pair_to}).to_string(),

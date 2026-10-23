@@ -19,6 +19,20 @@ for f in guardiand guardian-ctl guardian-hook guardian-sign; do
   [ -x "$BIN/$f" ] || { echo "missing $BIN/$f — run 'cd daemon && cargo build --release' first"; exit 1; }
 done
 
+# Clear immutability on managed files FIRST. The watchdog re-applies `chattr +i` whenever it restores
+# a file, so a later `install.sh` (e.g. --enforce) would otherwise die at the first overwrite with
+# "cannot remove '/usr/bin/guardiand': Operation not permitted" and leave the host in TEST mode with
+# all installs ungated (review F4). Mirrors uninstall.sh's list.
+echo "==> clearing immutability on managed files (so re-runs don't fail — review F4)"
+for f in /usr/bin/guardiand /usr/bin/guardian-ctl /usr/bin/guardian-sign \
+         /usr/lib/guardian/guardian-hook \
+         /usr/lib/guardian/backup/guardiand /usr/lib/guardian/backup/guardian-hook \
+         /usr/lib/guardian/backup/50-guardian.hook \
+         /etc/pacman.d/hooks/50-guardian.hook /etc/pacman.d/hooks/60-guardian-trust.hook \
+         /etc/pacman.d/hooks/99-guardian-test.hook; do
+  chattr -i "$f" 2>/dev/null || true
+done
+
 echo "==> binaries"
 install -Dm755 "$BIN/guardiand"     /usr/bin/guardiand
 install -Dm755 "$BIN/guardian-ctl"  /usr/bin/guardian-ctl

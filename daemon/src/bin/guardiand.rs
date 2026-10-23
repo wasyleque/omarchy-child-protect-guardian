@@ -96,7 +96,18 @@ async fn main() -> Result<()> {
     let daemon_pub = guardian::crypto::pubkey_b64(&daemon_key);
     eprintln!("guardiand: daemon public key (pair into the app) = {daemon_pub}");
     if let Some(parent) = policy.daemon_key_path.parent() {
-        let _ = std::fs::write(parent.join("daemon.pub"), format!("{daemon_pub}\n"));
+        let pub_path = parent.join("daemon.pub");
+        let _ = std::fs::write(&pub_path, format!("{daemon_pub}\n"));
+        // The public key is public — make it world-readable and the state dir traversable so a
+        // non-root `guardian-ctl pair` can embed `dpub` in the QR (review F8: /var/lib/guardian was
+        // root-only, so pairing silently dropped the key and the app couldn't verify challenges). The
+        // private key stays 0600, so a 0755 dir leaks nothing.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&pub_path, std::fs::Permissions::from_mode(0o644));
+            let _ = std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o755));
+        }
     }
 
     let queue = Arc::new(Queue::new());

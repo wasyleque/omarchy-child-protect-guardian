@@ -4,10 +4,14 @@
 //!   hook as root, or a user-space `flatpak` wrapper running as the child) sends one
 //!   [`ClientMessage::Submit`] and blocks until the daemon replies with a [`ServerMessage::Decision`].
 //!   It accepts *only* `Submit`, and enforces a per-uid cap so a local user can't flood it.
-//! * **control socket** (`guardian.sock`, mode 0660) — the parent's `guardian-ctl` sends
+//! * **control socket** (`guardian.sock`, mode 0666 by design) — the parent's `guardian-ctl` sends
 //!   [`ClientMessage::List`] / [`ClientMessage::Resolve`]. This surface is **peer-credential checked**
 //!   (SO_PEERCRED): only the daemon-owner uid (root in production) may make decisions, so a child
-//!   cannot connect and approve their own request regardless of socket permissions.
+//!   cannot connect and approve their own request regardless of socket permissions. The mode is 0666
+//!   (not 0660) on purpose (review N2): a filesystem-level 0660 made a child's connect fail silently,
+//!   so the attempt was never logged or alerted. With 0666 the child can *connect*, which lets us
+//!   reject it, write a `control_blocked` audit entry and push an alert. (On-host test F6 flags the
+//!   0666-vs-docs mismatch as low: peer-cred is the real gate; this is defense in depth + visibility.)
 //!
 //! Splitting the surfaces is what lets a child-run interceptor *submit* a request while the power to
 //! *decide* stays with root/the parent.
