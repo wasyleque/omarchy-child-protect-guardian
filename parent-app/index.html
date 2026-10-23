@@ -87,6 +87,11 @@
     <div id="pub" class="pub">(generating…)</div>
     <div class="row" style="margin-top:8px">
       <button id="copyPub" class="ghost">Copy public key</button>
+      <button id="enablePush">Enable background notifications</button>
+    </div>
+    <div id="pushHint" class="warn hide" style="margin-top:8px">
+      On iPhone/iPad: first use <b>Share → Add to Home Screen</b>, open the app from that icon (iOS 16.4+),
+      then tap <b>Enable background notifications</b>. Then you get requests even when the app is closed.
     </div>
     <details style="margin-top:12px">
       <summary>How it stays safe</summary>
@@ -254,6 +259,49 @@ $("regen").onclick = async () => {
   await ensureKey(true); toast("New key created — re-pair it");
 };
 $("copyPub").onclick = async () => { try{ await navigator.clipboard.writeText(pubB64); toast("Public key copied"); }catch{ toast("Copy failed"); } };
+
+// --- Web Push (background delivery; the ONLY way to receive while closed on iOS 16.4+) ---
+// SSE above keeps full in-app cards while the app is open; Web Push wakes the app in the background:
+// ntfy forwards topic messages to the browser's push service → the service worker shows a generic
+// "tap to review" notification (no sensitive content, no trust in unverified pushes) → tapping opens
+// the app, which connects via SSE and shows the real, signature-verified card.
+function urlB64ToUint8Array(b64){
+  const pad="=".repeat((4-b64.length%4)%4);
+  const s=(b64+pad).replace(/-/g,"+").replace(/_/g,"/");
+  const raw=atob(s); const a=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++) a[i]=raw.charCodeAt(i);
+  return a;
+}
+const isIOS = /iP(hone|ad|od)/.test(navigator.platform) || (navigator.userAgent.includes("Mac") && "ontouchend" in document);
+const isStandalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+async function enablePush(){
+  const server=($("server").value||"https://ntfy.sh").replace(/\/+$/,"");
+  const topic=($("topic").value||"").trim();
+  if(!topic){ toast("Set a topic first"); return; }
+  if(!("serviceWorker" in navigator) || !("PushManager" in window)){ toast("Push not supported on this browser"); return; }
+  if(isIOS && !isStandalone){ $("pushHint").classList.remove("hide"); toast("Add to Home Screen first (iOS)"); return; }
+  try{
+    const perm = await Notification.requestPermission();
+    if(perm!=="granted"){ toast("Notifications not allowed"); return; }
+    const reg = await navigator.serviceWorker.ready;
+    const cfg = await fetch(`${server}/config.js`, {cache:"no-store"}).then(r=>r.text());
+    const m = cfg.match(/"web_push_public_key"\s*:\s*"([^"]+)"/);
+    if(!m){ toast("This ntfy server has no web push enabled"); return; }
+    let sub = await reg.pushManager.getSubscription();
+    if(!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey: urlB64ToUint8Array(m[1]) });
+    const j = sub.toJSON();
+    const res = await fetch(`${server}/v1/webpush`, {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ endpoint:j.endpoint, auth:j.keys.auth, p256dh:j.keys.p256dh, topics:[topic] })
+    });
+    if(res.ok){ toast("Background notifications on ✓"); localStorage.setItem("ocpg.push","1"); }
+    else toast("ntfy refused the push subscription ("+res.status+")");
+  }catch(e){ toast("Push setup failed: "+(e.message||e)); }
+}
+$("enablePush").onclick = enablePush;
+// Re-register the push subscription silently on open if the parent enabled it before (keeps it alive).
+if(localStorage.getItem("ocpg.push")==="1" && !(isIOS && !isStandalone)){ setTimeout(()=>enablePush().catch(()=>{}), 1500); }
+if(isIOS && !isStandalone) $("pushHint").classList.remove("hide");
 
 (async function init(){
   // Easy pairing: scanning the QR from `guardian-ctl pair` opens .../#pair=<base64url {server,topic}>,

@@ -38,9 +38,13 @@ app's exact logic (`@noble/ed25519`, vendored in `vendor/`) verifies in the Rust
 
 ## Honest limits (follow-ups, not hidden)
 
-- **Background delivery:** while the app is open it streams requests live (SSE, auto-reconnect). For an
-  instant buzz when it's closed — especially on iOS — keep the native ntfy app subscribed to the same
-  topic as a notifier, or add Web Push (VAPID) later. The *decision* always goes through this app.
+- **Background delivery:** while the app is open it streams requests live (SSE, auto-reconnect). For a
+  buzz when it's **closed**, tap **Enable background notifications** — it registers **Web Push** with
+  the ntfy server (VAPID), so requests arrive in the background. On **iPhone/iPad (iOS 16.4+)** this
+  works only after **Add to Home Screen** and opening from that icon (Apple's rule for web push). The
+  background push is a generic "tap to review" (the broker-delivered push is never trusted/shown
+  verbatim); tapping opens the app, which connects and shows the real, signature-verified card. The
+  *decision* always goes through this app. (Android/desktop browsers get the same Web Push.)
 - **Key-at-rest:** the seed lives in IndexedDB (never transmitted). A future hardening is a
   non-extractable WebCrypto key or OS-keystore binding; today the guarantee is "never leaves the device".
 - **Pairing** is copy/paste of the public key today; a QR flow is a planned nicety.
