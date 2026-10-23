@@ -301,10 +301,21 @@ fixed across 3 batches (daemon 0.2.4→0.2.5, app 0.1.6→0.1.7/vc8). Docs commi
     <base>.<name>.sched (overrides config on boot). App: "Set schedule" editor (budget, window HH:MM,
     curfew HH:MM, weekend; optional child name) → Crypto.signSchedule → POST. daemon 0.2.8, app 0.1.8/vc9.
     Covers several kids on ONE PC (child field). 29 daemon tests.
-  - REMAINING: multi-PC app (multi-pairing list + per-child ntfy subscriptions + child selector; today
-    the app holds ONE pairing); per-child targeting for grant/lock-now (add `child` to OCPG-GRANT/LOCK);
-    F16 (feed logind active so budget isn't charged by wall clock / while frozen); live "current app/game"
-    reporter (hyprctl → daemon → app); daily AI digest (usage stats → local Ollama → push).
+  - Step 4 — app UX overhaul (52d32f4, daemon 0.2.9 / app 0.1.9) per user feedback:
+    MULTI-CHILD in the app — a LIST of paired children (one shared parent key + per-child
+    {name,server,topic,dpub,pair_to}), child selector spinner, "Add a child (scan QR)" → name prompt →
+    addChild (legacy single pairing auto-migrates). NtfyService opens one WS per child, verifies with
+    that child's key, tags pending/notifications with the child. Grant/lock/schedule target the selected
+    child. SCHEDULE EDITOR v2 — NO free text (error-proof): budget dropdown + hours TIME PICKERS +
+    "same every day" toggle (1 row ↔ 7 per-day rows). REMOVED night-curfew fields (redundant with the
+    allowed-hours window, per user). Daemon sched-push falls back to the single engine when the named
+    child isn't found.
+  - REMAINING: per-child targeting for grant/lock-now (add `child` to OCPG-GRANT/LOCK — today both apply
+    to ALL children); F16 (feed logind active so budget isn't charged by wall clock / while frozen);
+    live "current app/game" reporter (hyprctl → daemon → app); daily AI DIGEST (usage stats → local
+    Ollama → push) — **MUST flag if the child tried something bad (blocked installs/denials from the
+    audit log) and worrying search topics (drugs, suicide, weapons, …) from the DNS query log, with a
+    clear parent alert** (user requirement 2026-10-23). AI defaults: llama3.2 local; PL digest = bielik-4.5b.
 
 ## Workflow routing (this machine)
 - **Logic / architecture / integrations →** `agy`.
