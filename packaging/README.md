@@ -103,7 +103,8 @@ control attempt or rejects a forged approval. Make its files hard to remove even
 scriptlet, and ensure it auto-restarts:
 ```bash
 sudo chattr +i /usr/lib/guardian/guardian-hook /usr/bin/guardiand /etc/pacman.d/hooks/50-guardian.hook
-# (the systemd unit already has Restart=always). To update Guardian later: chattr -i first, then re-install.
+# (the systemd unit already has Restart=always). To update Guardian later see "7. Updating" below —
+# install.sh clears chattr +i itself, so you don't need to do it by hand.
 ```
 Add the **watchdog** so missing/altered files are auto-restored and you get an alert:
 ```bash
@@ -122,3 +123,34 @@ Rollback: `sudo systemctl disable --now guardian-watchdog.timer`.
 Single unprivileged child account; not in `wheel`/`sudo`; lock `root` login; no autologin/empty
 passwords; `sudo systemctl mask getty@tty2.service …` to cut spare-VT logins. Re-run `harden-audit.sh`
 until it is clean.
+
+## 7. Updating to a new version
+
+### The computer (daemon + hooks)
+```bash
+cd omarchy-child-protect-guardian
+git pull
+cd daemon && cargo build --release && cd ..
+sudo packaging/install.sh            # add --enforce if you were already enforcing
+sudo systemctl restart guardiand     # install replaces the binary but does NOT restart a running daemon
+```
+Notes:
+- `install.sh` **clears `chattr +i`** on the managed files first (review F4), so a re-install over an
+  immutable/watchdog-protected install just works — you don't need to `chattr -i` by hand. It also
+  refreshes the watchdog's known-good backups. Re-apply `chattr +i` (section 5) afterwards if you want.
+- Confirm the new version is actually running: `journalctl -u guardiand -b | grep 'guardiand: starting'`
+  (or check the version with your package records). The on-host **`sudo packaging/smoke-test.sh <child>`**
+  is the quickest way to verify the update end to end.
+- **⚠ fapolicyd (if enforcing):** the new `guardiand`/`guardian-ctl`/wrappers have **new hashes**, so a
+  fapolicyd trust DB from before the update no longer trusts them — under enforce the child (and the
+  wrappers) would be blocked. After updating, re-trust Guardian's own files:
+  ```bash
+  sudo packaging/fapolicyd/guardian-fapolicyd-setup.sh     # re-trusts /usr/bin/guardian*, wrappers, etc. (does NOT re-enforce without --enforce)
+  ```
+  (A pacman-driven upgrade of other software auto-trusts itself via the PostTransaction hook; only
+  Guardian's own, non-pacman files need this manual re-trust.)
+
+### The phone (Android app)
+Download the latest APK from the **[Releases page](https://github.com/wasyleque/omarchy-child-protect-guardian/releases/latest)**
+and open it — it installs **in place over the old version** (same committed debug signing key), so the
+pairing and settings are kept, no uninstall needed. You do **not** need to re-pair.
