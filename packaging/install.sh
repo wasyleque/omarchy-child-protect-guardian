@@ -94,11 +94,13 @@ cat <<'NEXT'
      `guardian-ctl pair --topic <topic>`), then: systemctl restart guardiand
   2. Network egress:   edit CHILD_UID+DNS in packaging/nftables/guardian-egress.nft, test with
      `nft -f ...`, then make persistent. Browser/NM lockdown: see packaging/network/README.md
-  3. Execution allowlist: packaging/fapolicyd/README.md  (run PERMISSIVE first!)
+  3. Execution allowlist (fapolicyd):  sudo packaging/fapolicyd/guardian-fapolicyd-setup.sh
+     then test PERMISSIVE, then re-run with --enforce, then REBOOT-TEST. See packaging/fapolicyd/README.md.
      *** REQUIRED, not optional *** — without fapolicyd enforcing, a child can bypass the install
      controls entirely: `/usr/bin/flatpak --user install …` (direct path, skips the wrapper — review
-     B3) and any downloaded AppImage/portable binary run straight from \$HOME. fapolicyd is the only
-     layer that stops those from EXECUTING. Until it enforces, treat install-gating as advisory.
+     B3), any downloaded AppImage/portable binary from \$HOME, and bind-mount laundering in a user
+     namespace (needs allow_filesystem_mark=1 — the script sets it). Until it enforces, treat
+     install-gating as advisory.
   4. Hardware baseline (UEFI pw, Secure Boot, UKI/locked GRUB, LUKS) — then: packaging/harden-audit.sh
   5. Tamper-proof the files:  chattr +i /usr/lib/guardian/guardian-hook /usr/bin/guardiand /etc/pacman.d/hooks/*guardian*.hook
   6. Child account(s): one command per child creates a named, unprivileged account (no sudo/root),

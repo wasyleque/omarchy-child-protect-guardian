@@ -1,5 +1,13 @@
 # Omarchy Child Protect Guardian — execution allowlist for the child (Threat model §4 L2).
-# Drop into /etc/fapolicyd/rules.d/50-guardian.rules then: sudo fapolicyd-cli --update && sudo systemctl restart fapolicyd
+# Drop into /etc/fapolicyd/rules.d/05-guardian.rules then: sudo fagenrules --load && sudo systemctl restart fapolicyd
+# (guardian-fapolicyd-setup.sh does this for you.)
+#
+# WHY 05 (not 50): fapolicyd compiles rules.d in FILENAME order, first match wins. Upstream ships
+# 42-trusted-elf / 43-known-elf which DENY any untrusted ELF for EVERY uid. On-host test 2026-10-23
+# (F2) showed that at priority 50 those fire first and deny the PARENT's own non-pacman binaries
+# (~/.local/.../node, claude) and services (/usr/local/bin/ollama) → broken login / failed boot. At
+# 05 our rules run first: we restrict ONLY the child and end with "everyone else: allow", so the
+# upstream all-uid denies never fire. Guardian gates the child, not the whole system.
 #
 # PURPOSE: stop the child running a downloaded AppImage / static ELF / portable binary from $HOME,
 # /tmp or a USB stick. Only files fapolicyd TRUSTS (seeded from pacman-owned files + guardian-approved
