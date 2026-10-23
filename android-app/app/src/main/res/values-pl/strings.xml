@@ -53,4 +53,17 @@
     <string name="lock_sent">Wysłano blokadę</string>
     <string name="unlock_sent">Wysłano odblokowanie</string>
     <string name="lock_needs_pair">Najpierw sparuj telefon</string>
+
+    <!-- edytor harmonogramu -->
+    <string name="hdr_schedule">Ustaw harmonogram</string>
+    <string name="lbl_child_opt">Imię dziecka (opcjonalnie — gdy kilkoro na jednym komputerze)</string>
+    <string name="lbl_budget">Dzienny limit, minuty (puste = bez limitu)</string>
+    <string name="lbl_window_start">Dozwolone od (GG:MM)</string>
+    <string name="lbl_window_end">Dozwolone do (GG:MM)</string>
+    <string name="lbl_quiet_start">Cisza nocna od (GG:MM)</string>
+    <string name="lbl_quiet_end">Cisza nocna do (GG:MM)</string>
+    <string name="lbl_weekend">Limit w weekend, minuty (opcjonalnie)</string>
+    <string name="btn_send_schedule">Wyślij harmonogram do komputera</string>
+    <string name="schedule_sent">Wysłano harmonogram ✓</string>
+    <string name="schedule_bad_input">Sprawdź godziny — format GG:MM (np. 07:00)</string>
 </resources>

@@ -53,4 +53,17 @@
     <string name="lock_sent">Bloqueo enviado</string>
     <string name="unlock_sent">Desbloqueo enviado</string>
     <string name="lock_needs_pair">Primero vincula el teléfono</string>
+
+    <!-- editor de horario -->
+    <string name="hdr_schedule">Configurar horario</string>
+    <string name="lbl_child_opt">Nombre del niño (opcional — si varios comparten un PC)</string>
+    <string name="lbl_budget">Límite diario, minutos (vacío = sin límite)</string>
+    <string name="lbl_window_start">Permitido desde (HH:MM)</string>
+    <string name="lbl_window_end">Permitido hasta (HH:MM)</string>
+    <string name="lbl_quiet_start">Toque de queda desde (HH:MM)</string>
+    <string name="lbl_quiet_end">Toque de queda hasta (HH:MM)</string>
+    <string name="lbl_weekend">Límite de fin de semana, minutos (opcional)</string>
+    <string name="btn_send_schedule">Enviar horario al ordenador</string>
+    <string name="schedule_sent">Horario enviado ✓</string>
+    <string name="schedule_bad_input">Revisa las horas — formato HH:MM (p. ej. 07:00)</string>
 </resources>

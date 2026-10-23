@@ -54,4 +54,17 @@
     <string name="lock_sent">Lock sent</string>
     <string name="unlock_sent">Unlock sent</string>
     <string name="lock_needs_pair">Pair the phone first</string>
+
+    <!-- schedule editor -->
+    <string name="hdr_schedule">Set schedule</string>
+    <string name="lbl_child_opt">Child name (optional — for several kids on one PC)</string>
+    <string name="lbl_budget">Daily limit, minutes (empty = no limit)</string>
+    <string name="lbl_window_start">Allowed from (HH:MM)</string>
+    <string name="lbl_window_end">Allowed until (HH:MM)</string>
+    <string name="lbl_quiet_start">Night curfew from (HH:MM)</string>
+    <string name="lbl_quiet_end">Night curfew until (HH:MM)</string>
+    <string name="lbl_weekend">Weekend daily limit, minutes (optional)</string>
+    <string name="btn_send_schedule">Send schedule to the computer</string>
+    <string name="schedule_sent">Schedule sent ✓</string>
+    <string name="schedule_bad_input">Check the times — use HH:MM (e.g. 07:00)</string>
 </resources>

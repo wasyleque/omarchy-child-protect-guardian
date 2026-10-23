@@ -83,6 +83,7 @@ class MainActivity : AppCompatActivity() {
         b.btnGrant15.setOnClickListener { sendGrant(15) }
         b.btnGrant30.setOnClickListener { sendGrant(30) }
         b.btnLockNow.setOnClickListener { toggleLock() }
+        b.btnSendSchedule.setOnClickListener { sendSchedule() }
 
         if (Prefs.isPaired(this)) NtfyService.start(this)
         render()
@@ -247,6 +248,62 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             toast(if (ok) getString(R.string.key_sent_ok) else getString(R.string.key_sent_failed))
+        }
+    }
+
+    /** Parse "HH:MM" to minutes-from-midnight; null if blank; throws on malformed input. */
+    private fun hhmmToMin(s: String): Int? {
+        val t = s.trim()
+        if (t.isEmpty()) return null
+        val parts = t.split(":")
+        require(parts.size == 2)
+        val h = parts[0].toInt(); val m = parts[1].toInt()
+        require(h in 0..23 && m in 0..59)
+        return h * 60 + m
+    }
+
+    /** Build the child's schedule from the form, sign it (OCPG-SCHED) and POST it to the daemon. */
+    private fun sendSchedule() {
+        val respondTo = Prefs.lastRespondTo(this)
+        val dpub = Prefs.dpub(this)
+        if (respondTo == null || dpub == null) { toast(getString(R.string.lock_needs_pair)); return }
+
+        val sched = JSONObject()
+        try {
+            b.etSchedBudget.text.toString().trim().takeIf { it.isNotEmpty() }?.let {
+                sched.put("daily_budget_minutes", it.toInt())
+            }
+            hhmmToMin(b.etWinStart.text.toString())?.let { sched.put("window_start_min", it) }
+            hhmmToMin(b.etWinEnd.text.toString())?.let { sched.put("window_end_min", it) }
+            hhmmToMin(b.etQuietStart.text.toString())?.let { sched.put("quiet_start_min", it) }
+            hhmmToMin(b.etQuietEnd.text.toString())?.let { sched.put("quiet_end_min", it) }
+            b.etWeekend.text.toString().trim().takeIf { it.isNotEmpty() }?.let {
+                val wknd = it.toInt()
+                val days = JSONObject()
+                days.put("sat", JSONObject().put("budget_minutes", wknd))
+                days.put("sun", JSONObject().put("budget_minutes", wknd))
+                sched.put("days", days)
+            }
+        } catch (e: Exception) {
+            toast(getString(R.string.schedule_bad_input)); return
+        }
+
+        val child = b.etSchedChild.text.toString().trim()
+        val schedJson = sched.toString()
+        lifecycleScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                try {
+                    val ts = System.currentTimeMillis() / 1000
+                    val nonce = randomHex(16)
+                    val sig = Crypto.signSchedule(Prefs.seed(this@MainActivity), dpub, nonce, child, ts, schedJson)
+                    val payload = JSONObject()
+                        .put("kind", "set_schedule").put("daemon_pub", dpub).put("nonce", nonce)
+                        .put("child", child).put("ts", ts).put("sched", schedJson).put("sig", sig)
+                    val req = Request.Builder().url(respondTo).post(payload.toString().toRequestBody()).build()
+                    http.newCall(req).execute().use { it.isSuccessful }
+                } catch (e: Exception) { false }
+            }
+            toast(if (ok) getString(R.string.schedule_sent) else getString(R.string.send_failed))
         }
     }
 
