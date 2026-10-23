@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="header_title">Omarchy Child Protect Guardian</string>
+
+    <string name="btn_scan">Koppeln — QR scannen</string>
+    <string name="pubkey_label">Dein öffentlicher Schlüssel (am PC einfügen, falls gefragt):</string>
+    <string name="btn_send_key">Meinen Schlüssel an den PC senden</string>
+    <string name="btn_copy">Öffentlichen Schlüssel kopieren</string>
+    <string name="btn_battery">Uneingeschränkten Hintergrund erlauben (empfohlen)</string>
+    <string name="hdr_screen_time">Bildschirmzeit</string>
+    <string name="btn_grant15">+15 Min.</string>
+    <string name="btn_grant30">+30 Min.</string>
+    <string name="hdr_recent">Letzte Anfragen</string>
+
+    <string name="status_paired">Gekoppelt · lauscht</string>
+    <string name="status_not_paired">Nicht gekoppelt — QR am PC scannen</string>
+    <string name="history_empty">Noch keine Anfragen.</string>
+    <string name="scan_prompt">Guardian-Kopplungs-QR scannen</string>
+    <string name="scan_cancelled">Scan abgebrochen</string>
+    <string name="paired_ok">Gekoppelt ✓</string>
+    <string name="qr_not_guardian">Dieser QR ist kein Guardian-Kopplungscode</string>
+    <string name="pubkey_copied">Öffentlicher Schlüssel kopiert</string>
+    <string name="grant_need_request">Zeitgutschriften funktionieren nach der ersten Installationsanfrage (so lernt die App, wohin gesendet wird)</string>
+    <string name="grant_ok">+%1$d Min. gewährt</string>
+    <string name="grant_failed">Gutschrift fehlgeschlagen — erneut versuchen</string>
+    <string name="rescan_no_channel">QR erneut scannen (diese Kopplung hat keinen Rückkanal)</string>
+    <string name="key_sent_ok">Schlüssel an den PC gesendet — dort bestätigen</string>
+    <string name="key_sent_failed">PC nicht erreichbar; „Öffentlichen Schlüssel kopieren" nutzen</string>
+    <string name="battery_fallback">Einstellungen → Akku öffnen und uneingeschränkten Hintergrund erlauben</string>
+
+    <string name="fg_title">Guardian passt auf</string>
+    <string name="fg_text">Lauscht auf Installationsanfragen</string>
+    <string name="alert_default">Guardian-Warnung</string>
+    <string name="approve_title">Installation genehmigen: %1$s</string>
+    <string name="req_summary">%1$s-Installation von \"%2$s\"</string>
+    <string name="details_label">Details:</string>
+    <string name="action_deny">Ablehnen</string>
+    <string name="action_allow">Erlauben</string>
+    <string name="alert_title">⚠ Guardian-Warnung</string>
+    <string name="ch_fg_name">Hintergrund-Listener</string>
+    <string name="ch_req_name">Installationsanfragen</string>
+
+    <string name="hdr_pending">Offene Anfragen</string>
+    <string name="pending_empty">Nichts offen.</string>
+    <string name="btn_lock_now">Computer jetzt sperren</string>
+    <string name="btn_unlock_now">Computer entsperren</string>
+    <string name="sent_ok">Gesendet ✓</string>
+    <string name="send_failed">PC nicht erreichbar — erneut versuchen</string>
+    <string name="lock_sent">Sperre gesendet</string>
+    <string name="unlock_sent">Entsperrung gesendet</string>
+    <string name="lock_needs_pair">Zuerst das Telefon koppeln</string>
+
+    <string name="hdr_schedule">Zeitplan festlegen</string>
+    <string name="lbl_child_opt">Name des Kindes (optional — bei mehreren Kindern an einem PC)</string>
+    <string name="lbl_budget">Tageslimit, Minuten (leer = kein Limit)</string>
+    <string name="lbl_window_start">Erlaubt ab (HH:MM)</string>
+    <string name="lbl_window_end">Erlaubt bis (HH:MM)</string>
+    <string name="lbl_quiet_start">Nachtruhe ab (HH:MM)</string>
+    <string name="lbl_quiet_end">Nachtruhe bis (HH:MM)</string>
+    <string name="lbl_weekend">Wochenend-Tageslimit, Minuten (optional)</string>
+    <string name="btn_send_schedule">Zeitplan an den Computer senden</string>
+    <string name="schedule_sent">Zeitplan gesendet ✓</string>
+    <string name="schedule_bad_input">Zeiten prüfen — Format HH:MM (z. B. 07:00)</string>
+
+    <string name="lbl_select_child">Kind</string>
+    <string name="btn_add_child">Kind hinzufügen (QR scannen)</string>
+    <string name="status_children_fmt">%1$d Kind(er) · lauscht</string>
+    <string name="no_children">Noch kein Kind gekoppelt — auf „Kind hinzufügen" tippen.</string>
+    <string name="add_child_name_title">Dieses Kind benennen</string>
+    <string name="add_child_name_hint">z. B. Zosia</string>
+    <string name="child_added">Kind hinzugefügt ✓</string>
+    <string name="lbl_same_every_day">Jeden Tag gleiche Limits</string>
+    <string name="lbl_all_days">Jeden Tag</string>
+    <string name="hours_any">Jederzeit</string>
+    <string name="hours_set">Zeiten festlegen</string>
+    <string name="hours_fmt">%1$s–%2$s</string>
+    <string name="sched_for_fmt">Zeitplan für %1$s</string>
+
+    <string-array name="budget_presets">
+        <item>Kein Limit</item>
+        <item>30 Min.</item>
+        <item>1 Std.</item>
+        <item>1 Std. 30</item>
+        <item>2 Std.</item>
+        <item>2 Std. 30</item>
+        <item>3 Std.</item>
+        <item>4 Std.</item>
+        <item>Gesperrt</item>
+    </string-array>
+    <string-array name="weekday_names">
+        <item>Montag</item>
+        <item>Dienstag</item>
+        <item>Mittwoch</item>
+        <item>Donnerstag</item>
+        <item>Freitag</item>
+        <item>Samstag</item>
+        <item>Sonntag</item>
+    </string-array>
+    <string name="now_using_fmt">▶ Nutzt gerade: %1$s</string>
+</resources>

@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="header_title">Omarchy Child Protect Guardian</string>
+
+    <string name="btn_scan">配对 — 扫描二维码</string>
+    <string name="pubkey_label">你的公钥（如需要请粘贴到电脑）：</string>
+    <string name="btn_send_key">把我的公钥发送到电脑</string>
+    <string name="btn_copy">复制公钥</string>
+    <string name="btn_battery">允许不受限制的后台运行（推荐）</string>
+    <string name="hdr_screen_time">屏幕时间</string>
+    <string name="btn_grant15">+15 分钟</string>
+    <string name="btn_grant30">+30 分钟</string>
+    <string name="hdr_recent">最近的请求</string>
+
+    <string name="status_paired">已配对 · 监听中</string>
+    <string name="status_not_paired">未配对 — 在电脑上扫描二维码</string>
+    <string name="history_empty">暂无请求。</string>
+    <string name="scan_prompt">扫描 Guardian 配对二维码</string>
+    <string name="scan_cancelled">已取消扫描</string>
+    <string name="paired_ok">已配对 ✓</string>
+    <string name="qr_not_guardian">该二维码不是 Guardian 配对码</string>
+    <string name="pubkey_copied">已复制公钥</string>
+    <string name="grant_need_request">首次安装请求后方可发放时间（应用需先知道发送位置）</string>
+    <string name="grant_ok">已发放 +%1$d 分钟</string>
+    <string name="grant_failed">发放失败 — 请重试</string>
+    <string name="rescan_no_channel">请重新扫描二维码（此配对没有回传通道）</string>
+    <string name="key_sent_ok">已把公钥发送到电脑 — 请在电脑上确认</string>
+    <string name="key_sent_failed">无法连接电脑；请使用“复制公钥”</string>
+    <string name="battery_fallback">打开 设置 → 电池，允许不受限制的后台运行</string>
+
+    <string name="fg_title">Guardian 正在守护</string>
+    <string name="fg_text">正在监听安装请求</string>
+    <string name="alert_default">Guardian 警报</string>
+    <string name="approve_title">批准安装：%1$s</string>
+    <string name="req_summary">%1$s 安装 \"%2$s\"</string>
+    <string name="details_label">详情：</string>
+    <string name="action_deny">拒绝</string>
+    <string name="action_allow">允许</string>
+    <string name="alert_title">⚠ Guardian 警报</string>
+    <string name="ch_fg_name">后台监听</string>
+    <string name="ch_req_name">安装请求</string>
+
+    <string name="hdr_pending">待处理请求</string>
+    <string name="pending_empty">暂无待处理。</string>
+    <string name="btn_lock_now">立即锁定电脑</string>
+    <string name="btn_unlock_now">解锁电脑</string>
+    <string name="sent_ok">已发送 ✓</string>
+    <string name="send_failed">无法连接电脑 — 请重试</string>
+    <string name="lock_sent">已发送锁定</string>
+    <string name="unlock_sent">已发送解锁</string>
+    <string name="lock_needs_pair">请先配对手机</string>
+
+    <string name="hdr_schedule">设置时间表</string>
+    <string name="lbl_child_opt">孩子名称（可选 — 一台电脑多个孩子时）</string>
+    <string name="lbl_budget">每日限额（分钟，留空 = 不限）</string>
+    <string name="lbl_window_start">允许开始 (HH:MM)</string>
+    <string name="lbl_window_end">允许结束 (HH:MM)</string>
+    <string name="lbl_quiet_start">夜间禁用开始 (HH:MM)</string>
+    <string name="lbl_quiet_end">夜间禁用结束 (HH:MM)</string>
+    <string name="lbl_weekend">周末每日限额（分钟，可选）</string>
+    <string name="btn_send_schedule">把时间表发送到电脑</string>
+    <string name="schedule_sent">已发送时间表 ✓</string>
+    <string name="schedule_bad_input">请检查时间 — 格式 HH:MM（如 07:00）</string>
+
+    <string name="lbl_select_child">孩子</string>
+    <string name="btn_add_child">添加孩子（扫描二维码）</string>
+    <string name="status_children_fmt">%1$d 个孩子 · 监听中</string>
+    <string name="no_children">尚未配对孩子 — 点按“添加孩子”。</string>
+    <string name="add_child_name_title">为这个孩子命名</string>
+    <string name="add_child_name_hint">例如 Zosia</string>
+    <string name="child_added">已添加孩子 ✓</string>
+    <string name="lbl_same_every_day">每天相同限额</string>
+    <string name="lbl_all_days">每天</string>
+    <string name="hours_any">任意时间</string>
+    <string name="hours_set">设置时间</string>
+    <string name="hours_fmt">%1$s–%2$s</string>
+    <string name="sched_for_fmt">设置时间表：%1$s</string>
+
+    <string-array name="budget_presets">
+        <item>不限</item>
+        <item>30 分钟</item>
+        <item>1 小时</item>
+        <item>1 小时 30</item>
+        <item>2 小时</item>
+        <item>2 小时 30</item>
+        <item>3 小时</item>
+        <item>4 小时</item>
+        <item>已锁定</item>
+    </string-array>
+    <string-array name="weekday_names">
+        <item>星期一</item>
+        <item>星期二</item>
+        <item>星期三</item>
+        <item>星期四</item>
+        <item>星期五</item>
+        <item>星期六</item>
+        <item>星期日</item>
+    </string-array>
+    <string name="now_using_fmt">▶ 正在使用：%1$s</string>
+</resources>

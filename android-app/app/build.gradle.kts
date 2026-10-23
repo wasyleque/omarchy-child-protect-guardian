@@ -11,9 +11,9 @@ android {
         applicationId = "com.omega.guardian"
         minSdk = 26
         targetSdk = 34
-        versionCode = 12
-        versionName = "0.1.11"
-        resourceConfigurations += listOf("en", "pl", "es")
+        versionCode = 13
+        versionName = "0.1.12"
+        resourceConfigurations += listOf("en", "pl", "es", "de", "fr", "zh")
     }
 
     signingConfigs {
