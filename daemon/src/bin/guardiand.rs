@@ -81,6 +81,130 @@ fn load_child_override(base: &std::path::Path, name: &str) -> Option<guardian::s
     serde_json::from_str(&txt).ok()
 }
 
+/// Seconds until the next local occurrence of `target_hour`:00 (for the daily digest timer).
+fn secs_until_hour(target_hour: u8) -> u64 {
+    let (_, _, minute) = guardian::schedule::local_now();
+    let cur = minute as i64;
+    let tgt = (target_hour as i64 % 24) * 60;
+    let mut diff = tgt - cur;
+    if diff <= 0 {
+        diff += 1440;
+    }
+    (diff as u64) * 60
+}
+
+/// Scan a DNS query log for worrying topics the parent should know about (review: AI-digest safety
+/// requirement — drugs, self-harm/suicide, weapons, etc.). Best-effort + heuristic; the model
+/// interprets. Returns deduped matched domains/lines (capped).
+fn scan_dns_for_concerns(path: &str) -> Vec<String> {
+    const TERMS: &[&str] = &[
+        "suicide", "samobój", "selfharm", "self-harm", "cutting", "depress",
+        "narkotyk", "drug", "cocaine", "heroin", "mdma", "weed", "marijuana", "dopalacz",
+        "broń", "weapon", "gun", "firearm", "ammo", "bomb", "explosiv",
+        "porn", "xxx", "onlyfans", "hentai", "extremis", "nazi", "isis",
+    ];
+    let mut out: Vec<String> = Vec::new();
+    if let Ok(f) = std::fs::File::open(path) {
+        use std::io::BufRead;
+        for line in std::io::BufReader::new(f).lines().map_while(Result::ok) {
+            let low = line.to_lowercase();
+            if TERMS.iter().any(|t| low.contains(t)) {
+                let token = line
+                    .split_whitespace()
+                    .find(|w| w.contains('.') && !w.contains('/'))
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| line.trim().to_string());
+                if !out.contains(&token) {
+                    out.push(token);
+                }
+                if out.len() >= 20 {
+                    break;
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Compile today's events (since local midnight) from the audit log + the DNS concern scan into a
+/// compact, factual summary the digest model turns into a parent-facing note.
+fn build_day_summary(audit_path: &std::path::Path, dns_log: Option<&str>) -> String {
+    let (_, _, minute) = guardian::schedule::local_now();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let midnight = now.saturating_sub((minute as u64) * 60);
+
+    let (mut submitted, mut denied, mut refused, mut ctrl, mut rejected, mut blocks, mut grants) =
+        (0u32, 0u32, 0u32, 0u32, 0u32, 0u32, 0u32);
+    let mut pkgs: Vec<String> = Vec::new();
+    if let Ok(f) = std::fs::File::open(audit_path) {
+        use std::io::BufRead;
+        for line in std::io::BufReader::new(f).lines().map_while(Result::ok) {
+            let v: serde_json::Value = match serde_json::from_str(&line) {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+            if v.get("ts").and_then(|t| t.as_u64()).unwrap_or(0) < midnight {
+                continue;
+            }
+            match v.get("event").and_then(|e| e.as_str()).unwrap_or("") {
+                "submitted" => {
+                    submitted += 1;
+                    if let Some(p) = v.get("package").and_then(|p| p.as_str()) {
+                        pkgs.push(p.to_string());
+                    }
+                }
+                "decided" => {
+                    if v.get("decision").and_then(|d| d.as_str()) == Some("deny") {
+                        denied += 1;
+                    }
+                }
+                "submit_refused" => refused += 1,
+                "control_blocked" => ctrl += 1,
+                "approval_rejected" => rejected += 1,
+                "schedule_blocked" => blocks += 1,
+                "grant_applied" => grants += 1,
+                _ => {}
+            }
+        }
+    }
+    pkgs.sort();
+    pkgs.dedup();
+
+    let mut s = String::new();
+    s.push_str(&format!("Install requests today: {submitted} (denied: {denied}).\n"));
+    if !pkgs.is_empty() {
+        s.push_str(&format!("Packages the child tried to install: {}.\n", pkgs.join(", ")));
+    }
+    if refused > 0 {
+        s.push_str(&format!("Rapid repeated install attempts (flood): {refused}.\n"));
+    }
+    if ctrl > 0 {
+        s.push_str(&format!("Attempts to tamper with the guardian control socket: {ctrl}.\n"));
+    }
+    if rejected > 0 {
+        s.push_str(&format!("Rejected/forged approval attempts: {rejected}.\n"));
+    }
+    if blocks > 0 {
+        s.push_str(&format!("Times screen-time blocked the session: {blocks}.\n"));
+    }
+    if grants > 0 {
+        s.push_str(&format!("Extra-time grants given: {grants}.\n"));
+    }
+    if let Some(path) = dns_log {
+        let hits = scan_dns_for_concerns(path);
+        if !hits.is_empty() {
+            s.push_str(&format!("Potentially worrying web lookups: {}.\n", hits.join(", ")));
+        }
+    }
+    if s.trim().is_empty() {
+        s.push_str("No recorded activity today.");
+    }
+    s
+}
+
 fn load_sched_state(path: &std::path::Path, eng: &std::sync::Mutex<guardian::schedule::TimeEngine>) {
     if let Ok(s) = std::fs::read_to_string(path) {
         if let Ok(v) = serde_json::from_str::<serde_json::Value>(&s) {
@@ -322,6 +446,29 @@ async fn main() -> Result<()> {
         }
         _ => Vec::new(),
     };
+
+    // Daily AI parenting digest (usage + blocked attempts + worrying-lookup warnings), pushed as a
+    // signed alert the app already verifies + shows. Off unless [ai].digest_enabled.
+    if let Some(ntfy) = &ntfy {
+        if let Some(ai) = policy.ai.clone().filter(|a| a.enabled && a.digest_enabled) {
+            let ntfy = Arc::clone(ntfy);
+            let audit_path = policy.audit_path.clone();
+            eprintln!("guardiand: daily AI digest enabled (at {}:00, {})", ai.digest_hour, ai.digest_lang);
+            tokio::spawn(async move {
+                let client = reqwest::Client::new();
+                loop {
+                    tokio::time::sleep(std::time::Duration::from_secs(secs_until_hour(ai.digest_hour))).await;
+                    let events = build_day_summary(&audit_path, ai.dns_query_log.as_deref());
+                    match guardian::ai::daily_digest(&client, &ai, &ai.digest_lang, &events).await {
+                        Some(d) => ntfy.alert("daily-digest", "Guardian: podsumowanie dnia", &d),
+                        None => eprintln!("guardiand: daily digest skipped (AI unavailable)"),
+                    }
+                    // Step past this minute so we don't fire twice before the hour rolls over.
+                    tokio::time::sleep(std::time::Duration::from_secs(90)).await;
+                }
+            });
+        }
+    }
 
     let server = Arc::new(Server {
         queue: Arc::clone(&queue),

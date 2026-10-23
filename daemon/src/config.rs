@@ -85,8 +85,23 @@ pub struct AiConfig {
     /// Hard cap on how long the daemon waits for the summary before giving up.
     #[serde(default = "default_ai_timeout")]
     pub timeout_secs: u64,
+    /// Send a once-a-day parenting digest (usage + blocked attempts + worrying-lookup warnings)?
+    #[serde(default)]
+    pub digest_enabled: bool,
+    /// Local hour (0–23) to send the daily digest. Default 20:00.
+    #[serde(default = "default_digest_hour")]
+    pub digest_hour: u8,
+    /// Language the digest is written in (free text passed to the model). Default "Polish".
+    #[serde(default = "default_digest_lang")]
+    pub digest_lang: String,
+    /// Optional path to a DNS query log (e.g. dnsmasq's) scanned for worrying search topics. Without
+    /// it the digest still covers blocked attempts from the audit log, but can't flag web lookups.
+    #[serde(default)]
+    pub dns_query_log: Option<String>,
 }
 
+fn default_digest_hour() -> u8 { 20 }
+fn default_digest_lang() -> String { "Polish".to_string() }
 fn default_ai_provider() -> String { "ollama".to_string() }
 fn default_ai_endpoint() -> String { "http://127.0.0.1:11434/api/generate".to_string() }
 fn default_ai_model() -> String { "llama3.2:latest".to_string() }

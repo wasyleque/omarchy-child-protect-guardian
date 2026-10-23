@@ -88,6 +88,13 @@ default_on_timeout = "deny"
 #endpoint = "http://127.0.0.1:11434/api/generate"  # the child box's OWN Ollama (most private); or a LAN box
 #model = "llama3.2:latest"                         # 3B, fast, fits an 8 GB GPU; avoid code-only/uncensored models
 #timeout_secs = 12
+# Daily parenting digest: once a day the daemon summarizes the day (time used, blocked install
+# attempts) and — if a DNS query log is given — flags worrying lookups (drugs, self-harm, weapons,
+# etc.) with a clear warning, then pushes it to the phone as a signed alert.
+#digest_enabled = true
+#digest_hour = 20                                   # local hour (0–23) to send it
+#digest_lang = "Polish"                             # language of the digest (e.g. Bielik for Polish)
+#dns_query_log = "/var/log/guardian/dns-queries.log"  # optional; enables worrying-topic flagging
 # For an OpenAI-compatible endpoint instead:
 #provider = "openai"
 #endpoint = "https://api.openai.com/v1/chat/completions"
