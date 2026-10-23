@@ -3,7 +3,7 @@
 //! daemon feeds it the local day-id + minute-of-day and whether the session is active (that wiring,
 //! plus Wayland lock/freeze enforcement, is a later slice). Design per the agy architecture consult.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Current (day-id, minute-of-day) in the machine's LOCAL timezone. day-id is unique per calendar
@@ -35,7 +35,7 @@ fn day_key(weekday: u8) -> &'static str {
 }
 
 /// Per-weekday override. Any field left `None` falls back to the top-level default for that field.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct DaySchedule {
     #[serde(default)]
@@ -49,7 +49,7 @@ pub struct DaySchedule {
 /// Per-child override of the default schedule (keys under `[schedule.children.<name>]`). Any field
 /// left unset inherits the top-level default. `enabled`, the lock/unlock commands and `tick_secs`
 /// always come from the default (they're machine-wide, not per child).
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ChildSchedule {
     #[serde(default)]
@@ -117,27 +117,38 @@ impl Schedule {
     /// wide fields (enabled / lock / unlock / tick_secs) come from the default; the returned schedule
     /// has an empty `children` map (it describes a single child).
     pub fn effective_for(&self, child: &str) -> Schedule {
+        match self.children.get(child) {
+            Some(c) => self.with_child_override(c),
+            None => {
+                let mut s = self.clone();
+                s.children = HashMap::new();
+                s
+            }
+        }
+    }
+
+    /// The default schedule with one child-override overlaid (used for config AND for a schedule the
+    /// parent pushes from the app at runtime). Machine-wide fields are kept from the default.
+    pub fn with_child_override(&self, c: &ChildSchedule) -> Schedule {
         let mut s = self.clone();
         s.children = HashMap::new();
-        if let Some(c) = self.children.get(child) {
-            if c.daily_budget_minutes.is_some() {
-                s.daily_budget_minutes = c.daily_budget_minutes;
-            }
-            if c.window_start_min.is_some() {
-                s.window_start_min = c.window_start_min;
-            }
-            if c.window_end_min.is_some() {
-                s.window_end_min = c.window_end_min;
-            }
-            if c.quiet_start_min.is_some() {
-                s.quiet_start_min = c.quiet_start_min;
-            }
-            if c.quiet_end_min.is_some() {
-                s.quiet_end_min = c.quiet_end_min;
-            }
-            if !c.days.is_empty() {
-                s.days = c.days.clone();
-            }
+        if c.daily_budget_minutes.is_some() {
+            s.daily_budget_minutes = c.daily_budget_minutes;
+        }
+        if c.window_start_min.is_some() {
+            s.window_start_min = c.window_start_min;
+        }
+        if c.window_end_min.is_some() {
+            s.window_end_min = c.window_end_min;
+        }
+        if c.quiet_start_min.is_some() {
+            s.quiet_start_min = c.quiet_start_min;
+        }
+        if c.quiet_end_min.is_some() {
+            s.quiet_end_min = c.quiet_end_min;
+        }
+        if !c.days.is_empty() {
+            s.days = c.days.clone();
         }
         s
     }
@@ -263,6 +274,12 @@ impl TimeEngine {
             self.used_secs = self.used_secs.saturating_add(elapsed_secs);
         }
         self.status(day, weekday, minute_of_day)
+    }
+
+    /// Replace the schedule at runtime (a parent pushed a new one from the app). Keeps today's used /
+    /// granted minutes so a mid-day change doesn't reset the budget.
+    pub fn set_schedule(&mut self, sched: Schedule) {
+        self.sched = sched;
     }
 
     /// Parent grants extra minutes for today (via the signed approval channel).

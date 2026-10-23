@@ -62,6 +62,25 @@ fn child_state_path(base: &std::path::Path, name: &str) -> std::path::PathBuf {
     }
 }
 
+/// File holding a schedule the parent pushed from the app for a child (overrides the config).
+fn child_override_path(base: &std::path::Path, name: &str) -> std::path::PathBuf {
+    let mut s = base.as_os_str().to_os_string();
+    s.push(".");
+    if !name.is_empty() {
+        s.push(name);
+        s.push(".");
+    }
+    s.push("sched");
+    std::path::PathBuf::from(s)
+}
+
+/// Load a pushed schedule override for a child, if one was saved.
+fn load_child_override(base: &std::path::Path, name: &str) -> Option<guardian::schedule::ChildSchedule> {
+    let p = child_override_path(base, name);
+    let txt = std::fs::read_to_string(p).ok()?;
+    serde_json::from_str(&txt).ok()
+}
+
 fn load_sched_state(path: &std::path::Path, eng: &std::sync::Mutex<guardian::schedule::TimeEngine>) {
     if let Ok(s) = std::fs::read_to_string(path) {
         if let Ok(v) = serde_json::from_str::<serde_json::Value>(&s) {
@@ -196,9 +215,12 @@ async fn main() -> Result<()> {
             let engines: Vec<(String, Arc<std::sync::Mutex<guardian::schedule::TimeEngine>>)> = names
                 .iter()
                 .map(|name| {
-                    let eng = Arc::new(std::sync::Mutex::new(
-                        guardian::schedule::TimeEngine::new(s.effective_for(name)),
-                    ));
+                    // A schedule the parent pushed from the app (persisted) wins over the config.
+                    let eff = match load_child_override(&policy.schedule_state_path, name) {
+                        Some(ov) => s.with_child_override(&ov),
+                        None => s.effective_for(name),
+                    };
+                    let eng = Arc::new(std::sync::Mutex::new(guardian::schedule::TimeEngine::new(eff)));
                     load_sched_state(&child_state_path(&policy.schedule_state_path, name), &eng);
                     (name.clone(), eng)
                 })
@@ -223,6 +245,31 @@ async fn main() -> Result<()> {
                             a.record(AuditEvent::GrantApplied { minutes: m });
                         }
                         eprintln!("guardiand: applied +{m} min screen-time grant to all children");
+                    }
+                });
+
+                // Pushed schedules from the app: apply to the target child's engine + persist (so it
+                // survives restart and overrides the config on next boot).
+                let (stx, mut srx) = tokio::sync::mpsc::unbounded_channel::<(String, guardian::schedule::ChildSchedule)>();
+                ntfy.set_sched_sink(stx);
+                let engs = engines.clone();
+                let base = policy.schedule_state_path.clone();
+                let default_sched = s.clone();
+                tokio::spawn(async move {
+                    while let Some((child, ov)) = srx.recv().await {
+                        // Match the named child; "" targets the single unnamed engine.
+                        let target = engs.iter().find(|(n, _)| *n == child)
+                            .or_else(|| if child.is_empty() { engs.first() } else { None });
+                        match target {
+                            Some((name, e)) => {
+                                e.lock().unwrap().set_schedule(default_sched.with_child_override(&ov));
+                                if let Ok(j) = serde_json::to_string(&ov) {
+                                    let _ = std::fs::write(child_override_path(&base, name), j);
+                                }
+                                eprintln!("guardiand: applied pushed schedule for '{name}'");
+                            }
+                            None => eprintln!("guardiand: pushed schedule for unknown child '{child}' — ignored"),
+                        }
                     }
                 });
             }

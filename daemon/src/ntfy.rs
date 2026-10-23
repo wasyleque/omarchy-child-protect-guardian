@@ -74,6 +74,8 @@ pub struct Ntfy {
     /// Parent-initiated "lock now" override. The schedule tick ORs this into "blocked", so a signed
     /// lock command keeps the child locked until a signed unlock (independent of the time budget).
     lock_override: Mutex<Option<Arc<std::sync::atomic::AtomicBool>>>,
+    /// Where verified pushed schedules (child name + override) go to be applied + persisted.
+    sched_tx: Mutex<Option<mpsc::UnboundedSender<(String, crate::schedule::ChildSchedule)>>>,
 }
 
 #[derive(Deserialize)]
@@ -172,6 +174,7 @@ impl Ntfy {
             audit: Mutex::new(None),
             ai: Mutex::new(None),
             lock_override: Mutex::new(None),
+            sched_tx: Mutex::new(None),
         }))
     }
 
@@ -183,6 +186,11 @@ impl Ntfy {
     /// Attach the shared "lock now" override flag (the schedule tick reads it).
     pub fn set_lock_override(&self, flag: Arc<std::sync::atomic::AtomicBool>) {
         *self.lock_override.lock().unwrap() = Some(flag);
+    }
+
+    /// Deliver verified pushed schedules (child, override) here (the daemon applies + persists them).
+    pub fn set_sched_sink(&self, tx: mpsc::UnboundedSender<(String, crate::schedule::ChildSchedule)>) {
+        *self.sched_tx.lock().unwrap() = Some(tx);
     }
 
     /// Enable AI risk-summaries (enriches each published challenge).
@@ -283,6 +291,53 @@ impl Ntfy {
             }
         } else {
             eprintln!("guardiand: lock command received but no [schedule] is configured — nothing to lock");
+        }
+    }
+
+    /// Apply a verified pushed schedule for a child (same anti-replay + addressing checks as a grant).
+    fn handle_schedule(&self, vk: &VerifyingKey, s: crypto::SignedSchedule) {
+        if s.daemon_pub != crypto::pubkey_b64(&self.daemon_key) {
+            eprintln!("guardiand: ntfy rejected schedule (addressed to a different daemon)");
+            return;
+        }
+        let now = now_secs();
+        if s.ts > now.saturating_add(60) || now.saturating_sub(s.ts) > MAX_TS_SKEW_SECS {
+            eprintln!("guardiand: ntfy rejected schedule (timestamp out of window)");
+            return;
+        }
+        if self.grant_nonces.lock().unwrap().contains(&s.nonce) {
+            eprintln!("guardiand: ntfy rejected schedule (replayed nonce)");
+            return;
+        }
+        if !crypto::verify_schedule(vk, &s) {
+            eprintln!("guardiand: ntfy rejected schedule (bad signature)");
+            self.alert("schedule-forged", "Guardian: FORGED schedule blocked", "A schedule with an invalid signature was rejected.");
+            return;
+        }
+        let child_sched: crate::schedule::ChildSchedule = match serde_json::from_str(&s.sched) {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("guardiand: ntfy rejected schedule (bad JSON: {e})");
+                return;
+            }
+        };
+        self.grant_nonces.lock().unwrap().insert(s.nonce.clone());
+        if let Some(p) = &self.grant_nonce_path {
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) {
+                use std::io::Write as _;
+                let _ = writeln!(f, "{}", s.nonce);
+            }
+        }
+        if let Some(tx) = self.sched_tx.lock().unwrap().as_ref() {
+            let _ = tx.send((s.child.clone(), child_sched));
+            eprintln!("guardiand: ntfy schedule for '{}' accepted", s.child);
+            if let Some(a) = self.audit.lock().unwrap().as_ref() {
+                a.record(crate::audit::AuditEvent::ScheduleBlocked {
+                    reason: format!("parent set schedule for '{}'", s.child),
+                });
+            }
+        } else {
+            eprintln!("guardiand: schedule received but no [schedule] is configured — ignored");
         }
     }
 
@@ -566,6 +621,13 @@ impl Ntfy {
         if let Ok(l) = serde_json::from_str::<crypto::SignedLock>(msg) {
             if l.kind == "lock_now" {
                 self.handle_lock(vk, l);
+                return;
+            }
+        }
+        // ...and a pushed screen-time schedule for a child.
+        if let Ok(s) = serde_json::from_str::<crypto::SignedSchedule>(msg) {
+            if s.kind == "set_schedule" {
+                self.handle_schedule(vk, s);
                 return;
             }
         }

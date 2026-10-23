@@ -120,6 +120,45 @@ pub fn verify_lock(vk: &VerifyingKey, l: &SignedLock) -> bool {
     vk.verify_strict(lock_message(&l.daemon_pub, &l.nonce, &l.action, l.ts).as_bytes(), &sig).is_ok()
 }
 
+/// Domain for a parent-pushed screen-time schedule for one child.
+pub const SCHED_DOMAIN: &str = "OCPG-SCHED-v1";
+
+/// Bytes the parent app signs to set `child`'s schedule. `sched_json` is the exact JSON string of the
+/// child's schedule override — signed verbatim so there's no canonical-JSON ambiguity (the daemon
+/// verifies over the string it received, then parses it).
+pub fn schedule_message(daemon_pub: &str, nonce: &str, child: &str, ts: u64, sched_json: &str) -> String {
+    format!("{SCHED_DOMAIN}|{daemon_pub}|{nonce}|{child}|{ts}|{sched_json}")
+}
+
+/// A signed schedule-set command posted by the parent app.
+#[derive(Debug, Deserialize)]
+pub struct SignedSchedule {
+    /// Discriminator ("set_schedule").
+    pub kind: String,
+    pub daemon_pub: String,
+    pub nonce: String,
+    /// Target child username ("" = the single/default child).
+    pub child: String,
+    pub ts: u64,
+    /// The child's schedule override as a JSON string (parsed into schedule::ChildSchedule).
+    pub sched: String,
+    pub sig: String,
+}
+
+/// Verify a signed schedule command against the parent key.
+pub fn verify_schedule(vk: &VerifyingKey, s: &SignedSchedule) -> bool {
+    let sig_bytes = match STANDARD.decode(s.sig.trim()) {
+        Ok(b) => b,
+        Err(_) => return false,
+    };
+    let arr: [u8; 64] = match sig_bytes.try_into() {
+        Ok(a) => a,
+        Err(_) => return false,
+    };
+    let sig = Signature::from_bytes(&arr);
+    vk.verify_strict(schedule_message(&s.daemon_pub, &s.nonce, &s.child, s.ts, &s.sched).as_bytes(), &sig).is_ok()
+}
+
 /// Load the daemon's Ed25519 signing key from `path` (base64 of a 32-byte seed), creating a fresh
 /// one (0600) on first run. The matching public key is what the parent app pairs to verify challenges.
 pub fn load_or_create_daemon_key(path: &Path) -> Result<SigningKey> {
@@ -331,5 +370,35 @@ mod tests {
         let mut l = sign_lock(&sk, &dpub, "n1", "lock", 1_000);
         l.action = "unlock".to_string(); // flip the action after signing
         assert!(!verify_lock(&sk.verifying_key(), &l), "flipping the action must break the signature");
+    }
+
+    fn sign_sched(sk: &SigningKey, dpub: &str, nonce: &str, child: &str, ts: u64, json: &str) -> SignedSchedule {
+        let sig = sk.sign(schedule_message(dpub, nonce, child, ts, json).as_bytes());
+        SignedSchedule {
+            kind: "set_schedule".into(),
+            daemon_pub: dpub.into(),
+            nonce: nonce.into(),
+            child: child.into(),
+            ts,
+            sched: json.into(),
+            sig: STANDARD.encode(sig.to_bytes()),
+        }
+    }
+
+    #[test]
+    fn valid_schedule_verifies() {
+        let sk = signing_key();
+        let dpub = pubkey_b64(&sk);
+        let s = sign_sched(&sk, &dpub, "n1", "zosia", 1_000, r#"{"daily_budget_minutes":90}"#);
+        assert!(verify_schedule(&sk.verifying_key(), &s));
+    }
+
+    #[test]
+    fn tampered_schedule_fails() {
+        let sk = signing_key();
+        let dpub = pubkey_b64(&sk);
+        let mut s = sign_sched(&sk, &dpub, "n1", "zosia", 1_000, r#"{"daily_budget_minutes":90}"#);
+        s.sched = r#"{"daily_budget_minutes":600}"#.into(); // bump the budget after signing
+        assert!(!verify_schedule(&sk.verifying_key(), &s), "editing the schedule must break the signature");
     }
 }
