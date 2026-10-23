@@ -253,6 +253,22 @@ pub fn load_or_create_daemon_key(path: &Path) -> Result<SigningKey> {
     Ok(SigningKey::from_bytes(&seed))
 }
 
+/// The parent's X25519 public key, derived from its Ed25519 public key (libsodium
+/// crypto_sign_ed25519_pk_to_curve25519), for payload encryption (M4).
+fn parent_x25519_public(parent_ed25519_pub_b64: &str) -> Option<crypto_box::PublicKey> {
+    let vk = parse_pubkey(parent_ed25519_pub_b64)?;
+    Some(crypto_box::PublicKey::from(vk.to_montgomery().to_bytes()))
+}
+
+/// Encrypt `plaintext` so ONLY the parent (holder of the paired Ed25519 key) can read it: a
+/// libsodium-compatible sealed box (crypto_box_seal) to the parent's X25519 key. The broker sees only
+/// ciphertext, so package names / commands no longer travel in the clear (review M4). base64 output.
+pub fn seal_to_parent(parent_ed25519_pub_b64: &str, plaintext: &[u8]) -> Option<String> {
+    let pk = parent_x25519_public(parent_ed25519_pub_b64)?;
+    let ct = pk.seal(&mut crypto_box::aead::OsRng, plaintext).ok()?;
+    Some(STANDARD.encode(ct))
+}
+
 /// base64 of a signing key's public half (for pairing / logging).
 pub fn pubkey_b64(key: &SigningKey) -> String {
     STANDARD.encode(key.verifying_key().to_bytes())
@@ -428,6 +444,31 @@ mod tests {
             sched: json.into(),
             sig: STANDARD.encode(sig.to_bytes()),
         }
+    }
+
+    fn parent_x25519_secret_from_seed(seed: &[u8; 32]) -> crypto_box::SecretKey {
+        use sha2::{Digest, Sha512};
+        let h = Sha512::digest(seed);
+        let mut s = [0u8; 32];
+        s.copy_from_slice(&h[..32]);
+        s[0] &= 248;
+        s[31] &= 127;
+        s[31] |= 64;
+        crypto_box::SecretKey::from(s)
+    }
+
+    #[test]
+    fn seal_roundtrip_to_parent() {
+        let seed = [7u8; 32];
+        let sk = SigningKey::from_bytes(&seed);
+        let pub_b64 = pubkey_b64(&sk);
+        let secret = "steam / sudo pacman -S steam".as_bytes();
+        let ct = seal_to_parent(&pub_b64, secret).expect("seal");
+        // The parent (with its Ed25519 seed → X25519 secret) can open it.
+        let skx = parent_x25519_secret_from_seed(&seed);
+        let bytes = STANDARD.decode(ct).unwrap();
+        let pt = skx.unseal(&bytes).expect("unseal");
+        assert_eq!(pt, secret);
     }
 
     #[test]

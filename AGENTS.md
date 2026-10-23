@@ -355,6 +355,20 @@ paused it for agy). Contract to implement in android-app:
 Keep Crypto.signAiCfg + the exact canonical as the correctness-critical bit (agy-tier); the form layout
 is routine. Add the new strings to all 6 locales (en/pl/es/de/fr/zh).
 
+## M4 payload encryption — step 1 DONE (daemon primitive), step 2 = wire + app
+- crypto::seal_to_parent(parent_ed25519_pub_b64, plaintext) → base64 of a **libsodium-compatible
+  crypto_box_seal** (anonymous sealed box) to the parent's X25519 key, derived from the parent's
+  Ed25519 pairing key via `VerifyingKey::to_montgomery()` (crypto_sign_ed25519_pk_to_curve25519). New
+  deps: crypto_box 0.9 (feature "seal") + x25519-dalek 2. Round-trip unit test green (31 total).
+- STEP 2 (not done; needs the app, so post-agy, on-host testable): add [ntfy].encrypt_payload flag;
+  in publish_challenge, when set, put the sensitive fields (package/source/reason/command) into an
+  `enc` = seal_to_parent(JSON) field INSTEAD of cleartext, keeping the csig over the cleartext
+  canonical. APP CONTRACT: derive the X25519 secret from the Ed25519 seed
+  (crypto_sign_ed25519_sk_to_curve25519 = clamp(SHA512(seed)[0..32])), `crypto_box_seal_open` (lazysodium)
+  the base64 `enc`, parse the JSON, reconstruct the canonical, THEN verify csig. Until both sides land,
+  keep the flag off (challenge format unchanged). Closes the README privacy caveat (broker sees only
+  ciphertext). Must be byte-exact with lazysodium — verify interop on-host before enabling.
+
 ## Workflow routing (this machine)
 - **Logic / architecture / integrations →** `agy`.
 - **Simple implementation micro-tasks →** local Ollama `qwen3-coder:30b` via `aider` (host 192.168.0.11).
