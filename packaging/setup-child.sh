@@ -143,24 +143,26 @@ for conf in /etc/sddm.conf.d/*.conf /etc/sddm.conf; do
 done
 
 # F12 greeter: Omarchy's SDDM theme shows only the last user (no picker), so a freshly-created child
-#      can't pick their account. Recommend ONLY a theme that is actually installed — suggesting a
-#      missing theme (breeze/maldives/…) gives a BLANK login screen, which is worse than the default.
+#      can't pick their account. Recommend an alternative ONLY if it is installed AND is a Qt6 theme:
+#      a Qt5 theme on a Qt6 greeter gives a BLANK login screen (libQt5Quick.so.5: cannot open shared
+#      object file) — confirmed on-host. If no Qt6 alternative exists, leave 'omarchy' and just warn.
+THEMES_DIR=/usr/share/sddm/themes
 THEME="$(sed -nE 's/^[[:space:]]*Current[[:space:]]*=[[:space:]]*(.+)/\1/p' /etc/sddm.conf /etc/sddm.conf.d/*.conf 2>/dev/null | head -1)"
 if [ "$THEME" = "omarchy" ]; then
-  AVAIL="$(ls -1 /usr/share/sddm/themes/ 2>/dev/null | grep -vix omarchy || true)"
   PICK=""
-  for t in breeze maldives maya elarun; do
-    printf '%s\n' "$AVAIL" | grep -qix "$t" && { PICK="$t"; break; }
+  for t in $(ls -1 "$THEMES_DIR" 2>/dev/null | grep -vix omarchy); do
+    md="$THEMES_DIR/$t/metadata.desktop"
+    [ -f "$md" ] && grep -qiE '^[[:space:]]*QtVersion[[:space:]]*=[[:space:]]*6' "$md" && { PICK="$t"; break; }
   done
   echo "    NOTE: the SDDM theme 'omarchy' shows only the last user, so a new child can't pick their account."
-  echo "          Installed themes: ${AVAIL:-<none>}"
   if [ -n "$PICK" ]; then
-    echo "          Switch to one with a user list (installed):  sudo sed -i 's/^Current=.*/Current=$PICK/' /etc/sddm.conf.d/*.conf"
+    echo "          A Qt6 theme is installed — switch to it (then REBOOT and confirm the child can log in):"
+    echo "              sudo sed -i 's/^Current=.*/Current=$PICK/' /etc/sddm.conf.d/*.conf"
   else
-    echo "          No alternative theme is installed — DON'T set a missing theme (= blank screen). Either:"
-    echo "            • install one, e.g.:  sudo pacman -S --needed sddm   (ships a basic theme), or"
-    echo "            • comment out the Current= line to use SDDM's built-in greeter,"
-    echo "          then REBOOT and confirm the child can actually log in before relying on it."
+    echo "          WARNING: the other installed themes are Qt5 but the greeter is Qt6 — switching to them"
+    echo "          gives a BLANK login screen (libQt5Quick.so.5 missing). Leaving 'omarchy' unchanged."
+    echo "          For multi-user login, install a Qt6 SDDM theme that has a user list, switch to it and"
+    echo "          reboot-test. Do NOT set a Qt5 theme."
   fi
 fi
 
