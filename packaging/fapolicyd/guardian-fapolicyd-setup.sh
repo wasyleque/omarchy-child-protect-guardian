@@ -123,12 +123,22 @@ fapolicyd-cli --update >/dev/null 2>&1 || true
 SEEDN="$(wc -l < "$SEED")"
 DBN="$(fapolicyd-cli --dump-db 2>/dev/null | wc -l || echo 0)"
 echo "==> trust DB has $DBN entries; pacman seed had $SEEDN"
-if [ "$DBN" -lt $((SEEDN * 9 / 10)) ]; then
-  echo "    !! DB is well below the seed — a path probably stopped the load. Do NOT enforce yet."
+DB_OK=1
+if [ "$SEEDN" -gt 0 ] && [ "$DBN" -lt $((SEEDN * 9 / 10)) ]; then
+  DB_OK=0
+  echo "    !! trust DB ($DBN) is well below the seed ($SEEDN) — a path probably stopped the load."
   echo "       Check:  journalctl -u fapolicyd | grep -i 'without duplicates'"
 fi
 
 if [ "$ENFORCE" -eq 1 ]; then
+  # REFUSE to enforce on a partial trust DB: under enforce, a missing system binary means systemd
+  # can't start units and the next boot can hang. Better to stay permissive than to brick the boot.
+  if [ "$DB_OK" -ne 1 ]; then
+    echo "==> ABORTING --enforce: the trust DB looks incomplete. Enabling fapolicyd now could block the"
+    echo "    next boot. Fix the seed (see the hint above), re-run WITHOUT --enforce to re-seed, and only"
+    echo "    pass --enforce once 'trust DB' ≈ 'seed'. fapolicyd was NOT enabled."
+    exit 1
+  fi
   echo "==> ENFORCING: enabling fapolicyd"
   systemctl enable --now fapolicyd
   echo "    Verify as the child:  bwrap --dev-bind / / --bind ~/x /usr/bin/true /usr/bin/true  → Operation not permitted"
