@@ -335,6 +335,26 @@ fixed across 3 batches (daemon 0.2.4→0.2.5, app 0.1.6→0.1.7/vc8). Docs commi
     active testing, not yet sole protection"), new "📱 Android parent app" section + a real phone
     screenshot (docs/screenshots/android-app.png, public key redacted). daemon now 0.3.4, app 0.1.11/vc12.
 
+## TODO for agy — AI/Ollama config UI in the Android app (daemon side DONE, commit 40c0d5c)
+The daemon already accepts a signed AI config pushed from the app; only the APP UI is left (user
+paused it for agy). Contract to implement in android-app:
+- Add an "AI / Ollama" settings section (for the SELECTED child's daemon): fields endpoint (URL),
+  model, enabled (checkbox), digest_enabled (checkbox), digest_hour (0–23), digest_lang, optional
+  dns_query_log / activity_log paths, timeout_secs, provider ("ollama"/"openai"). Prefill sensible
+  defaults (endpoint http://127.0.0.1:11434/api/generate, model llama3.2:latest, digest_lang the UI
+  language). Use pickers/dropdowns where possible (no free-text errors), like the schedule editor.
+- Build the config JSON with EXACTLY the daemon's config::AiConfig field names (it is
+  deny_unknown_fields): enabled, provider, endpoint, model, api_key?, timeout_secs, digest_enabled,
+  digest_hour, digest_lang, dns_query_log?, activity_log?. Serialize to a string = `cfgJson`.
+- Sign the canonical `OCPG-AICFG-v1|<daemon_pub>|<nonce>|<ts>|<cfgJson>` with the parent seed
+  (add Crypto.signAiCfg mirroring signSchedule — the JSON is signed VERBATIM, sent as the `cfg` field).
+- POST to the active child's respondTo (Prefs.lastRespondTo): {kind:"set_ai", daemon_pub, nonce,
+  ts, cfg:<cfgJson>, sig}. Same shape as the schedule push (MainActivity.sendSchedule is the template).
+- Daemon applies it live (install risk-summaries) + persists to /var/lib/guardian/ai.json; the digest
+  task re-reads it, so no restart needed.
+Keep Crypto.signAiCfg + the exact canonical as the correctness-critical bit (agy-tier); the form layout
+is routine. Add the new strings to all 6 locales (en/pl/es/de/fr/zh).
+
 ## Workflow routing (this machine)
 - **Logic / architecture / integrations →** `agy`.
 - **Simple implementation micro-tasks →** local Ollama `qwen3-coder:30b` via `aider` (host 192.168.0.11).
