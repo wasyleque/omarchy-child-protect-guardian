@@ -286,11 +286,25 @@ fixed across 3 batches (daemon 0.2.4→0.2.5, app 0.1.6→0.1.7/vc8). Docs commi
 - STILL OPEN (documented): B3 (flatpak --user unaudited install; C1 stops execution), B4 (DoH to
   unlisted resolvers — needs SNI/maintained list). NEEDS ON-HOST VERIFY: fapolicyd setup script,
   console/autologin hardening, lock-now, pkill backstop.
-- **Batch 4 — NOT STARTED** (user wants it): weekly per-day schedule + quiet hours (cisza nocna),
-  F16 (logind active-tracking so budget isn't charged by wall clock / while frozen), live "current
-  app/game" view, daily AI digest via local Ollama. Big: needs a signed schedule-config push channel
-  (app→daemon), a child-side foreground-window reporter, usage-stats collection. Design fork: schedule
-  authored IN-APP (new signed protocol) vs in policy.toml.
+- **Batch 4 — IN PROGRESS** (schedule in-app, multi-child = BOTH topologies per user). Done so far:
+  - Step 1 (39e54d6): schedule engine → weekly per-day budgets/windows ([schedule.days.mon..sun]) +
+    nightly curfew quiet_start/end (wraps midnight, not charged). local_now() adds weekday. AI default
+    → llama3.2 @ 127.0.0.1 (child box is 192.168.0.12, RTX 3070 8 GB; .11 = the 3090 dev box). daemon 0.2.6.
+  - Step 2 (e870e52): PER-CHILD (multi-child) engines in the daemon — one TimeEngine per GUARDIAN_CHILD
+    name, each its effective schedule (Schedule::effective_for + [schedule.children.<name>]) + own state
+    file <base>.<name>; tick iterates all, locks per child (run_hook sets GUARDIAN_CHILD); ipc status
+    aggregates. Server.schedule is now Vec<(name,engine)>. Grants/lock-now still apply to ALL children.
+    daemon 0.2.7.
+  - Step 3 (b419ca7 daemon + ea35318 app): signed schedule-PUSH from the app. crypto OCPG-SCHED-v1
+    (SignedSchedule/verify_schedule, signs the sched JSON verbatim). ntfy handle_schedule → sched sink →
+    guardiand applies to the child's engine (set_schedule + with_child_override) + persists
+    <base>.<name>.sched (overrides config on boot). App: "Set schedule" editor (budget, window HH:MM,
+    curfew HH:MM, weekend; optional child name) → Crypto.signSchedule → POST. daemon 0.2.8, app 0.1.8/vc9.
+    Covers several kids on ONE PC (child field). 29 daemon tests.
+  - REMAINING: multi-PC app (multi-pairing list + per-child ntfy subscriptions + child selector; today
+    the app holds ONE pairing); per-child targeting for grant/lock-now (add `child` to OCPG-GRANT/LOCK);
+    F16 (feed logind active so budget isn't charged by wall clock / while frozen); live "current app/game"
+    reporter (hyprctl → daemon → app); daily AI digest (usage stats → local Ollama → push).
 
 ## Workflow routing (this machine)
 - **Logic / architecture / integrations →** `agy`.
