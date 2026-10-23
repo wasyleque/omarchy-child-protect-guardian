@@ -6,16 +6,17 @@
 > z **zdalnym zatwierdzaniem instalacji aplikacji** z telefonu rodzica — push-approval,
 > dokładnie jak potwierdzenie logowania 2FA.
 
-**Status:** 🧪 **prototyp eksperymentalny.** Rdzeń zbudowany i przetestowany (unit/e2e), **dwa** zewnętrzne
-audyty bezpieczeństwa (2026-10-09 i 2026-10-14) wykryły błędy egzekucji (już naprawione) i realne
-ograniczenia, a pierwszy **test na żywym sprzęcie (2026-10-21)** potwierdził, że pętla główna działa,
-i znalazł cztery kolejne błędy egzekucji — wszystkie już naprawione (v0.2.0).
-**Nie polegaj na tym jeszcze jako jedynej ochronie codziennego komputera dziecka.** Zobacz audyty
+**Status:** ✅ **Działa — w fazie aktywnych testów, jeszcze nie jako jedyna ochrona.** Rdzeń jest zbudowany
+i przetestowany (unit/e2e), działa na prawdziwym sprzęcie (pętla push-approval, czas ekranowy, fapolicyd,
+nftables i łańcuch audytu zachowują się jak zaprojektowano), a natywna apka na Androida jest zainstalowana
+i działa. Dwa zewnętrzne audyty (2026-10-09, 2026-10-14) i trzy testy na sprzęcie (2026-10-21/23)
+doprowadziły do naprawy realnych błędów egzekucji. **Dopóki nie ustawisz i nie zweryfikujesz u siebie
+pełnej bazy sprzętowej + fapolicyd w trybie egzekwowania, traktuj to jako mocne wsparcie, nie jedyną
+linię obrony.** Zobacz audyty
 [`guardian-security-review.md`](guardian-security-review.md) + [`guardian-security-review-2.md`](guardian-security-review-2.md),
-nasze odpowiedzi [`docs/REVIEW-RESPONSE.md`](docs/REVIEW-RESPONSE.md) + [`docs/REVIEW-RESPONSE-2.md`](docs/REVIEW-RESPONSE-2.md)
-oraz raport z testu na sprzęcie [`guardian-test-report-2026-10-21.md`](guardian-test-report-2026-10-21.md).
-Filtr treści/DNS, SafeSearch i harmonogram czasu istnieją jako gotowy config/silnik, ale wymagają
-dalszych testów na sprzęcie — patrz [`docs/TESTING.md`](docs/TESTING.md).
+odpowiedzi [`docs/REVIEW-RESPONSE.md`](docs/REVIEW-RESPONSE.md) + [`docs/REVIEW-RESPONSE-2.md`](docs/REVIEW-RESPONSE-2.md)
+oraz raporty z testów [`guardian-test-report-2026-10-21.md`](guardian-test-report-2026-10-21.md) +
+[`guardian-test-report-2026-10-23.md`](guardian-test-report-2026-10-23.md). Wdrożenie wg [`docs/TESTING.md`](docs/TESTING.md).
 
 Cel ambitny: ma być **wygodniejszy i skuteczniejszy** niż Microsoft Family Safety,
 Apple Screen Time, Google Family Link i Qustodio — a jednocześnie **prywatny** (żadnej
