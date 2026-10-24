@@ -471,6 +471,18 @@ D8/D9/D10/D12 all verified live. Finding + fix:
   - NEXT: re-test the single-alert fix (0.3.14) on .12; otherwise the content-filtering + alert path is
     functionally complete.
 
+## On-host test #6 (0.3.14 single alert on .12, 2026-10-24) — PASS (see …-v0314.md)
+pornhub → **exactly one** "zablokowana strona" alert (10 s); a worrying keyword on a NON-blocked domain
+(drugs-info-test.example) → the "niepokojące wyszukiwanie (drugs)" alert still fires. Single-alert fix
+confirmed. One self-inflicted finding:
+  - Step 28 — guardian-ctl version/unknown before connect (2aa2f4a, daemon 0.3.15, by Claude): D14 — the
+    re-test's own `guardian-ctl --version` (unauthorized uid 1000) connected to the control socket and
+    tripped a false "blocked control attempt" alert. Now `version`/`--version`/`-V` prints the version
+    and the command name is validated BEFORE any socket opens, so a typo exits with usage and never
+    reaches/alerts the daemon. 35 tests.
+  - STATUS: content-filtering + concern-alert path is functionally complete and verified on hardware.
+    Remaining are physical-presence items only (reboot test; setup-child.sh F12/F13).
+
 ## DONE (by agy) — AI/Ollama config UI in the Android app (daemon side commit 40c0d5c, app 0.1.13/vc14)
 The daemon already accepts a signed AI config pushed from the app; only the APP UI is left (user
 paused it for agy). Contract to implement in android-app:
