@@ -128,4 +128,6 @@
     <string name="btn_clear_debug">Leeren</string>
     <string name="debug_empty">Noch keine Ereignisse.</string>
     <string name="debug_copied">Debug-Protokoll kopiert</string>
+    <string name="hint_ai_model_tag">Vollständiger Modellname mit Tag (z. B. qooba/bielik-4.5b-v3.0-instruct:Q8_0)</string>
+    <string name="catchup_summary_fmt">Guardian: %1$d Ereignis(se) während Offline-Zeit — zum Ansehen öffnen</string>
 </resources>

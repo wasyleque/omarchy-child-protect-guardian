@@ -128,4 +128,6 @@
     <string name="btn_clear_debug">清空</string>
     <string name="debug_empty">暂无事件。</string>
     <string name="debug_copied">已复制调试日志</string>
+    <string name="hint_ai_model_tag">包含标签的完整模型名（如 qooba/bielik-4.5b-v3.0-instruct:Q8_0）</string>
+    <string name="catchup_summary_fmt">Guardian：离线期间有 %1$d 条事件 — 打开应用查看</string>
 </resources>

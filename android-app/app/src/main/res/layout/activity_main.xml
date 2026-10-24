@@ -239,6 +239,16 @@
             android:layout_height="wrap_content"
             android:minHeight="48dp" />
 
+        <EditText
+            android:id="@+id/etAiModel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/hint_ai_model_tag"
+            android:inputType="textNoSuggestions"
+            android:minHeight="48dp"
+            android:singleLine="true"
+            android:textSize="14sp" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

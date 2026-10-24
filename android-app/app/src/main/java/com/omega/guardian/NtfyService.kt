@@ -245,8 +245,15 @@ class NtfyService : Service() {
                 Prefs.addDebugLog(ctx, "$via rx id=$evId kind=alert len=${verifiedText.length}/${utf8Len}B verify=${if (ok) "OK" else "FAIL"}")
                 if (ok) {
                     val evTitle = ev.optString("title", "").ifBlank { ctx.getString(R.string.alert_title) }
-                    Prefs.addAlert(ctx, child, evTitle, verifiedText, if (ts > 0L) ts else (System.currentTimeMillis() / 1000))
-                    postAlertStatic(ctx, evId, evTitle, "$child: $verifiedText")
+                    val alertTs = if (ts > 0L) ts else (if (evTime > 0L) evTime else (System.currentTimeMillis() / 1000))
+                    val ageSec = (System.currentTimeMillis() / 1000) - alertTs
+                    Prefs.addAlert(ctx, child, evTitle, verifiedText, alertTs)
+                    // D5 UX: only buzz for fresh alerts (<= 180s); older catch-up alerts are collapsed into 1 summary notification
+                    if (ageSec <= 180L && !via.startsWith("poll:")) {
+                        postAlertStatic(ctx, evId, evTitle, "$child: $verifiedText")
+                    } else {
+                        bumpCatchupSummary(ctx)
+                    }
                     ctx.sendBroadcast(Intent(ACTION_PENDING_CHANGED).setPackage(ctx.packageName))
                 }
                 return ok
@@ -303,12 +310,53 @@ class NtfyService : Service() {
             Prefs.addDebugLog(ctx, "$via rx id=$evId kind=challenge pkg=$pkg verify=${if (ok) "OK" else "FAIL"}")
             if (!ok) return false   // forged / injected card → ignore
 
-            // Record it so the in-app list can Allow/Deny it too (not only the notification).
-            val cardTs = if (evTime > 0L) evTime else (System.currentTimeMillis() / 1000)
+            // D5 UX: don't notify for cards that are already expired/resolved (> 300s old = daemon decision_timeout_secs).
+            val nowSec = System.currentTimeMillis() / 1000
+            val cardTs = if (evTime > 0L) evTime else nowSec
+            val ageSec = nowSec - cardTs
+            if (ageSec > 300L) {
+                Prefs.addDebugLog(ctx, "$via rx id=$evId kind=challenge pkg=$pkg expired(age=${ageSec}s) -> skip notif")
+                bumpCatchupSummary(ctx)
+                return true
+            }
+
+            // Active request: record in-app and post actionable Allow/Deny notification.
             Prefs.addPending(ctx, id, child, source, pkg, nonce, respondTo, reason, cardTs)
             ctx.sendBroadcast(Intent(ACTION_PENDING_CHANGED).setPackage(ctx.packageName))
             postRequestStatic(ctx, id, child, source, pkg, nonce, reason, respondTo)
             return true
+        }
+
+        private const val CATCHUP_NOTIF_ID = 1002
+        private var catchupCount = 0
+        private var catchupWindowStart = 0L
+
+        /** Collapse a burst of catch-up events into a single summary notification instead of buzzing 10 times. */
+        private fun bumpCatchupSummary(ctx: Context) {
+            ensureChannels(ctx)
+            val now = System.currentTimeMillis()
+            if (now - catchupWindowStart > 30_000L) {
+                catchupCount = 0
+                catchupWindowStart = now
+            }
+            catchupCount++
+            val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val openPi = PendingIntent.getActivity(
+                ctx, CATCHUP_NOTIF_ID, Intent(ctx, MainActivity::class.java),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+            val body = ctx.getString(R.string.catchup_summary_fmt, catchupCount)
+            val n = NotificationCompat.Builder(ctx, CH_REQ)
+                .setContentTitle(ctx.getString(R.string.alert_default))
+                .setContentText(body)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setOnlyAlertOnce(true)
+                .setAutoCancel(true)
+                .setContentIntent(openPi)
+                .build()
+            nm.notify(CATCHUP_NOTIF_ID, n)
         }
 
         private fun postRequestStatic(

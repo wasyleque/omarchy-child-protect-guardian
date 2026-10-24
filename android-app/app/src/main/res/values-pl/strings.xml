@@ -134,4 +134,6 @@
     <string name="btn_clear_debug">Wyczyść</string>
     <string name="debug_empty">Brak zdarzeń.</string>
     <string name="debug_copied">Skopiowano log debugowania</string>
+    <string name="hint_ai_model_tag">Pełna nazwa modelu z tagiem (np. qooba/bielik-4.5b-v3.0-instruct:Q8_0)</string>
+    <string name="catchup_summary_fmt">Guardian: %1$d zdarzeń w czasie offline — otwórz, aby zobaczyć</string>
 </resources>

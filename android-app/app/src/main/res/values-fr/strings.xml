@@ -128,4 +128,6 @@
     <string name="btn_clear_debug">Effacer</string>
     <string name="debug_empty">Aucun événement.</string>
     <string name="debug_copied">Journal copié</string>
+    <string name="hint_ai_model_tag">Nom complet du modèle avec tag (ex. qooba/bielik-4.5b-v3.0-instruct:Q8_0)</string>
+    <string name="catchup_summary_fmt">Guardian : %1$d événement(s) hors ligne — ouvre l\'app pour voir</string>
 </resources>

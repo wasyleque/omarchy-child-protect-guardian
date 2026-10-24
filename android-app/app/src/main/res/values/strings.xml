@@ -135,4 +135,6 @@
     <string name="btn_clear_debug">Clear</string>
     <string name="debug_empty">No events yet.</string>
     <string name="debug_copied">Debug log copied</string>
+    <string name="hint_ai_model_tag">Full model name with tag (e.g. qooba/bielik-4.5b-v3.0-instruct:Q8_0)</string>
+    <string name="catchup_summary_fmt">Guardian: %1$d event(s) while offline — open the app to view</string>
 </resources>

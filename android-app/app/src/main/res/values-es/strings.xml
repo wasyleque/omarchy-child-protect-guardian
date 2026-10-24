@@ -134,4 +134,6 @@
     <string name="btn_clear_debug">Borrar</string>
     <string name="debug_empty">Sin eventos.</string>
     <string name="debug_copied">Registro copiado</string>
+    <string name="hint_ai_model_tag">Nombre completo del modelo con etiqueta (p. ej. qooba/bielik-4.5b-v3.0-instruct:Q8_0)</string>
+    <string name="catchup_summary_fmt">Guardian: %1$d evento(s) sin conexión — abre la app para ver</string>
 </resources>

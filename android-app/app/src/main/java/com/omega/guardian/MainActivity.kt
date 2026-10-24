@@ -457,7 +457,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ---- AI / Ollama config editor (dropdowns/pickers, no free-text) ----
+    // ---- AI / Ollama config editor (dropdowns/pickers + live /api/tags + editable model tag fallback) ----
     private val aiProviders = arrayOf("ollama", "openai")
     private val aiEndpoints = arrayOf(
         "http://127.0.0.1:11434/api/generate",
@@ -466,14 +466,17 @@ class MainActivity : AppCompatActivity() {
         "http://127.0.0.1:11434/v1/chat/completions",
         "http://192.168.0.11:11434/v1/chat/completions"
     )
-    private val aiModels = arrayOf(
+    private val defaultAiModels = listOf(
         "llama3.2:latest",
-        "qooba/bielik-4.5b-v3.0-instruct",
+        "qooba/bielik-4.5b-v3.0-instruct:Q8_0",
+        "llama3.1:8b",
         "qwen3.8:latest",
         "qwen2.5:7b",
         "gemma2:9b",
         "mistral:latest"
     )
+    private var currentAiModels: List<String> = defaultAiModels
+    private var suppressModelSpinnerSync = false
     private val aiTimeouts = intArrayOf(8, 12, 20, 30, 60)
     private val aiHours = (0..23).toList()
     private val aiLangs = arrayOf("Polish", "English", "Spanish", "German", "French", "Chinese")
@@ -496,13 +499,102 @@ class MainActivity : AppCompatActivity() {
     private fun setupAiControls() {
         b.spAiProvider.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, aiProviders)
         b.spAiEndpoint.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, aiEndpoints)
-        b.spAiModel.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, aiModels)
+        updateAiModelSpinner(defaultAiModels, null)
+        b.spAiModel.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
+                if (!suppressModelSpinnerSync && pos in currentAiModels.indices) {
+                    b.etAiModel.setText(currentAiModels[pos])
+                }
+            }
+            override fun onNothingSelected(p: AdapterView<*>?) {}
+        }
+        b.spAiEndpoint.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
+                if (pos in aiEndpoints.indices) {
+                    fetchInstalledOllamaModels(aiEndpoints[pos], b.etAiModel.text.toString().trim().ifEmpty { "llama3.2:latest" })
+                }
+            }
+            override fun onNothingSelected(p: AdapterView<*>?) {}
+        }
         b.spAiTimeout.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, aiTimeouts.map { "${it} s" })
         b.spAiDigestHour.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, aiHours.map { "%02d:00".format(it) })
         b.spAiDigestLang.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, aiLangs)
         val dnsLabels = listOf(getString(R.string.ai_opt_none), "/var/log/guardian/dns-queries.log")
         b.spAiDnsLog.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, dnsLabels)
         refreshAiActivitySpinner()
+    }
+
+    private fun updateAiModelSpinner(models: List<String>, selectedModel: String?) {
+        currentAiModels = models
+        suppressModelSpinnerSync = true
+        b.spAiModel.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, models)
+        val idx = if (selectedModel != null) models.indexOf(selectedModel) else 0
+        if (idx >= 0) {
+            b.spAiModel.setSelection(idx)
+            b.etAiModel.setText(models[idx])
+        } else if (selectedModel != null && selectedModel.isNotBlank()) {
+            b.etAiModel.setText(selectedModel)
+        } else if (models.isNotEmpty()) {
+            b.spAiModel.setSelection(0)
+            b.etAiModel.setText(models[0])
+        }
+        b.spAiModel.post { suppressModelSpinnerSync = false }
+    }
+
+    /**
+     * D7 fix: Query `GET {endpoint-base}/api/tags` (and LAN fallback `.12` / `.11` when endpoint is `127.0.0.1`)
+     * so the dropdown lists ONLY the actually installed Ollama models with their exact tags (e.g. `:Q8_0`, `:latest`).
+     * If unreachable (e.g. phone on mobile data), keeps the editable `etAiModel` field with a tag hint.
+     */
+    private fun fetchInstalledOllamaModels(endpointUrl: String, preferredModel: String) {
+        val base = endpointUrl
+            .removeSuffix("/api/generate")
+            .removeSuffix("/v1/chat/completions")
+            .trimEnd('/')
+        val candidateBases = linkedSetOf(base).apply {
+            if (base.contains("127.0.0.1")) {
+                add("http://192.168.0.12:11434")
+                add("http://192.168.0.11:11434")
+            }
+        }
+        lifecycleScope.launch {
+            val installed = withContext(Dispatchers.IO) {
+                val fastClient = http.newBuilder()
+                    .connectTimeout(2, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(3, java.util.concurrent.TimeUnit.SECONDS)
+                    .build()
+                for (bUrl in candidateBases) {
+                    try {
+                        val req = Request.Builder().url("$bUrl/api/tags").get().build()
+                        fastClient.newCall(req).execute().use { resp ->
+                            if (resp.isSuccessful) {
+                                val body = resp.body?.string() ?: ""
+                                val arr = JSONObject(body).optJSONArray("models")
+                                if (arr != null && arr.length() > 0) {
+                                    val names = mutableListOf<String>()
+                                    for (i in 0 until arr.length()) {
+                                        val name = arr.getJSONObject(i).optString("name", "").trim()
+                                        if (name.isNotEmpty()) names.add(name)
+                                    }
+                                    if (names.isNotEmpty()) return@withContext names
+                                }
+                            }
+                        }
+                    } catch (_: Exception) { }
+                }
+                null
+            }
+            if (installed != null) {
+                updateAiModelSpinner(installed, preferredModel)
+            } else {
+                val fallback = if (preferredModel.isNotBlank() && !defaultAiModels.contains(preferredModel)) {
+                    listOf(preferredModel) + defaultAiModels
+                } else {
+                    defaultAiModels
+                }
+                updateAiModelSpinner(fallback, preferredModel)
+            }
+        }
     }
 
     private fun refreshAiActivitySpinner() {
@@ -519,8 +611,11 @@ class MainActivity : AppCompatActivity() {
         b.spAiProvider.setSelection(aiProviders.indexOf(prov).coerceAtLeast(0))
         val ep = saved?.optString("endpoint", "http://127.0.0.1:11434/api/generate") ?: "http://127.0.0.1:11434/api/generate"
         b.spAiEndpoint.setSelection(aiEndpoints.indexOf(ep).coerceAtLeast(0))
-        val model = saved?.optString("model", "llama3.2:latest") ?: "llama3.2:latest"
-        b.spAiModel.setSelection(aiModels.indexOf(model).coerceAtLeast(0))
+        val rawModel = saved?.optString("model", "llama3.2:latest") ?: "llama3.2:latest"
+        // Upgrade legacy untagged Bielik entry if saved previously
+        val model = if (rawModel == "qooba/bielik-4.5b-v3.0-instruct") "qooba/bielik-4.5b-v3.0-instruct:Q8_0" else rawModel
+        updateAiModelSpinner(currentAiModels, model)
+        fetchInstalledOllamaModels(ep, model)
         val tmo = saved?.optInt("timeout_secs", 12) ?: 12
         b.spAiTimeout.setSelection(aiTimeouts.indexOf(tmo).takeIf { it >= 0 } ?: 1)
         b.cbAiDigestEnabled.isChecked = saved?.optBoolean("digest_enabled", false) ?: false
@@ -541,11 +636,17 @@ class MainActivity : AppCompatActivity() {
         val respondTo = Prefs.lastRespondTo(this); val dpub = Prefs.dpub(this)
         if (respondTo == null || dpub == null) { toast(getString(R.string.lock_needs_pair)); return }
 
+        val typedModel = b.etAiModel.text.toString().trim()
+        val rawModel = if (typedModel.isNotEmpty()) typedModel else currentAiModels.getOrElse(b.spAiModel.selectedItemPosition) { "llama3.2:latest" }
+        val provider = aiProviders[b.spAiProvider.selectedItemPosition]
+        val finalModel = if (provider == "ollama" && !rawModel.contains(":")) "$rawModel:latest" else rawModel
+        b.etAiModel.setText(finalModel)
+
         val cfg = JSONObject()
             .put("enabled", b.cbAiEnabled.isChecked)
-            .put("provider", aiProviders[b.spAiProvider.selectedItemPosition])
+            .put("provider", provider)
             .put("endpoint", aiEndpoints[b.spAiEndpoint.selectedItemPosition])
-            .put("model", aiModels[b.spAiModel.selectedItemPosition])
+            .put("model", finalModel)
             .put("timeout_secs", aiTimeouts[b.spAiTimeout.selectedItemPosition])
             .put("digest_enabled", b.cbAiDigestEnabled.isChecked)
             .put("digest_hour", aiHours[b.spAiDigestHour.selectedItemPosition])
