@@ -427,6 +427,25 @@ catch-up works (missed msgs arrived), D6 fixed (Polish/⚠ alerts + digest show 
     and smoke-test must PASS the new DNS checks; confirm the AI model dropdown lists installed models with tags.
   - NOT done (needs physical presence at .12): reboot test after the fapolicyd setup; setup-child.sh F12/F13.
 
+## On-host test #4 (0.3.12 DNS layer on .12, 2026-10-24) — content filter WORKS (see …-v0312.md)
+install.sh --enforce installed the DNS layer; after the M5 choice the child is filtered (pornhub →
+0.0.0.0, curl 000) and the parent is not; smoke 18/0/0. Parent chose **A (child-only)**. Findings → fixes:
+  - Step 23 — DNS egress/idempotency/port + guided chooser (df200a4, packaging, by Claude): D8 egress now
+    accepts the child's redirected DNS (→127.0.0.1:5354) instead of dropping it; D9 nft files are
+    idempotent (`table…; delete table…` prefix) so re-apply/boot replaces instead of stacking a duplicate;
+    D10 filter moved off :5353 (avahi/mDNS) to :5354; D11 + the parent's A/B choice → new
+    `guardian-dns-mode.sh` (installed to /usr/lib/guardian/guardian-dns-mode) gives every parent the same
+    guided, reversible choice (child-only | whole-machine | revert) and masks ALL THREE systemd-resolved
+    units (service + varlink + monitor sockets) + static resolv.conf + NM dns=none; D12 smoke/harden use
+    `getent ahostsv4` (require 0.0.0.0) so the AAAA `::` can't false-PASS. install.sh points M5 at the
+    chooser; uninstall reverts via it.
+  - Step 24 — README refresh (EN + PL, by Claude): privacy line now says payload encryption is live
+    (broker sees only ciphertext); content-filter pillar describes the real porn/SafeSearch filter + the
+    A/B chooser; install section shows the chooser; new "Parent app on iPhone/iPad, Windows, Mac, Linux"
+    (PWA) section. es/de/fr/zh READMEs still lag (sync on request).
+  - NEXT on-host: re-test the DNS fixes at 0.3.12 HEAD (egress D8 accept + idempotency + :5354 + chooser)
+    and the reboot-persistence of mode A; es/de/fr/zh README sync.
+
 ## DONE (by agy) — AI/Ollama config UI in the Android app (daemon side commit 40c0d5c, app 0.1.13/vc14)
 The daemon already accepts a signed AI config pushed from the app; only the APP UI is left (user
 paused it for agy). Contract to implement in android-app:

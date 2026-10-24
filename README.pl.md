@@ -36,14 +36,21 @@ cd omarchy-child-protect-guardian/daemon && cargo build --release && cd ..
 sudo packaging/install.sh                   # bezpiecznie domyślnie (gated tylko 'pacman -S sl'); --enforce gdy gotów
 sudo packaging/setup-child.sh <imię-dziecka>  # konto dziecka bez roota + QR do parowania
 ```
-Potem warstwy zależne od hosta — **nftables**, lista dozwolonych wykonań **fapolicyd**
+`install.sh --enforce` instaluje i włącza też **filtr treści DNS** (lista porno/kategorii + SafeSearch)
+oraz reguły **nftables**, i sprawia, że przeżywają reboot. Jedna odwracalna komenda włącza filtrowanie
+tak, jak chcesz:
+```bash
+sudo /usr/lib/guardian/guardian-dns-mode.sh child-only      # tylko dziecko jest filtrowane (zalecane)
+sudo /usr/lib/guardian/guardian-dns-mode.sh whole-machine   # cały komputer (łącznie z rodzicem)
+```
+Potem pozostałe warstwy zależne od hosta — lista dozwolonych wykonań **fapolicyd**
 (`guardian-fapolicyd-setup.sh`, *wymagane* do realnej egzekucji), blokada przeglądarek/NM i baza
 sprzętowa — wszystko w [`packaging/README.md`](packaging/README.md). Weryfikacja:
-`sudo packaging/smoke-test.sh <dziecko>`.
+`sudo packaging/smoke-test.sh <dziecko>` (sprawdza nawet, czy strona porno jest zablokowana dla dziecka).
 
 **Na telefonie rodzica:** zainstaluj apkę z
 **[strony Releases](https://github.com/wasyleque/omarchy-child-protect-guardian/releases/latest)** i
-zeskanuj QR parowania — szczegóły w [📱 Android parent app](README.md#-android-parent-app).
+zeskanuj QR parowania. **Nie masz Androida?** Patrz [🍏 Aplikacja rodzica na iPhone / komputerze](#-aplikacja-rodzica-na-iphoneipad-windows-mac-lub-linux).
 
 **Aktualizacja:** `git pull` → `cargo build --release` → `sudo packaging/install.sh` →
 `sudo systemctl restart guardiand` (pod fapolicyd w trybie enforce najpierw ponownie zaufaj nowym
@@ -73,7 +80,10 @@ Rzeczy, których konkurencja na Windows/macOS/Android **nie może** zrobić, a m
 - **Zdalne zatwierdzanie instalacji** — próba `pacman`/`yay`/`flatpak` jest wstrzymywana,
   rodzic dostaje push z czytelnym opisem apki i klika *Zezwól / Odrzuć*.
 - **Budżet czasu i harmonogram** — egzekwowane twardo przez cgroups freeze + idle Hyprland.
-- **Filtr treści dla całego systemu** — DNS + eBPF, wymuszony SafeSearch / tryb ograniczony.
+- **Filtr treści dla całego systemu** — lokalny resolver DNS blokuje strony porno/kategorie (lista
+  StevenBlack, odświeżana codziennie) i wymusza SafeSearch w Google/YouTube/Bing dla *każdej* aplikacji,
+  nie tylko przeglądarki. Instalowany i trwały po reboocie; jedna komenda wybiera tryb **tylko dziecko**
+  albo **cały komputer** i jest w pełni odwracalna. Ominięcia DoH/DoT/VPN blokowane w jądrze (`nftables`).
 - **Czytelne raporty dla rodzica** — co dziecko robiło i o co prosiło (bez korpo-szpiegowania).
 - **Kryptograficznie podpisane zgody** — nawet przejęcie brokera push nie pozwala podrobić „Zezwól".
 - **Zdalny root ograniczony do akcji (Intent Binding)** — zgoda daje roota na *dokładnie jedną*
@@ -97,6 +107,29 @@ Rzeczy, których konkurencja na Windows/macOS/Android **nie może** zrobić, a m
 | [`parent-app/`](parent-app/) | Wieloplatformowa apka rodzica (instalowalna PWA) — podpis Ed25519 na urządzeniu |
 | [`packaging/`](packaging/) | Wdrożenie: instalator, unit systemd, hook pacman, egress nftables, allowlista fapolicyd, audyt hardeningu |
 | [`docs/TESTING.md`](docs/TESTING.md) | Plan testów na czystym systemie (warstwa po warstwie + próby obejścia / czerwony zespół) |
+
+## 🍏 Aplikacja rodzica na iPhone/iPad, Windows, Mac lub Linux (Android niepotrzebny)
+
+Nie masz Androida? Aplikacja rodzica działa też jako **instalowalna aplikacja webowa (PWA)** — ten sam
+podpis na urządzeniu, tylko otwierany w przeglądarce. Bez App Store, bez konta.
+
+1. **Otwórz link do aplikacji** w przeglądarce (Twoja kopia [`parent-app/`](parent-app/) po HTTPS —
+   np. darmowy adres GitHub Pages; instrukcja w [`parent-app/README.md`](parent-app/README.md)).
+2. **Zainstaluj:**
+   - **iPhone / iPad:** stuknij **Udostępnij → Dodaj do ekranu początkowego**, potem zawsze otwieraj z
+     tej nowej ikony. (Apple pozwala na powiadomienia dla aplikacji webowych tylko w ten sposób — iOS 16.4+.)
+   - **Windows / Mac / Linux:** kliknij **Zainstaluj** w pasku adresu (Chrome/Edge), by mieć ją jako
+     aplikację na pulpicie, albo po prostu korzystaj z karty przeglądarki.
+3. **Sparuj:** zeskanuj ten sam kod QR z komputera dziecka (albo wklej raz serwer + temat).
+4. **Włącz powiadomienia w tle:** stuknij **Enable background notifications**, by prośba o instalację
+   zadzwoniła nawet przy zamkniętej aplikacji. Stuknięcie powiadomienia otwiera appkę i pokazuje
+   prawdziwą, zweryfikowaną podpisem prośbę.
+
+Dostajesz sedno bezpiecznie: **podpisane Zezwól / Odrzuć**, których przejęty broker nie podrobi, klucz
+nigdy nie opuszcza urządzenia, działa offline poza samym strumieniem prośb. **Aplikacja na Androida jest
+nadal najbogatsza** (edytor harmonogramu, blokada natychmiastowa, dodatkowy czas, widok podsumowań dnia,
+ustawienia serwera AI); wersja webowa skupia się na **zgodach i alertach**. Wybierz to, co pasuje do
+Twojego telefonu.
 
 ## Jak powstaje (workflow)
 
