@@ -24,9 +24,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("  digest-now - Run the AI parenting digest now (test the AI config)");
         eprintln!("  pair --topic <t> [--server <u>] [--app <u>]  - Show a pairing QR");
         eprintln!("  audit-verify <path>   - Verify the audit log chain");
+        eprintln!("  version               - Print the version");
         exit(2);
     }
-    
+
     // Handle audit-verify command early
     if args[1] == "audit-verify" {
         let path = match args.get(2) {
@@ -88,6 +89,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     
+    // Version + unknown-command handling BEFORE opening any socket. Otherwise a typo or `--version`
+    // still CONNECTS to the control socket, which from a non-authorized uid trips the daemon's
+    // "blocked control attempt" security alert to the parent's phone (review D14).
+    if matches!(args[1].as_str(), "version" | "--version" | "-V") {
+        println!("guardian-ctl {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+    if !matches!(
+        args[1].as_str(),
+        "list" | "allow" | "deny" | "request" | "alert" | "schedule" | "digest-now"
+    ) {
+        eprintln!("Unknown command: {}", args[1]);
+        eprintln!("Run `guardian-ctl` with no arguments for the list of commands.");
+        exit(2);
+    }
+
     // `request` submits an install → the SUBMIT socket (any uid). Everything else is a control
     // action → the owner-only CONTROL socket. SECURITY: the socket paths are FIXED in release builds;
     // the env overrides (for the test harness) are honored only in debug, so a child can't point a
