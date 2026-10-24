@@ -363,6 +363,20 @@ fixed across 3 batches (daemon 0.2.4→0.2.5, app 0.1.6→0.1.7/vc8). Docs commi
     explicit test); the timer still honors `digest_enabled`. `guardian-ctl digest-now` prints a result
     and exits ≠0 when no ntfy is configured. +1 wire-format test (32 total). Pairs with Step 13 (set AI
     from the app, then `digest-now` to verify end-to-end). ON-HOST: needs the child box + Ollama.
+  - Step 15 — M4 payload encryption STEP 2, daemon side (2dcedae, daemon 0.3.9, by Claude): behind
+    `[ntfy].encrypt_payload` (OFF by default), `publish_challenge` seals source/package/reason to the
+    parent key as an `enc` blob (crypto_box_seal) instead of cleartext, with a generic notification
+    title so the package never reaches the broker. id/nonce/respond_to/csig stay cleartext; csig is
+    UNCHANGED (over the cleartext canonical), so the app decrypts then verifies as before. Falls back to
+    cleartext + warning if parent_pubkey is missing. Added a fixed interop vector test (33 total) and
+    handed agy the exact sealed blob to open in Kotlin.
+  - Step 16 — M4 payload encryption STEP 2, app side (1ccd7ac, app 0.1.14/vc15, by agy): `Crypto.sealOpen`
+    (lazysodium `crypto_box_seal_open` on-device + a byte-identical BouncyCastle JVM fallback for host
+    tests/CI) and `ed25519SeedToX25519Secret` = clamp(SHA512(seed)[0..32]); `NtfyService` detects a
+    non-empty `enc`, decrypts it, then runs the EXISTING `challengeCanonical`+`verify(csig)` path
+    unchanged. `CryptoTest.sealOpenMatchesDaemonVector` opens Claude's exact Rust blob (interop PROVEN
+    cross-impl: crypto_box crate → BouncyCastle) and checks a tampered byte → null. **Flag stays OFF
+    until on-device lazysodium is confirmed on the child box** (host test used the BouncyCastle path).
 
 ## DONE (by agy) — AI/Ollama config UI in the Android app (daemon side commit 40c0d5c, app 0.1.13/vc14)
 The daemon already accepts a signed AI config pushed from the app; only the APP UI is left (user
@@ -384,19 +398,23 @@ paused it for agy). Contract to implement in android-app:
 Keep Crypto.signAiCfg + the exact canonical as the correctness-critical bit (agy-tier); the form layout
 is routine. Add the new strings to all 6 locales (en/pl/es/de/fr/zh).
 
-## M4 payload encryption — step 1 DONE (daemon primitive), step 2 = wire + app
-- crypto::seal_to_parent(parent_ed25519_pub_b64, plaintext) → base64 of a **libsodium-compatible
-  crypto_box_seal** (anonymous sealed box) to the parent's X25519 key, derived from the parent's
-  Ed25519 pairing key via `VerifyingKey::to_montgomery()` (crypto_sign_ed25519_pk_to_curve25519). New
-  deps: crypto_box 0.9 (feature "seal") + x25519-dalek 2. Round-trip unit test green (31 total).
-- STEP 2 (not done; needs the app, so post-agy, on-host testable): add [ntfy].encrypt_payload flag;
-  in publish_challenge, when set, put the sensitive fields (package/source/reason/command) into an
-  `enc` = seal_to_parent(JSON) field INSTEAD of cleartext, keeping the csig over the cleartext
-  canonical. APP CONTRACT: derive the X25519 secret from the Ed25519 seed
-  (crypto_sign_ed25519_sk_to_curve25519 = clamp(SHA512(seed)[0..32])), `crypto_box_seal_open` (lazysodium)
-  the base64 `enc`, parse the JSON, reconstruct the canonical, THEN verify csig. Until both sides land,
-  keep the flag off (challenge format unchanged). Closes the README privacy caveat (broker sees only
-  ciphertext). Must be byte-exact with lazysodium — verify interop on-host before enabling.
+## M4 payload encryption — STEP 1 + STEP 2 DONE (flag OFF pending on-device confirm)
+- STEP 1 (220d5e9, daemon 0.3.6): crypto::seal_to_parent(parent_ed25519_pub_b64, plaintext) → base64 of
+  a **libsodium-compatible crypto_box_seal** (anonymous sealed box) to the parent's X25519 key, derived
+  from the parent's Ed25519 pairing key via `VerifyingKey::to_montgomery()`
+  (crypto_sign_ed25519_pk_to_curve25519). deps: crypto_box 0.9 (feature "seal") + x25519-dalek 2.
+- STEP 2 daemon (2dcedae, daemon 0.3.9): `[ntfy].encrypt_payload` flag (OFF by default); in
+  publish_challenge, when set, the sensitive fields (source/package/reason) go into an
+  `enc` = seal_to_parent(JSON) field INSTEAD of cleartext + a generic title; csig stays over the
+  cleartext canonical. Fixed interop vector test added.
+- STEP 2 app (1ccd7ac, app 0.1.14/vc15): `Crypto.sealOpen` derives the X25519 secret from the Ed25519
+  seed (clamp(SHA512(seed)[0..32])) and opens `enc` via lazysodium on-device / a byte-identical
+  BouncyCastle JVM fallback for host tests; `NtfyService` decrypts `enc` then runs the existing csig
+  verification unchanged. `CryptoTest.sealOpenMatchesDaemonVector` opens the daemon's exact sealed blob
+  (cross-impl interop PROVEN on the host JVM: crypto_box crate → BouncyCastle).
+- REMAINING (last mile, needs the child box + phone): the host vector test used the **BouncyCastle**
+  path; confirm the **on-device lazysodium** path opens a real encrypted challenge end-to-end, THEN flip
+  `[ntfy].encrypt_payload = true`. Closes the README privacy caveat (broker sees only ciphertext).
 
 ## Workflow routing (this machine)
 - **Logic / architecture / integrations →** `agy`.
