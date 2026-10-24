@@ -21,6 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("  request <source> <package> [reason] - Submit a new request");
         eprintln!("  alert <message>   - Send a tamper/integrity alert to the parent");
         eprintln!("  schedule   - Show screen-time status");
+        eprintln!("  digest-now - Run the AI parenting digest now (test the AI config)");
         eprintln!("  pair --topic <t> [--server <u>] [--app <u>]  - Show a pairing QR");
         eprintln!("  audit-verify <path>   - Verify the audit log chain");
         exit(2);
@@ -225,6 +226,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
+        "digest-now" => {
+            send_message(&mut stream, ClientMessage::DigestNow)?;
+            match read_response(&mut stream)? {
+                ServerMessage::DigestTriggered { ok } => {
+                    if ok {
+                        println!("digest triggered (pushed to the parent if the AI is reachable)");
+                    } else {
+                        eprintln!("digest not available: no remote (ntfy) configured to deliver it");
+                        exit(1);
+                    }
+                }
+                _ => {
+                    eprintln!("Unexpected response");
+                    exit(1);
+                }
+            }
+        }
         _ => {
             eprintln!("Unknown command: {}", args[1]);
             eprintln!("Usage: guardian-ctl <command> [arguments...]");
@@ -235,6 +253,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             eprintln!("  request <source> <package> [reason] - Submit a new request");
         eprintln!("  alert <message>   - Send a tamper/integrity alert to the parent");
         eprintln!("  schedule   - Show screen-time status");
+            eprintln!("  digest-now - Run the AI parenting digest now (test the AI config)");
             eprintln!("  pair --topic <t> [--server <u>] [--app <u>]  - Show a pairing QR");
             eprintln!("  audit-verify <path>   - Verify the audit log chain");
             exit(2);

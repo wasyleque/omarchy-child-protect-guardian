@@ -575,7 +575,12 @@ async fn main() -> Result<()> {
     // signed alert the app already verifies + shows. Off unless [ai].digest_enabled.
     // Always spawn (when ntfy is up) and re-read the AI config each cycle, so enabling the digest or
     // changing the hour/model from the app takes effect without a daemon restart.
+    // `digest_tx` lets the control socket (`guardian-ctl digest-now`) nudge the task to run the
+    // digest immediately; None when there is no ntfy to deliver it.
+    let mut digest_tx: Option<tokio::sync::mpsc::UnboundedSender<()>> = None;
     if let Some(ntfy) = &ntfy {
+        let (tx, mut digest_rx) = tokio::sync::mpsc::unbounded_channel::<()>();
+        digest_tx = Some(tx);
         let ntfy = Arc::clone(ntfy);
         let audit_path = policy.audit_path.clone();
         let ai_path = policy.ai_config_path.clone();
@@ -585,16 +590,28 @@ async fn main() -> Result<()> {
             loop {
                 let cur = load_ai_override(&ai_path).or_else(|| policy_ai.clone());
                 let hour = cur.as_ref().map(|a| a.digest_hour).unwrap_or(20);
-                tokio::time::sleep(std::time::Duration::from_secs(secs_until_hour(hour))).await;
+                // Wake on whichever comes first: the daily hour, or an on-demand `digest-now`.
+                let manual = tokio::select! {
+                    _ = tokio::time::sleep(std::time::Duration::from_secs(secs_until_hour(hour))) => false,
+                    r = digest_rx.recv() => match r { Some(()) => true, None => break },
+                };
                 let cur = load_ai_override(&ai_path).or_else(|| policy_ai.clone());
-                if let Some(ai) = cur.filter(|a| a.enabled && a.digest_enabled) {
+                // A manual trigger runs whenever AI is enabled (explicit test); the timer still
+                // honors the `digest_enabled` opt-in.
+                if let Some(ai) = cur.filter(|a| a.enabled && (manual || a.digest_enabled)) {
                     let events = build_day_summary(&audit_path, ai.dns_query_log.as_deref(), ai.activity_log.as_deref());
                     match guardian::ai::daily_digest(&client, &ai, &ai.digest_lang, &events).await {
                         Some(d) => ntfy.alert("daily-digest", "Guardian: podsumowanie dnia", &d),
                         None => eprintln!("guardiand: daily digest skipped (AI unavailable)"),
                     }
+                } else if manual {
+                    eprintln!("guardiand: digest-now requested but [ai].enabled is false — nothing sent");
                 }
-                tokio::time::sleep(std::time::Duration::from_secs(90)).await;
+                // After a timer fire, guard against re-firing within the same minute; a manual
+                // trigger loops straight back to waiting for the next hour.
+                if !manual {
+                    tokio::time::sleep(std::time::Duration::from_secs(90)).await;
+                }
             }
         });
     }
@@ -643,6 +660,7 @@ async fn main() -> Result<()> {
         max_pending_per_uid: policy.max_pending_per_uid,
         audit,
         schedule,
+        digest_tx,
     });
 
     server.run(&policy.socket_path, &policy.submit_socket_path).await

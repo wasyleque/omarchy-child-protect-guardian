@@ -55,6 +55,9 @@ pub enum ClientMessage {
     Alert { message: String },
     /// Control-only: query the current screen-time schedule status.
     ScheduleStatus,
+    /// Control-only: run the AI parenting digest right now (on-demand test of the AI config,
+    /// instead of waiting for `[ai].digest_hour`). Bypasses the `digest_enabled` gate.
+    DigestNow,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -67,6 +70,8 @@ pub enum ServerMessage {
     Alerted { ok: bool },
     /// Answer for `ScheduleStatus`.
     Schedule { status: String, remaining_secs: Option<u64> },
+    /// Ack for `DigestNow`; `ok` is false when no digest task is wired (no ntfy configured).
+    DigestTriggered { ok: bool },
     Error { message: String },
 }
 
@@ -84,6 +89,8 @@ pub struct Server {
     pub audit: Option<Arc<Audit>>,
     /// Per-child screen-time engines (name → engine), for status queries. Empty = no schedule.
     pub schedule: Vec<(String, Arc<Mutex<TimeEngine>>)>,
+    /// Trigger for the on-demand AI digest (`DigestNow`); None when no digest task runs (no ntfy).
+    pub digest_tx: Option<tokio::sync::mpsc::UnboundedSender<()>>,
 }
 
 fn bind(path: &Path, mode: u32) -> Result<UnixListener> {
@@ -275,6 +282,17 @@ impl Server {
                     };
                     send(&mut write_half, &ServerMessage::Schedule { status, remaining_secs }).await?;
                 }
+                (true, ClientMessage::DigestNow) => {
+                    // Nudge the digest task (it re-reads the AI config and pushes a signed alert).
+                    let ok = match &self.digest_tx {
+                        Some(tx) => tx.send(()).is_ok(),
+                        None => false,
+                    };
+                    if ok {
+                        eprintln!("guardiand: on-demand AI digest requested via control socket");
+                    }
+                    send(&mut write_half, &ServerMessage::DigestTriggered { ok }).await?;
+                }
                 (true, ClientMessage::Submit { .. }) => {
                     send(&mut write_half, &ServerMessage::Error {
                         message: "submit not accepted on the control socket".into(),
@@ -361,4 +379,22 @@ where
     w.write_all(s.as_bytes()).await?;
     w.flush().await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn digest_now_wire_format() {
+        // guardian-ctl and the daemon must agree on the control-message tag for `digest-now`.
+        let json = serde_json::to_string(&ClientMessage::DigestNow).unwrap();
+        assert_eq!(json, r#"{"kind":"digest_now"}"#);
+        assert!(matches!(
+            serde_json::from_str::<ClientMessage>(&json).unwrap(),
+            ClientMessage::DigestNow
+        ));
+        let ack = serde_json::to_string(&ServerMessage::DigestTriggered { ok: true }).unwrap();
+        assert_eq!(ack, r#"{"kind":"digest_triggered","ok":true}"#);
+    }
 }
