@@ -103,4 +103,21 @@
         <item>Domingo</item>
     </string-array>
     <string name="now_using_fmt">▶ Ahora usa: %1$s</string>
+
+    <!-- ajustes de IA / Ollama -->
+    <string name="hdr_ai">IA / Ollama</string>
+    <string name="ai_for_fmt">IA / Ollama para %1$s</string>
+    <string name="lbl_ai_enabled">Activar resúmenes de riesgo de instalación (IA)</string>
+    <string name="lbl_ai_provider">Proveedor</string>
+    <string name="lbl_ai_endpoint">Endpoint (URL)</string>
+    <string name="lbl_ai_model">Modelo</string>
+    <string name="lbl_ai_timeout">Tiempo de espera</string>
+    <string name="lbl_ai_digest_enabled">Activar resumen diario para padres</string>
+    <string name="lbl_ai_digest_hour">Hora del resumen</string>
+    <string name="lbl_ai_digest_lang">Idioma del resumen</string>
+    <string name="lbl_ai_dns_log">Registro de consultas DNS (opcional)</string>
+    <string name="lbl_ai_activity_log">Registro de actividad (opcional)</string>
+    <string name="ai_opt_none">Desactivado (ninguno)</string>
+    <string name="btn_send_ai">Enviar ajustes de IA al ordenador</string>
+    <string name="ai_sent">Ajustes de IA enviados ✓</string>
 </resources>

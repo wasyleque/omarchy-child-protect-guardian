@@ -87,6 +87,7 @@ class MainActivity : AppCompatActivity() {
                 NtfyService.start(this)   // (re)subscribe to all children incl. the new one
                 sendKeyToPc()             // return our key so the PC finishes pairing
                 render()
+                loadAiConfigToForm()
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
@@ -117,6 +118,7 @@ class MainActivity : AppCompatActivity() {
         b.btnGrant30.setOnClickListener { sendGrant(30) }
         b.btnLockNow.setOnClickListener { toggleLock() }
         b.btnSendSchedule.setOnClickListener { sendSchedule() }
+        b.btnSendAi.setOnClickListener { sendAiConfig() }
 
         b.spChild.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
@@ -124,6 +126,7 @@ class MainActivity : AppCompatActivity() {
                 if (pos != Prefs.activeIndex(this@MainActivity)) {
                     Prefs.setActiveIndex(this@MainActivity, pos)
                     render()
+                    loadAiConfigToForm()
                 }
             }
             override fun onNothingSelected(p: AdapterView<*>?) {}
@@ -132,7 +135,9 @@ class MainActivity : AppCompatActivity() {
 
         if (Prefs.isPaired(this)) NtfyService.start(this)
         buildScheduleRows()
+        setupAiControls()
         render()
+        loadAiConfigToForm()
     }
 
     override fun onResume() {
@@ -159,6 +164,7 @@ class MainActivity : AppCompatActivity() {
         b.tvStatus.text = if (now != null) "$base\n" + getString(R.string.now_using_fmt, now) else base
         populateChildSpinner()
         b.lblScheduleFor.text = if (n > 0) getString(R.string.sched_for_fmt, Prefs.activeChildName(this)) else getString(R.string.hdr_schedule)
+        b.lblAiFor.text = if (n > 0) getString(R.string.ai_for_fmt, Prefs.activeChildName(this)) else getString(R.string.hdr_ai)
         b.tvPubkey.text = Prefs.publicKeyB64(this)
         val h = Prefs.history(this)
         val fmt = SimpleDateFormat("MMM d HH:mm", Locale.getDefault())
@@ -409,6 +415,126 @@ class MainActivity : AppCompatActivity() {
                 } catch (e: Exception) { false }
             }
             toast(if (ok) getString(R.string.schedule_sent) else getString(R.string.send_failed))
+        }
+    }
+
+    // ---- AI / Ollama config editor (dropdowns/pickers, no free-text) ----
+    private val aiProviders = arrayOf("ollama", "openai")
+    private val aiEndpoints = arrayOf(
+        "http://127.0.0.1:11434/api/generate",
+        "http://192.168.0.11:11434/api/generate",
+        "http://192.168.0.12:11434/api/generate",
+        "http://127.0.0.1:11434/v1/chat/completions",
+        "http://192.168.0.11:11434/v1/chat/completions"
+    )
+    private val aiModels = arrayOf(
+        "llama3.2:latest",
+        "qooba/bielik-4.5b-v3.0-instruct",
+        "qwen3.8:latest",
+        "qwen2.5:7b",
+        "gemma2:9b",
+        "mistral:latest"
+    )
+    private val aiTimeouts = intArrayOf(8, 12, 20, 30, 60)
+    private val aiHours = (0..23).toList()
+    private val aiLangs = arrayOf("Polish", "English", "Spanish", "German", "French", "Chinese")
+
+    private fun defaultDigestLangForUi(): String = when (Locale.getDefault().language.lowercase()) {
+        "pl" -> "Polish"
+        "es" -> "Spanish"
+        "de" -> "German"
+        "fr" -> "French"
+        "zh" -> "Chinese"
+        else -> "English"
+    }
+
+    private fun aiActivityOptions(): Array<String?> {
+        val child = Prefs.activeChildName(this).trim().lowercase().ifEmpty { "dziecko" }
+        val list = linkedSetOf<String?>(null, "/home/$child/.local/share/guardian/activity.log", "/home/dziecko/.local/share/guardian/activity.log")
+        return list.toTypedArray()
+    }
+
+    private fun setupAiControls() {
+        b.spAiProvider.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, aiProviders)
+        b.spAiEndpoint.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, aiEndpoints)
+        b.spAiModel.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, aiModels)
+        b.spAiTimeout.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, aiTimeouts.map { "${it} s" })
+        b.spAiDigestHour.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, aiHours.map { "%02d:00".format(it) })
+        b.spAiDigestLang.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, aiLangs)
+        val dnsLabels = listOf(getString(R.string.ai_opt_none), "/var/log/guardian/dns-queries.log")
+        b.spAiDnsLog.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, dnsLabels)
+        refreshAiActivitySpinner()
+    }
+
+    private fun refreshAiActivitySpinner() {
+        val opts = aiActivityOptions()
+        val labels = opts.map { it ?: getString(R.string.ai_opt_none) }
+        b.spAiActivityLog.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, labels)
+    }
+
+    private fun loadAiConfigToForm() {
+        refreshAiActivitySpinner()
+        val saved = Prefs.aiConfig(this)
+        b.cbAiEnabled.isChecked = saved?.optBoolean("enabled", true) ?: true
+        val prov = saved?.optString("provider", "ollama") ?: "ollama"
+        b.spAiProvider.setSelection(aiProviders.indexOf(prov).coerceAtLeast(0))
+        val ep = saved?.optString("endpoint", "http://127.0.0.1:11434/api/generate") ?: "http://127.0.0.1:11434/api/generate"
+        b.spAiEndpoint.setSelection(aiEndpoints.indexOf(ep).coerceAtLeast(0))
+        val model = saved?.optString("model", "llama3.2:latest") ?: "llama3.2:latest"
+        b.spAiModel.setSelection(aiModels.indexOf(model).coerceAtLeast(0))
+        val tmo = saved?.optInt("timeout_secs", 12) ?: 12
+        b.spAiTimeout.setSelection(aiTimeouts.indexOf(tmo).takeIf { it >= 0 } ?: 1)
+        b.cbAiDigestEnabled.isChecked = saved?.optBoolean("digest_enabled", false) ?: false
+        val hr = (saved?.optInt("digest_hour", 20) ?: 20).coerceIn(0, 23)
+        b.spAiDigestHour.setSelection(hr)
+        val defLang = defaultDigestLangForUi()
+        val lang = saved?.optString("digest_lang", defLang) ?: defLang
+        b.spAiDigestLang.setSelection(aiLangs.indexOf(lang).takeIf { it >= 0 } ?: aiLangs.indexOf(defLang).coerceAtLeast(0))
+        val dns = saved?.optString("dns_query_log", "")?.ifBlank { null }
+        b.spAiDnsLog.setSelection(if (dns != null) 1 else 0)
+        val act = saved?.optString("activity_log", "")?.ifBlank { null }
+        val actOpts = aiActivityOptions()
+        b.spAiActivityLog.setSelection(actOpts.indexOf(act).coerceAtLeast(0))
+    }
+
+    /** Build the selected child's AI/Ollama config JSON (exact config::AiConfig fields), sign (OCPG-AICFG-v1) and POST. */
+    private fun sendAiConfig() {
+        val respondTo = Prefs.lastRespondTo(this); val dpub = Prefs.dpub(this)
+        if (respondTo == null || dpub == null) { toast(getString(R.string.lock_needs_pair)); return }
+
+        val cfg = JSONObject()
+            .put("enabled", b.cbAiEnabled.isChecked)
+            .put("provider", aiProviders[b.spAiProvider.selectedItemPosition])
+            .put("endpoint", aiEndpoints[b.spAiEndpoint.selectedItemPosition])
+            .put("model", aiModels[b.spAiModel.selectedItemPosition])
+            .put("timeout_secs", aiTimeouts[b.spAiTimeout.selectedItemPosition])
+            .put("digest_enabled", b.cbAiDigestEnabled.isChecked)
+            .put("digest_hour", aiHours[b.spAiDigestHour.selectedItemPosition])
+            .put("digest_lang", aiLangs[b.spAiDigestLang.selectedItemPosition])
+        if (b.spAiDnsLog.selectedItemPosition == 1) {
+            cfg.put("dns_query_log", "/var/log/guardian/dns-queries.log")
+        }
+        val actOpts = aiActivityOptions()
+        actOpts.getOrNull(b.spAiActivityLog.selectedItemPosition)?.let {
+            cfg.put("activity_log", it)
+        }
+
+        val cfgJson = cfg.toString()
+        Prefs.setAiConfig(this, cfgJson)
+        lifecycleScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                try {
+                    val ts = System.currentTimeMillis() / 1000
+                    val nonce = randomHex(16)
+                    val sig = Crypto.signAiCfg(Prefs.seed(this@MainActivity), dpub, nonce, ts, cfgJson)
+                    val payload = JSONObject()
+                        .put("kind", "set_ai").put("daemon_pub", dpub).put("nonce", nonce)
+                        .put("ts", ts).put("cfg", cfgJson).put("sig", sig)
+                    val req = Request.Builder().url(respondTo).post(payload.toString().toRequestBody()).build()
+                    http.newCall(req).execute().use { it.isSuccessful }
+                } catch (e: Exception) { false }
+            }
+            toast(if (ok) getString(R.string.ai_sent) else getString(R.string.send_failed))
         }
     }
 

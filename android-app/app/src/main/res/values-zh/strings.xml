@@ -97,4 +97,21 @@
         <item>星期日</item>
     </string-array>
     <string name="now_using_fmt">▶ 正在使用：%1$s</string>
+
+    <!-- AI / Ollama 设置 -->
+    <string name="hdr_ai">AI / Ollama</string>
+    <string name="ai_for_fmt">AI / Ollama 设置：%1$s</string>
+    <string name="lbl_ai_enabled">启用安装风险 AI 摘要</string>
+    <string name="lbl_ai_provider">提供方</string>
+    <string name="lbl_ai_endpoint">接口地址 (URL)</string>
+    <string name="lbl_ai_model">模型</string>
+    <string name="lbl_ai_timeout">超时时间</string>
+    <string name="lbl_ai_digest_enabled">启用每日家长日报</string>
+    <string name="lbl_ai_digest_hour">日报发送时间</string>
+    <string name="lbl_ai_digest_lang">日报语言</string>
+    <string name="lbl_ai_dns_log">DNS 查询日志（可选）</string>
+    <string name="lbl_ai_activity_log">活动日志（可选）</string>
+    <string name="ai_opt_none">关闭（无）</string>
+    <string name="btn_send_ai">把 AI 设置发送到电脑</string>
+    <string name="ai_sent">已发送 AI 设置 ✓</string>
 </resources>

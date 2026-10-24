@@ -347,8 +347,16 @@ fixed across 3 batches (daemon 0.2.4→0.2.5, app 0.1.6→0.1.7/vc8). Docs commi
     and verifies enforcement via a `runuser -u <child>` `/tmp` exec probe; S3 pre-validates temp seed
     before atomic `mv` and compares loaded DB against journal `without duplicates`; S4 parallelizes
     pacman trust seeding into `trust.d/.pacman.tmp` via `xargs -0 -P$(nproc)`.
+  - Step 13 — AI/Ollama config UI in the Android app (app 0.1.13/vc14, by agy): added `Crypto.signAiCfg`
+    / `aiCfgCanonical` (`OCPG-AICFG-v1|<daemon_pub>|<nonce>|<ts>|<cfgJson>`) + unit test in `CryptoTest`;
+    "AI / Ollama" editor section in `MainActivity` / `activity_main.xml` with zero-free-text dropdowns
+    (provider, endpoint, model, timeout, digest hour 0–23, digest language defaulted to UI locale,
+    optional `dns_query_log` and per-child `activity_log` presets) persisted per child in `Prefs`;
+    serializes exact `config::AiConfig` fields (`deny_unknown_fields`-safe) and POSTs `{kind:"set_ai",
+    daemon_pub, nonce, ts, cfg, sig}` to `lastRespondTo`; localized across all 6 languages
+    (en/pl/es/de/fr/zh); verified with `./gradlew testDebugUnitTest assembleDebug`.
 
-## TODO for agy — AI/Ollama config UI in the Android app (daemon side DONE, commit 40c0d5c)
+## DONE (by agy) — AI/Ollama config UI in the Android app (daemon side commit 40c0d5c, app 0.1.13/vc14)
 The daemon already accepts a signed AI config pushed from the app; only the APP UI is left (user
 paused it for agy). Contract to implement in android-app:
 - Add an "AI / Ollama" settings section (for the SELECTED child's daemon): fields endpoint (URL),

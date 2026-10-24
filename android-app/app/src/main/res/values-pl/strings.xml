@@ -103,4 +103,21 @@
         <item>Niedziela</item>
     </string-array>
     <string name="now_using_fmt">▶ Teraz używa: %1$s</string>
+
+    <!-- ustawienia AI / Ollama -->
+    <string name="hdr_ai">AI / Ollama</string>
+    <string name="ai_for_fmt">AI / Ollama dla: %1$s</string>
+    <string name="lbl_ai_enabled">Włącz podsumowania ryzyka instalacji (AI)</string>
+    <string name="lbl_ai_provider">Dostawca</string>
+    <string name="lbl_ai_endpoint">Adres endpointu (URL)</string>
+    <string name="lbl_ai_model">Model</string>
+    <string name="lbl_ai_timeout">Limit czasu</string>
+    <string name="lbl_ai_digest_enabled">Włącz dzienne podsumowanie dla rodzica</string>
+    <string name="lbl_ai_digest_hour">Godzina podsumowania</string>
+    <string name="lbl_ai_digest_lang">Język podsumowania</string>
+    <string name="lbl_ai_dns_log">Log zapytań DNS (opcjonalnie)</string>
+    <string name="lbl_ai_activity_log">Log aktywności (opcjonalnie)</string>
+    <string name="ai_opt_none">Wyłączone (brak)</string>
+    <string name="btn_send_ai">Wyślij ustawienia AI do komputera</string>
+    <string name="ai_sent">Wysłano ustawienia AI ✓</string>
 </resources>

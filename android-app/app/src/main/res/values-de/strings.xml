@@ -97,4 +97,21 @@
         <item>Sonntag</item>
     </string-array>
     <string name="now_using_fmt">▶ Nutzt gerade: %1$s</string>
+
+    <!-- KI / Ollama-Einstellungen -->
+    <string name="hdr_ai">KI / Ollama</string>
+    <string name="ai_for_fmt">KI / Ollama für %1$s</string>
+    <string name="lbl_ai_enabled">KI-Risikozusammenfassungen bei Installation aktivieren</string>
+    <string name="lbl_ai_provider">Anbieter</string>
+    <string name="lbl_ai_endpoint">Endpunkt (URL)</string>
+    <string name="lbl_ai_model">Modell</string>
+    <string name="lbl_ai_timeout">Zeitlimit</string>
+    <string name="lbl_ai_digest_enabled">Tägliche Eltern-Zusammenfassung aktivieren</string>
+    <string name="lbl_ai_digest_hour">Stunde der Zusammenfassung</string>
+    <string name="lbl_ai_digest_lang">Sprache der Zusammenfassung</string>
+    <string name="lbl_ai_dns_log">DNS-Abfrageprotokoll (optional)</string>
+    <string name="lbl_ai_activity_log">Aktivitätsprotokoll (optional)</string>
+    <string name="ai_opt_none">Aus (keines)</string>
+    <string name="btn_send_ai">KI-Einstellungen an den Computer senden</string>
+    <string name="ai_sent">KI-Einstellungen gesendet ✓</string>
 </resources>

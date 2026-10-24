@@ -104,4 +104,21 @@
         <item>Sunday</item>
     </string-array>
     <string name="now_using_fmt">▶ Now using: %1$s</string>
+
+    <!-- AI / Ollama settings -->
+    <string name="hdr_ai">AI / Ollama</string>
+    <string name="ai_for_fmt">AI / Ollama for %1$s</string>
+    <string name="lbl_ai_enabled">Enable AI install risk summaries</string>
+    <string name="lbl_ai_provider">Provider</string>
+    <string name="lbl_ai_endpoint">Endpoint (URL)</string>
+    <string name="lbl_ai_model">Model</string>
+    <string name="lbl_ai_timeout">Timeout</string>
+    <string name="lbl_ai_digest_enabled">Enable daily parenting digest</string>
+    <string name="lbl_ai_digest_hour">Digest hour</string>
+    <string name="lbl_ai_digest_lang">Digest language</string>
+    <string name="lbl_ai_dns_log">DNS query log (optional)</string>
+    <string name="lbl_ai_activity_log">Activity log (optional)</string>
+    <string name="ai_opt_none">Off (none)</string>
+    <string name="btn_send_ai">Send AI settings to the computer</string>
+    <string name="ai_sent">AI settings sent ✓</string>
 </resources>

@@ -151,6 +151,15 @@ object Prefs {
         plain(ctx).edit().putBoolean("lock_${activeChildName(ctx)}", v).apply()
     }
 
+    /** Last pushed AI config JSON per child (so the form stays populated when switching children). */
+    fun aiConfig(ctx: Context, child: String = activeChildName(ctx)): JSONObject? {
+        val raw = plain(ctx).getString("ai_$child", null) ?: return null
+        return try { JSONObject(raw) } catch (e: Exception) { null }
+    }
+    fun setAiConfig(ctx: Context, cfgJson: String, child: String = activeChildName(ctx)) {
+        plain(ctx).edit().putString("ai_$child", cfgJson).apply()
+    }
+
     /**
      * Parse a scanned QR / link (`#pair=` base64url of `{server, topic, dpub, pair_to}`). Returns the
      * fields as a JSONObject (does NOT store — the caller names the child, then calls [addChild]).

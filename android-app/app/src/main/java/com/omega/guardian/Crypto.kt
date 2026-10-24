@@ -21,6 +21,7 @@ object Crypto {
     private const val GRANT = "OCPG-GRANT-v3"
     private const val LOCK = "OCPG-LOCK-v1"
     private const val SCHED = "OCPG-SCHED-v1"
+    private const val AICFG = "OCPG-AICFG-v1"
 
     private fun b64e(b: ByteArray): String = Base64.getEncoder().encodeToString(b)
     private fun b64d(s: String): ByteArray = Base64.getDecoder().decode(s)
@@ -76,6 +77,13 @@ object Crypto {
     /** Sign a pushed schedule. `schedJson` must be sent to the daemon verbatim (it verifies over it). */
     fun signSchedule(seed: ByteArray, daemonPubB64: String, nonce: String, child: String, ts: Long, schedJson: String): String =
         b64e(signRaw(seed, scheduleCanonical(daemonPubB64, nonce, child, ts, schedJson)))
+
+    fun aiCfgCanonical(daemonPubB64: String, nonce: String, ts: Long, cfgJson: String) =
+        "$AICFG|$daemonPubB64|$nonce|$ts|$cfgJson"
+
+    /** Sign a pushed AI/Ollama config. `cfgJson` must be sent to the daemon verbatim as the `cfg` field. */
+    fun signAiCfg(seed: ByteArray, daemonPubB64: String, nonce: String, ts: Long, cfgJson: String): String =
+        b64e(signRaw(seed, aiCfgCanonical(daemonPubB64, nonce, ts, cfgJson)))
 
     /** Verify a daemon-signed challenge/alert message with the paired daemon public key (base64). */
     fun verify(daemonPubB64: String, msg: String, sigB64: String): Boolean = try {

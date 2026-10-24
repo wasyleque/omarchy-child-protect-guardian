@@ -56,4 +56,15 @@ class CryptoTest {
         val sig = "ofl7dDkyOeTx/9G+MdmoLzUEsRGZvDjedE2kl6+uJHdhMSKv2Y4c3LSe5qK7489cyrDWM9QNRZxwmycsiVUvCA=="
         assertFalse(Crypto.verify(pub, tampered, sig))
     }
+
+    @Test
+    fun aiCfgSignatureVerifiesAndTamperedFails() {
+        val cfg = """{"enabled":true,"provider":"ollama","endpoint":"http://127.0.0.1:11434/api/generate","model":"llama3.2:latest","timeout_secs":12,"digest_enabled":true,"digest_hour":20,"digest_lang":"Polish"}"""
+        val sig = Crypto.signAiCfg(seed, pub, "nonce99", 1700000002L, cfg)
+        val msg = Crypto.aiCfgCanonical(pub, "nonce99", 1700000002L, cfg)
+        assertEquals("OCPG-AICFG-v1|$pub|nonce99|1700000002|$cfg", msg)
+        assertTrue(Crypto.verify(pub, msg, sig))
+        val tampered = Crypto.aiCfgCanonical(pub, "nonce99", 1700000002L, cfg.replace("true", "false"))
+        assertFalse(Crypto.verify(pub, tampered, sig))
+    }
 }

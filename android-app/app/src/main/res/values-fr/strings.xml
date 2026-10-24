@@ -97,4 +97,21 @@
         <item>Dimanche</item>
     </string-array>
     <string name="now_using_fmt">▶ Utilise : %1$s</string>
+
+    <!-- paramètres IA / Ollama -->
+    <string name="hdr_ai">IA / Ollama</string>
+    <string name="ai_for_fmt">IA / Ollama pour %1$s</string>
+    <string name="lbl_ai_enabled">Activer les résumés de risque d\'installation (IA)</string>
+    <string name="lbl_ai_provider">Fournisseur</string>
+    <string name="lbl_ai_endpoint">Point de terminaison (URL)</string>
+    <string name="lbl_ai_model">Modèle</string>
+    <string name="lbl_ai_timeout">Délai d\'attente</string>
+    <string name="lbl_ai_digest_enabled">Activer le bilan quotidien pour les parents</string>
+    <string name="lbl_ai_digest_hour">Heure du bilan</string>
+    <string name="lbl_ai_digest_lang">Langue du bilan</string>
+    <string name="lbl_ai_dns_log">Journal des requêtes DNS (optionnel)</string>
+    <string name="lbl_ai_activity_log">Journal d\'activité (optionnel)</string>
+    <string name="ai_opt_none">Désactivé (aucun)</string>
+    <string name="btn_send_ai">Envoyer les paramètres IA à l\'ordinateur</string>
+    <string name="ai_sent">Paramètres IA envoyés ✓</string>
 </resources>
