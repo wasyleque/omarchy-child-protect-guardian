@@ -457,6 +457,20 @@ install.sh --enforce installed the DNS layer; after the M5 choice the child is f
     encryption/privacy line, the content-filter pillar, the DNS-mode chooser, and the iPhone/desktop PWA
     section. EN+PL (Steps 24) + these = all 6 READMEs current.
 
+## On-host test #5 (0.3.13 DNS concern alerts on .12, 2026-10-24) — WORKS end-to-end (see …-v0313.md)
+Child hit pornhub → a SIGNED alert reached the phone in **8 s**; the DNS query log exists + grows; smoke
+18/0/0 ("adult domain sinkholed … → 0.0.0.0" now via ahostsv4, D12); child curl → 000, wikipedia 301.
+D8/D9/D10/D12 all verified live. Finding + fix:
+  - Step 27 — one alert per blocked visit (aa355a7, daemon 0.3.14, by Claude): a sinkholed domain that
+    also matched a keyword (pornhub ⊃ "porn") fired BOTH "blocked site" and "worrying lookup (adult)".
+    Now a domain actually sinkholed this cycle gets only the "blocked" alert; "worrying lookup" is kept
+    for a keyword hit on a NON-blocked domain. 35 tests green.
+  - KNOWN LIMITATION (documented, not fixed): the shared dnsmasq log shows `from <LAN ip>`, not a uid, so
+    with several children on one PC the alert can't say WHICH child. Would need one dnsmasq/port per child
+    uid. Fine while only the child's traffic reaches this resolver.
+  - NEXT: re-test the single-alert fix (0.3.14) on .12; otherwise the content-filtering + alert path is
+    functionally complete.
+
 ## DONE (by agy) — AI/Ollama config UI in the Android app (daemon side commit 40c0d5c, app 0.1.13/vc14)
 The daemon already accepts a signed AI config pushed from the app; only the APP UI is left (user
 paused it for agy). Contract to implement in android-app:
