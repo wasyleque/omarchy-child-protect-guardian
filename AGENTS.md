@@ -378,6 +378,30 @@ fixed across 3 batches (daemon 0.2.4→0.2.5, app 0.1.6→0.1.7/vc8). Docs commi
     cross-impl: crypto_box crate → BouncyCastle) and checks a tampered byte → null. **Flag stays OFF
     until on-device lazysodium is confirmed on the child box** (host test used the BouncyCastle path).
 
+## On-host test #2 (0.3.9 on .12, 2026-10-24) — findings + fixes (see ~/Work/smoke-test-feedback-2026-10-24-v039.md)
+Good: smoke 14/0/0 (S1 fixed), S2 exec-probe PASS, fapolicyd seed 191 s (was 19 min, S4), digest loop works,
+AI-config from the app over ntfy works, M4 broker side OK (generic title, package not in the ntfy message).
+  - Step 17 — digest/alert quality + smoke (d519c0d, daemon 0.3.10, by Claude): D1 build_day_summary excludes
+    uid-0 / `guardian-smoke-*` by id (so their deny doesn't inflate counts) + "DNS log not found" note; digest/risk
+    prompts reply only in the configured language (no appended translation) and don't guess categories (a terminal
+    isn't a game); S7 risk note no longer invents a description for an unknown package; D2 daemon never pushes
+    `guardian-smoke-*` to the phone; D3 alert keys starting with '!' bypass the 900 s cooldown (digest = "!daily-digest")
+    and a suppressed alert is logged; S5 fapolicyd setup trusts guardian-activity-reporter. +1 regression test.
+  - Step 18 — phone delivery D4/D5/D6 + debug (cf91e8c, app 0.1.15/vc16, by agy): D6 alerts/digests are now
+    persisted + shown in-app ("Alerty i podsumowania dnia") with a UTF-8/NFC/ISO-8859-1 verify fallback and a
+    CryptoTest non-ASCII alert vector (root cause was the cooldown + no catch-up + no in-app view, not a verify
+    bug); D5 WebSocket reconnects with `?since=<id|ts|12h>` + a 15-min PollWorker + Refresh + "connection lost"
+    status + 100-id dedup; D4 Decisions.send only records history/removes pending on HTTP 2xx, DecisionReceiver
+    sends via a DecisionWorker (WorkManager + backoff) with a "sending failed — tap to retry" notification.
+  - Step 19 — AI error logging + cold-load (79587d9, daemon 0.3.11, by Claude): D7 both model calls go through one
+    `call_model()` that LOGS the failure cause (request/parse error, or a provider `error` like Ollama's "model
+    '…' not found" — a tagless model name used to vanish silently); sends Ollama `keep_alive="10m"` and raises the
+    default `timeout_secs` 12 → 30 so a local model's cold load (Bielik ~13 s) doesn't time out.
+  - REMAINING for the next on-host round (re-test on .12 at 0.3.11 + app 0.1.15): confirm the digest now shows on
+    the phone (D6 fix) with Bielik content filtered + Polish (D1/S7); D7 app half = send the model name WITH its
+    tag / fetch `/api/tags` for the dropdown (agy); re-test M4 using the new in-app debug log; the `guardian-ctl
+    alert` "watchdog" key still de-dupes distinct test alerts within 15 min (minor; key it per-message if annoying).
+
 ## DONE (by agy) — AI/Ollama config UI in the Android app (daemon side commit 40c0d5c, app 0.1.13/vc14)
 The daemon already accepts a signed AI config pushed from the app; only the APP UI is left (user
 paused it for agy). Contract to implement in android-app:
