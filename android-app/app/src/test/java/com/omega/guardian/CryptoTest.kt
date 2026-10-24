@@ -67,4 +67,17 @@ class CryptoTest {
         val tampered = Crypto.aiCfgCanonical(pub, "nonce99", 1700000002L, cfg.replace("true", "false"))
         assertFalse(Crypto.verify(pub, tampered, sig))
     }
+
+    @Test
+    fun sealOpenMatchesDaemonVector() {
+        val m4Seed = ByteArray(32) { 0x11.toByte() }
+        assertEquals("0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc=", Crypto.publicKeyB64(m4Seed))
+        val encB64 = "Jq9NajZHK9tUpmV++uwrq9oTbQbpNHt2DyyasJ33Mga+BCC+Hwdq+3s5ZQnMh4T5mTmTz53pKykbnTVXw9O660adP1dWzUPA2BfNxQCD2vCR7viROGajqeXmJOnKr/kbWoZ5gntXypwPWPqJVTOOE+NlQ9hB"
+        val expected = """{"source":"pacman","package":"steam","reason":"sudo pacman -S steam"}"""
+        val pt = Crypto.sealOpen(encB64, m4Seed)
+        assertEquals(expected, pt)
+        // Tampered ciphertext must return null (authentication failure)
+        val tamperedBytes = Base64.getDecoder().decode(encB64).apply { this[size - 1] = (this[size - 1].toInt() xor 1).toByte() }
+        assertEquals(null, Crypto.sealOpen(Base64.getEncoder().encodeToString(tamperedBytes), m4Seed))
+    }
 }

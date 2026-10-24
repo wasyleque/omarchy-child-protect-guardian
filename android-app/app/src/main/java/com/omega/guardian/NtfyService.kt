@@ -123,9 +123,21 @@ class NtfyService : Service() {
         val nonce = msg.optString("nonce", "")
         val respondTo = msg.optString("respond_to", "")
         if (id.isBlank() || nonce.isBlank() || respondTo.isBlank()) return
-        val source = msg.optString("source", "")
-        val pkg = msg.optString("package", "")
-        val reason = msg.optString("reason", "")
+        val enc = msg.optString("enc", "")
+        val source: String
+        val pkg: String
+        val reason: String
+        if (enc.isNotBlank()) {
+            val pt = Crypto.sealOpen(enc, Prefs.seed(this)) ?: return
+            val dec = try { JSONObject(pt) } catch (e: Exception) { return }
+            source = dec.optString("source", "")
+            pkg = dec.optString("package", "")
+            reason = dec.optString("reason", "")
+        } else {
+            source = msg.optString("source", "")
+            pkg = msg.optString("package", "")
+            reason = msg.optString("reason", "")
+        }
         val csig = msg.optString("csig", "")
         val canonical = Crypto.challengeCanonical(id, source, pkg, nonce, reason, respondTo)
         if (!Crypto.verify(dpub, canonical, csig)) return   // forged / injected card → ignore silently
