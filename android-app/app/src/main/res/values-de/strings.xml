@@ -114,4 +114,18 @@
     <string name="ai_opt_none">Aus (keines)</string>
     <string name="btn_send_ai">KI-Einstellungen an den Computer senden</string>
     <string name="ai_sent">KI-Einstellungen gesendet ✓</string>
+
+    <!-- D4 / D5 / D6 + Debug-Protokoll -->
+    <string name="status_conn_lost_fmt">%1$d Kind(er) · ⚠ Verbindung getrennt (verbinde neu…)</string>
+    <string name="btn_refresh">Aktualisieren</string>
+    <string name="refresh_done_fmt">Aktualisiert (%1$d neu)</string>
+    <string name="decision_retry_prompt">Senden (%1$s) fehlgeschlagen — zum Wiederholen tippen</string>
+    <string name="decision_retry_btn">Wiederholen</string>
+    <string name="hdr_alerts">Warnungen &amp; Tageszusammenfassung</string>
+    <string name="alerts_empty">Noch keine Warnungen.</string>
+    <string name="hdr_debug">Debug-Protokoll (letzte 50 Ereignisse)</string>
+    <string name="btn_copy_debug">Kopieren</string>
+    <string name="btn_clear_debug">Leeren</string>
+    <string name="debug_empty">Noch keine Ereignisse.</string>
+    <string name="debug_copied">Debug-Protokoll kopiert</string>
 </resources>

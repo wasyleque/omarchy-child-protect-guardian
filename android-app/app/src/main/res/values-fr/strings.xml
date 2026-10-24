@@ -114,4 +114,18 @@
     <string name="ai_opt_none">Désactivé (aucun)</string>
     <string name="btn_send_ai">Envoyer les paramètres IA à l\'ordinateur</string>
     <string name="ai_sent">Paramètres IA envoyés ✓</string>
+
+    <!-- D4 / D5 / D6 + journal de débogage -->
+    <string name="status_conn_lost_fmt">%1$d enfant(s) · ⚠ connexion perdue (reconnexion…)</string>
+    <string name="btn_refresh">Actualiser</string>
+    <string name="refresh_done_fmt">Actualisé (%1$d nouveau(x))</string>
+    <string name="decision_retry_prompt">Échec de l\'envoi (%1$s) — toucher pour réessayer</string>
+    <string name="decision_retry_btn">Réessayer</string>
+    <string name="hdr_alerts">Alertes et bilan quotidien</string>
+    <string name="alerts_empty">Aucune alerte.</string>
+    <string name="hdr_debug">Journal de débogage (50 derniers événements)</string>
+    <string name="btn_copy_debug">Copier</string>
+    <string name="btn_clear_debug">Effacer</string>
+    <string name="debug_empty">Aucun événement.</string>
+    <string name="debug_copied">Journal copié</string>
 </resources>

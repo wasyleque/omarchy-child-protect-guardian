@@ -121,4 +121,18 @@
     <string name="ai_opt_none">Off (none)</string>
     <string name="btn_send_ai">Send AI settings to the computer</string>
     <string name="ai_sent">AI settings sent ✓</string>
+
+    <!-- D4 / D5 / D6 + debug log -->
+    <string name="status_conn_lost_fmt">%1$d child(ren) · ⚠ connection lost (reconnecting…)</string>
+    <string name="btn_refresh">Refresh</string>
+    <string name="refresh_done_fmt">Refreshed (%1$d new)</string>
+    <string name="decision_retry_prompt">Sending %1$s failed — tap to retry</string>
+    <string name="decision_retry_btn">Retry</string>
+    <string name="hdr_alerts">Alerts &amp; daily digest</string>
+    <string name="alerts_empty">No alerts yet.</string>
+    <string name="hdr_debug">Debug log (last 50 events)</string>
+    <string name="btn_copy_debug">Copy</string>
+    <string name="btn_clear_debug">Clear</string>
+    <string name="debug_empty">No events yet.</string>
+    <string name="debug_copied">Debug log copied</string>
 </resources>

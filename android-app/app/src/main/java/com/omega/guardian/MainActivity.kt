@@ -119,6 +119,16 @@ class MainActivity : AppCompatActivity() {
         b.btnLockNow.setOnClickListener { toggleLock() }
         b.btnSendSchedule.setOnClickListener { sendSchedule() }
         b.btnSendAi.setOnClickListener { sendAiConfig() }
+        b.btnRefresh.setOnClickListener { manualRefresh() }
+        b.btnCopyDebug.setOnClickListener {
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            cm.setPrimaryClip(ClipData.newPlainText("guardian debug log", Prefs.debugLogs(this).joinToString("\n")))
+            toast(getString(R.string.debug_copied))
+        }
+        b.btnClearDebug.setOnClickListener {
+            Prefs.clearDebugLogs(this)
+            render()
+        }
 
         b.spChild.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
@@ -133,7 +143,11 @@ class MainActivity : AppCompatActivity() {
         }
         b.cbSameEveryDay.setOnCheckedChangeListener { _, _ -> buildScheduleRows() }
 
-        if (Prefs.isPaired(this)) NtfyService.start(this)
+        if (Prefs.isPaired(this)) {
+            NtfyService.start(this)
+            PollWorker.schedule(this)
+            lifecycleScope.launch(Dispatchers.IO) { NtfyService.pollAllBlocking(this@MainActivity, "startup") }
+        }
         buildScheduleRows()
         setupAiControls()
         render()
@@ -159,7 +173,12 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetTextI18n")
     private fun render() {
         val n = Prefs.children(this).length()
-        val base = if (n == 0) getString(R.string.status_not_paired) else getString(R.string.status_children_fmt, n)
+        val connLost = n > 0 && !Prefs.isConnected(this)
+        val base = when {
+            n == 0 -> getString(R.string.status_not_paired)
+            connLost -> getString(R.string.status_conn_lost_fmt, n)
+            else -> getString(R.string.status_children_fmt, n)
+        }
         val now = if (n > 0) Prefs.currentApp(this, Prefs.activeChildName(this)) else null
         b.tvStatus.text = if (now != null) "$base\n" + getString(R.string.now_using_fmt, now) else base
         populateChildSpinner()
@@ -173,12 +192,34 @@ class MainActivity : AppCompatActivity() {
                 val o = h.getJSONObject(i)
                 append(fmt.format(Date(o.optLong("ts") * 1000)))
                 append("  ").append(o.optString("decision").uppercase())
-                append("  ").append(o.optString("package"))
+                append("  ").append(o.optString("package").ifBlank { o.optString("pkg") })
                 append("  (").append(o.optString("source")).append(")\n")
             }
         }
+        val al = Prefs.alerts(this)
+        b.tvAlerts.text = if (al.length() == 0) getString(R.string.alerts_empty) else buildString {
+            for (i in 0 until al.length()) {
+                val o = al.getJSONObject(i)
+                append(fmt.format(Date(o.optLong("ts") * 1000)))
+                val who = o.optString("child")
+                if (who.isNotBlank()) append(" [").append(who).append("]")
+                append(" ").append(o.optString("title")).append(":\n")
+                append(o.optString("text")).append("\n\n")
+            }
+        }.trimEnd()
+        val dbg = Prefs.debugLogs(this)
+        b.tvDebugLog.text = if (dbg.isEmpty()) getString(R.string.debug_empty) else dbg.joinToString("\n")
         b.btnLockNow.setText(if (Prefs.lockRequested(this)) R.string.btn_unlock_now else R.string.btn_lock_now)
         renderPending()
+    }
+
+    private fun manualRefresh() {
+        NtfyService.start(this)
+        lifecycleScope.launch {
+            val found = withContext(Dispatchers.IO) { NtfyService.pollAllBlocking(this@MainActivity, "manual") }
+            toast(getString(R.string.refresh_done_fmt, found))
+            render()
+        }
     }
 
     /** Build an Allow/Deny card per pending request, so you can decide in-app (not only the push). */
@@ -222,8 +263,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun decideInApp(decision: String, id: String, nonce: String, source: String, pkg: String, respondTo: String) {
-        Prefs.removePending(this, id)   // optimistic: drop it from the list immediately
-        renderPending()
         lifecycleScope.launch {
             val ok = withContext(Dispatchers.IO) { Decisions.send(this@MainActivity, decision, id, nonce, source, pkg, respondTo) }
             toast(if (ok) getString(R.string.sent_ok) else getString(R.string.send_failed))

@@ -114,4 +114,18 @@
     <string name="ai_opt_none">关闭（无）</string>
     <string name="btn_send_ai">把 AI 设置发送到电脑</string>
     <string name="ai_sent">已发送 AI 设置 ✓</string>
+
+    <!-- D4 / D5 / D6 + 调试日志 -->
+    <string name="status_conn_lost_fmt">%1$d 个孩子 · ⚠ 连接已断开（正在重连…）</string>
+    <string name="btn_refresh">刷新</string>
+    <string name="refresh_done_fmt">已刷新（%1$d 条新消息）</string>
+    <string name="decision_retry_prompt">发送 %1$s 失败 — 点按重试</string>
+    <string name="decision_retry_btn">重试</string>
+    <string name="hdr_alerts">警报与每日日报</string>
+    <string name="alerts_empty">暂无警报。</string>
+    <string name="hdr_debug">调试日志（最近 50 条事件）</string>
+    <string name="btn_copy_debug">复制</string>
+    <string name="btn_clear_debug">清空</string>
+    <string name="debug_empty">暂无事件。</string>
+    <string name="debug_copied">已复制调试日志</string>
 </resources>

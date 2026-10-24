@@ -182,7 +182,7 @@ object Prefs {
     fun addHistory(ctx: Context, pkg: String, source: String, decision: String, ts: Long) {
         val p = plain(ctx)
         val arr = try { JSONArray(p.getString(K_HISTORY, "[]")) } catch (e: Exception) { JSONArray() }
-        val entry = JSONObject().put("pkg", pkg).put("source", source).put("decision", decision).put("ts", ts)
+        val entry = JSONObject().put("package", pkg).put("pkg", pkg).put("source", source).put("decision", decision).put("ts", ts)
         val out = JSONArray().put(entry)
         var n = 0
         while (n < arr.length() && out.length() < MAX_HISTORY) { out.put(arr.get(n)); n++ }
@@ -237,5 +237,92 @@ object Prefs {
         }
         if (out.length() != raw.length()) plain(ctx).edit().putString(K_PENDING, out.toString()).apply()
         return out
+    }
+
+    // ---- D5: per-topic last seen ntfy message id/timestamp + seen-id dedupe ----
+
+    fun lastSeenId(ctx: Context, topic: String): String? =
+        plain(ctx).getString("since_id_$topic", null)?.ifBlank { null }
+
+    fun lastSeenTs(ctx: Context, topic: String): Long =
+        plain(ctx).getLong("since_ts_$topic", 0L)
+
+    fun recordSeenEvent(ctx: Context, topic: String, eventId: String, eventTs: Long): Boolean {
+        val p = plain(ctx)
+        val seenKey = "seen_ids_$topic"
+        val raw = p.getString(seenKey, "") ?: ""
+        val ids = if (raw.isEmpty()) mutableListOf() else raw.split(",").toMutableList()
+        val already = eventId.isNotBlank() && ids.contains(eventId)
+        if (eventId.isNotBlank() && !already) {
+            ids.add(0, eventId)
+            while (ids.size > 100) ids.removeAt(ids.lastIndex)
+        }
+        val ed = p.edit()
+        if (eventId.isNotBlank()) {
+            ed.putString("since_id_$topic", eventId)
+            ed.putString(seenKey, ids.joinToString(","))
+        }
+        if (eventTs > 0L) ed.putLong("since_ts_$topic", eventTs)
+        ed.apply()
+        return !already
+    }
+
+    // ---- D5: connection status per child ----
+    fun setConnected(ctx: Context, child: String, connected: Boolean) {
+        plain(ctx).edit().putBoolean("conn_$child", connected).apply()
+    }
+    fun isConnected(ctx: Context, child: String = activeChildName(ctx)): Boolean =
+        plain(ctx).getBoolean("conn_$child", true)
+
+    // ---- D6: recent verified alerts (shown in-app alongside notifications) ----
+    private const val K_ALERTS = "alerts"
+    private const val MAX_ALERTS = 15
+
+    fun addAlert(ctx: Context, child: String, title: String, text: String, ts: Long) {
+        val p = plain(ctx)
+        val arr = try { JSONArray(p.getString(K_ALERTS, "[]")) } catch (e: Exception) { JSONArray() }
+        val entry = JSONObject().put("child", child).put("title", title).put("text", text).put("ts", ts)
+        val out = JSONArray().put(entry)
+        var n = 0
+        while (n < arr.length() && out.length() < MAX_ALERTS) { out.put(arr.get(n)); n++ }
+        p.edit().putString(K_ALERTS, out.toString()).apply()
+    }
+
+    fun alerts(ctx: Context): JSONArray = try {
+        JSONArray(plain(ctx).getString(K_ALERTS, "[]"))
+    } catch (e: Exception) {
+        JSONArray()
+    }
+
+    // ---- Debug log (last 50 ws/crypto/network events for D4/D5/D6/M4 diagnostics) ----
+    private const val K_DEBUG_LOG = "debug_log"
+    private const val MAX_DEBUG = 50
+    private val debugLock = Any()
+
+    fun addDebugLog(ctx: Context, msg: String) {
+        synchronized(debugLock) {
+            val p = plain(ctx)
+            val arr = try { JSONArray(p.getString(K_DEBUG_LOG, "[]")) } catch (e: Exception) { JSONArray() }
+            val fmt = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.US)
+            val line = "${fmt.format(java.util.Date())} $msg"
+            val out = JSONArray().put(line)
+            var i = 0
+            while (i < arr.length() && out.length() < MAX_DEBUG) {
+                out.put(arr.getString(i))
+                i++
+            }
+            p.edit().putString(K_DEBUG_LOG, out.toString()).apply()
+        }
+    }
+
+    fun debugLogs(ctx: Context): List<String> {
+        val arr = try { JSONArray(plain(ctx).getString(K_DEBUG_LOG, "[]")) } catch (e: Exception) { JSONArray() }
+        return (0 until arr.length()).map { arr.optString(it, "") }
+    }
+
+    fun clearDebugLogs(ctx: Context) {
+        synchronized(debugLock) {
+            plain(ctx).edit().putString(K_DEBUG_LOG, "[]").apply()
+        }
     }
 }

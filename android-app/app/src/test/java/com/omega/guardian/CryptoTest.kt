@@ -80,4 +80,15 @@ class CryptoTest {
         val tamperedBytes = Base64.getDecoder().decode(encB64).apply { this[size - 1] = (this[size - 1].toInt() xor 1).toByte() }
         assertEquals(null, Crypto.sealOpen(Base64.getEncoder().encodeToString(tamperedBytes), m4Seed))
     }
+
+    @Test
+    fun alertNonAsciiVectorD6() {
+        val dpub = "cXuf/aiKe+z9dGMugopN89JjubmfqaZYvqJljAlHiwo="
+        val text = "TEST2 Zażółć gęślą ⚠ jaźń"
+        val ts = 1792847488L
+        val asig = "l4wTcieIzdIBEWO/l5axxjSlL3/nZiLgt1K0+S0gQ91CxkPenIxp81jnzNkjCUIxpSSqMVuHo49W1XG4IRigCA=="
+        val canonical = Crypto.alertCanonical(text, ts)
+        assertEquals("OCPG-ALERT-v1|TEST2 Zażółć gęślą ⚠ jaźń|1792847488", canonical)
+        assertTrue(Crypto.verify(dpub, canonical, asig))
+    }
 }

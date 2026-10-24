@@ -120,4 +120,18 @@
     <string name="ai_opt_none">Desactivado (ninguno)</string>
     <string name="btn_send_ai">Enviar ajustes de IA al ordenador</string>
     <string name="ai_sent">Ajustes de IA enviados ✓</string>
+
+    <!-- D4 / D5 / D6 + registro de depuración -->
+    <string name="status_conn_lost_fmt">%1$d niño(s) · ⚠ conexión perdida (reconectando…)</string>
+    <string name="btn_refresh">Actualizar</string>
+    <string name="refresh_done_fmt">Actualizado (%1$d nuevos)</string>
+    <string name="decision_retry_prompt">Error al enviar %1$s — toca para reintentar</string>
+    <string name="decision_retry_btn">Reintentar</string>
+    <string name="hdr_alerts">Alertas y resumen diario</string>
+    <string name="alerts_empty">Aún no hay alertas.</string>
+    <string name="hdr_debug">Registro de depuración (últimos 50 eventos)</string>
+    <string name="btn_copy_debug">Copiar</string>
+    <string name="btn_clear_debug">Borrar</string>
+    <string name="debug_empty">Sin eventos.</string>
+    <string name="debug_copied">Registro copiado</string>
 </resources>
