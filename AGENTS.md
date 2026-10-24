@@ -355,6 +355,14 @@ fixed across 3 batches (daemon 0.2.4→0.2.5, app 0.1.6→0.1.7/vc8). Docs commi
     serializes exact `config::AiConfig` fields (`deny_unknown_fields`-safe) and POSTs `{kind:"set_ai",
     daemon_pub, nonce, ts, cfg, sig}` to `lastRespondTo`; localized across all 6 languages
     (en/pl/es/de/fr/zh); verified with `./gradlew testDebugUnitTest assembleDebug`.
+  - Step 14 — `guardian-ctl digest-now` (71e0677, daemon 0.3.8, by Claude): on-demand AI parenting
+    digest so the parent can test the AI config immediately instead of waiting for `[ai].digest_hour`.
+    New control msg `DigestNow` → daemon nudges the digest task over an mpsc trigger; the task now
+    `select!`s between the daily timer and the trigger, re-reads the AI config and pushes the signed
+    digest. Manual trigger runs whenever `[ai].enabled` (bypasses the `digest_enabled` opt-in, being an
+    explicit test); the timer still honors `digest_enabled`. `guardian-ctl digest-now` prints a result
+    and exits ≠0 when no ntfy is configured. +1 wire-format test (32 total). Pairs with Step 13 (set AI
+    from the app, then `digest-now` to verify end-to-end). ON-HOST: needs the child box + Ollama.
 
 ## DONE (by agy) — AI/Ollama config UI in the Android app (daemon side commit 40c0d5c, app 0.1.13/vc14)
 The daemon already accepts a signed AI config pushed from the app; only the APP UI is left (user
