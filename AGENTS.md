@@ -409,9 +409,22 @@ catch-up works (missed msgs arrived), D6 fixed (Polish/⚠ alerts + digest show 
     leans a chat app to medium; summarize_activity tags window classes with a category ("foot (terminal)") so the
     model stops inventing "football"; D3 `guardian-ctl alert` keys per-message so two different alerts in 15 min
     both send (digest-now already bypassed the cooldown since 0.3.10).
-  - FOR agy (app follow-ups, not blocking): D7 app half — send the model name WITH its tag / fetch `/api/tags` from
-    the box and offer only installed models; collapse a catch-up burst (~10 at once) into one summary notification
-    and don't notify for already-expired/resolved cards.
+  - Step 21 — DNS content filter install + nft persistence (dac5966, packaging, by Claude): the reason porn
+    wasn't filtered on .12 was that install.sh never installed the DNS layer and nft rules didn't survive a reboot.
+    install.sh now installs dnsmasq-guardian (:5353) + the StevenBlack blocklist updater/timer + SafeSearch + the
+    egress/per-child-redirect nft, and under --enforce enables them; new guardian-nftables.service restores the nft
+    rules on boot (loads /etc/guardian/nftables/*.nft); setup-child.sh writes each child uid into those installed
+    copies + reloads; install.sh detects active systemd-resolved and prints the M5 action required (its resolve
+    path bypasses the per-uid redirect → nothing filtered until it's disabled / machine DNS points at the filter);
+    smoke-test + harden-audit now resolve a known adult domain AS THE CHILD and FAIL if not sinkholed. uninstall tears it down.
+  - Step 22 — D7 app + catch-up UX (5bc1f3a, app 0.1.16/vc17, by agy): the AI model dropdown fetches `GET
+    {endpoint}/api/tags` (LAN fallback .12/.11 when 127.0.0.1) and offers only installed models with their exact
+    tag, plus an editable field for off-LAN; Bielik preset is now `:Q8_0` with auto-migration (fixes D7's silent
+    "model not found"). Catch-up no longer spams: cards older than 300 s (daemon timeout) don't notify, and a
+    reconnect burst collapses into one quiet summary notification; fresh active cards still ring. 6 locales updated.
+  - NEXT on-host round (re-test on .12 at daemon 0.3.12 + app 0.1.16): install.sh --enforce now installs the DNS
+    filter — resolve the M5 systemd-resolved choice, then `getent hosts pornhub.com` as the child must be 0.0.0.0
+    and smoke-test must PASS the new DNS checks; confirm the AI model dropdown lists installed models with tags.
   - NOT done (needs physical presence at .12): reboot test after the fapolicyd setup; setup-child.sh F12/F13.
 
 ## DONE (by agy) — AI/Ollama config UI in the Android app (daemon side commit 40c0d5c, app 0.1.13/vc14)
