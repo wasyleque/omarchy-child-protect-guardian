@@ -445,6 +445,17 @@ install.sh --enforce installed the DNS layer; after the M5 choice the child is f
     (PWA) section. es/de/fr/zh READMEs still lag (sync on request).
   - NEXT on-host: re-test the DNS fixes at 0.3.12 HEAD (egress D8 accept + idempotency + :5354 + chooser)
     and the reboot-persistence of mode A; es/de/fr/zh README sync.
+  - Step 25 — DNS concern alerts (471bcc0, daemon 0.3.13, by Claude): finding — a blocked porn site was
+    SILENT (no push, nothing in the digest) because dnsmasq wasn't logging queries. Now dnsmasq logs
+    queries+replies to /var/log/guardian/dns-queries.log (local, logrotate daily copytruncate 20M/7), and
+    guardiand watches it and pushes a SIGNED, rate-limited alert the moment the child hits a sinkholed
+    domain or a worrying keyword (shared DNS_CONCERN_TERMS keyword→category: drugs/self-harm/weapons/
+    adult/extremism), keyed per category (900s cooldown) so one site can't spam. Gated by [ai].dns_alert
+    (default on) + [ai].dns_query_log; text follows digest_lang. +2 tests (35 total). install.sh makes the
+    log dir + logrotate; uninstall removes them. ON-HOST: verify an alert fires on a real blocked visit.
+  - Step 26 — README es/de/fr/zh synced to EN (48deef0, by agy): the 4 translations now carry the
+    encryption/privacy line, the content-filter pillar, the DNS-mode chooser, and the iPhone/desktop PWA
+    section. EN+PL (Steps 24) + these = all 6 READMEs current.
 
 ## DONE (by agy) — AI/Ollama config UI in the Android app (daemon side commit 40c0d5c, app 0.1.13/vc14)
 The daemon already accepts a signed AI config pushed from the app; only the APP UI is left (user
