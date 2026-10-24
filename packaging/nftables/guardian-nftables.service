@@ -1,0 +1,26 @@
+[Unit]
+Description=Omarchy Child Protect Guardian — restore nftables egress + per-child DNS redirect at boot
+Documentation=https://github.com/wasyleque/omarchy-child-protect-guardian
+# Load before the network comes up so the child is never briefly unfiltered after a reboot.
+After=network-pre.target
+Wants=network-pre.target
+Before=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Load the INSTALLED rule sets (setup-child.sh keeps their CHILD_UIDS set current). `reload` flushes
+# and re-applies so adding a child's uid takes effect without a reboot.
+ExecStart=/usr/sbin/nft -f /etc/guardian/nftables/guardian-egress.nft
+ExecStart=/usr/sbin/nft -f /etc/guardian/nftables/10-guardian-dns-redirect.nft
+ExecReload=-/usr/sbin/nft delete table inet guardian
+ExecReload=-/usr/sbin/nft delete table ip guardian_dns
+ExecReload=-/usr/sbin/nft delete table ip6 guardian_dns
+ExecReload=/usr/sbin/nft -f /etc/guardian/nftables/guardian-egress.nft
+ExecReload=/usr/sbin/nft -f /etc/guardian/nftables/10-guardian-dns-redirect.nft
+ExecStop=-/usr/sbin/nft delete table inet guardian
+ExecStop=-/usr/sbin/nft delete table ip guardian_dns
+ExecStop=-/usr/sbin/nft delete table ip6 guardian_dns
+
+[Install]
+WantedBy=multi-user.target

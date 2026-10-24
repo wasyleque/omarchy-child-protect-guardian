@@ -66,6 +66,42 @@ install -Dm644 "$HERE/network/firefox-policies.json"     /etc/firefox/policies/p
 install -Dm644 "$HERE/network/chromium-dns-policy.json"  /etc/chromium/policies/managed/guardian-dns.json
 # (Chrome uses /etc/opt/chrome/policies/managed/ — copy there too if Chrome is used.)
 
+echo "==> DNS content filter (dnsmasq blocklist + SafeSearch) + nftables persistence"
+# Files are ALWAYS installed (so a missing filter is no longer a silent gap); activation is gated by
+# --enforce below, because switching DNS over SSH can lock you out and the systemd-resolved handling
+# (M5) is a deliberate choice. See packaging/dns/README.md.
+install -Dm644 "$HERE/dns/dnsmasq-guardian.conf"             /etc/dnsmasq-guardian.conf
+install -Dm644 "$HERE/dns/safesearch.conf"                  /etc/guardian/dns/safesearch.conf
+install -Dm755 "$HERE/dns/guardian-blocklist-update.sh"     /usr/lib/guardian/guardian-blocklist-update
+install -Dm644 "$HERE/dns/guardian-dnsmasq.service"          /etc/systemd/system/guardian-dnsmasq.service
+install -Dm644 "$HERE/dns/guardian-blocklist-update.service" /etc/systemd/system/guardian-blocklist-update.service
+install -Dm644 "$HERE/dns/guardian-blocklist-update.timer"   /etc/systemd/system/guardian-blocklist-update.timer
+[ -f /etc/guardian/dns/blocked.hosts ] || install -Dm644 /dev/null /etc/guardian/dns/blocked.hosts  # placeholder so dnsmasq starts before the first fetch
+# nftables rule sets live in /etc now (stable across repo moves); setup-child.sh keeps CHILD_UIDS current.
+install -Dm644 "$HERE/nftables/guardian-egress.nft"       /etc/guardian/nftables/guardian-egress.nft
+install -Dm644 "$HERE/dns/10-guardian-dns-redirect.nft"   /etc/guardian/nftables/10-guardian-dns-redirect.nft
+install -Dm644 "$HERE/nftables/guardian-nftables.service" /etc/systemd/system/guardian-nftables.service
+systemctl daemon-reload
+if [ "$ENFORCE" -eq 1 ]; then
+  command -v dnsmasq >/dev/null || echo "    !!! dnsmasq is not installed — 'pacman -S dnsmasq' or the filter can't start"
+  systemctl enable --now guardian-dnsmasq.service 2>/dev/null || echo "    (guardian-dnsmasq did not start — is dnsmasq installed?)"
+  systemctl enable --now guardian-blocklist-update.timer
+  systemctl start guardian-blocklist-update.service 2>/dev/null || true   # fetch the list now
+  systemctl enable --now guardian-nftables.service 2>/dev/null || echo "    (guardian-nftables did not load — check /etc/guardian/nftables/*.nft + CHILD_UIDS)"
+  echo "    DNS filter + nft egress/redirect ENABLED and restored on every boot (guardian-nftables.service)."
+  # M5: on Omarchy, glibc resolves via systemd-resolved (varlink/stub on 127.0.0.53, a SYSTEM process),
+  # so the child's lookups never emit a :53 packet and the per-uid redirect filters NOTHING. Detect it.
+  if systemctl is-active --quiet systemd-resolved 2>/dev/null; then
+    echo "    *** ACTION REQUIRED (M5): systemd-resolved is active — the per-child DNS filter will catch"
+    echo "        NOTHING until the child's apps emit real :53 queries. Either disable systemd-resolved"
+    echo "        (child-only filtering; parent keeps a plain upstream in /etc/resolv.conf) or point the"
+    echo "        whole machine's DNS at the guardian resolver. Exact steps: packaging/dns/README.md (M5)."
+    echo "        Verify as the child:  getent hosts pornhub.com   → must be 0.0.0.0"
+  fi
+else
+  echo "    TEST MODE: DNS filter + nft files installed but NOT started. Re-run with --enforce to activate."
+fi
+
 echo "==> pacman interception hook"
 if [ "$ENFORCE" -eq 1 ]; then
   rm -f /etc/pacman.d/hooks/99-guardian-test.hook
@@ -93,8 +129,10 @@ cat <<'NEXT'
 ==> Installed. NEXT STEPS you must do by hand (host-specific; can lock you out if wrong):
   1. Edit /etc/guardian/policy.toml — set [ntfy] request_topic + parent_pubkey (pair the phone app:
      `guardian-ctl pair --topic <topic>`), then: systemctl restart guardiand
-  2. Network egress:   edit CHILD_UID+DNS in packaging/nftables/guardian-egress.nft, test with
-     `nft -f ...`, then make persistent. Browser/NM lockdown: see packaging/network/README.md
+  2. DNS filter + egress: with --enforce these are installed, enabled and made boot-persistent
+     (guardian-dnsmasq, guardian-nftables, blocklist timer). You MUST still resolve the systemd-resolved
+     (M5) choice above, or NOTHING is actually filtered — see packaging/dns/README.md. Then verify as the
+     child: `getent hosts pornhub.com` → 0.0.0.0. Browser/NM lockdown: packaging/network/README.md
   3. Execution allowlist (fapolicyd):  sudo packaging/fapolicyd/guardian-fapolicyd-setup.sh
      then test PERMISSIVE, then re-run with --enforce, then REBOOT-TEST. See packaging/fapolicyd/README.md.
      *** REQUIRED, not optional *** — without fapolicyd enforcing, a child can bypass the install

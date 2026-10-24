@@ -9,6 +9,11 @@ set -u
 echo "==> stopping services"
 systemctl disable --now guardian-watchdog.timer 2>/dev/null || true
 systemctl disable --now guardiand 2>/dev/null || true
+# DNS filter + nft persistence installed by install.sh --enforce (disabling guardian-nftables also
+# flushes the live egress/redirect tables via its ExecStop).
+systemctl disable --now guardian-nftables.service 2>/dev/null || true
+systemctl disable --now guardian-dnsmasq.service 2>/dev/null || true
+systemctl disable --now guardian-blocklist-update.timer 2>/dev/null || true
 
 echo "==> removing pacman hooks"
 rm -f /etc/pacman.d/hooks/50-guardian.hook /etc/pacman.d/hooks/60-guardian-trust.hook /etc/pacman.d/hooks/99-guardian-test.hook
@@ -24,6 +29,10 @@ done
 rm -f /usr/bin/guardiand /usr/bin/guardian-ctl /usr/bin/guardian-sign
 rm -rf /usr/lib/guardian
 rm -f /etc/systemd/system/guardiand.service /etc/systemd/system/guardian-watchdog.service /etc/systemd/system/guardian-watchdog.timer
+rm -f /etc/systemd/system/guardian-nftables.service /etc/systemd/system/guardian-dnsmasq.service \
+      /etc/systemd/system/guardian-blocklist-update.service /etc/systemd/system/guardian-blocklist-update.timer
+rm -f /etc/dnsmasq-guardian.conf
+rm -rf /etc/guardian/nftables /etc/guardian/dns
 systemctl daemon-reload 2>/dev/null || true
 
 echo "==> kept (remove by hand if wanted): /etc/guardian/policy.toml, /var/log/guardian/audit.log,"

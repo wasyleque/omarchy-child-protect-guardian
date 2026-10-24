@@ -77,6 +77,15 @@ add_uid_to_set() {
 }
 add_uid_to_set "$HERE/nftables/guardian-egress.nft" "$CHILD_UID"
 add_uid_to_set "$HERE/dns/10-guardian-dns-redirect.nft" "$CHILD_UID"
+# Also update the INSTALLED copies the boot-time guardian-nftables.service loads (if install.sh has
+# run), and reload them live so this child is covered now and after a reboot — not just in the repo.
+add_uid_to_set "/etc/guardian/nftables/guardian-egress.nft" "$CHILD_UID"
+add_uid_to_set "/etc/guardian/nftables/10-guardian-dns-redirect.nft" "$CHILD_UID"
+if systemctl list-unit-files guardian-nftables.service >/dev/null 2>&1; then
+  systemctl reload guardian-nftables.service 2>/dev/null \
+    || systemctl restart guardian-nftables.service 2>/dev/null || true
+  echo "==> reloaded guardian-nftables.service (child uid $CHILD_UID now in the live + boot rules)"
+fi
 
 # 5. Tell guardiand which users the screen-time lock applies to (used only if [schedule] sets a
 #    lock_command). GUARDIAN_CHILD is a space-separated list; add this child if not already present.

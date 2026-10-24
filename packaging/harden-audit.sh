@@ -72,9 +72,28 @@ if command -v nft >/dev/null 2>&1 && nft list table inet guardian >/dev/null 2>&
 else
   meh "nftables guardian egress policy not loaded (DoH/DoT/VPN escapes open)"
 fi
+if systemctl is-enabled --quiet guardian-nftables.service 2>/dev/null; then
+  ok "guardian-nftables.service enabled (egress + DNS redirect persist across reboot)"
+else
+  meh "guardian-nftables.service not enabled — the nft rules are lost on reboot"
+fi
+# Content filter: the dnsmasq blocklist/SafeSearch resolver must be running AND actually reach the child.
+if systemctl is-active --quiet guardian-dnsmasq 2>/dev/null; then
+  ok "guardian-dnsmasq content filter running (:5353)"
+else
+  nok "guardian-dnsmasq not running — porn/category blocklist + SafeSearch are OFF (install.sh --enforce installs it)"
+fi
 # nss-resolve can make lookups come from the systemd-resolve user, bypassing the child's DNS redirect (M5).
 if systemctl is-active --quiet systemd-resolved 2>/dev/null; then
   meh "systemd-resolved active — nss-resolve may bypass the DNS redirect; test 'getent hosts <blocked>' as the child, and disable resolved or set nsswitch hosts to 'dns' pointing at :5353"
+fi
+# The decisive check: does a known adult domain sinkhole FOR THE CHILD (catches the M5 trap)?
+if [ -n "$CHILD" ] && id "$CHILD" >/dev/null 2>&1; then
+  R="$(sudo -u "$CHILD" getent hosts pornhub.com 2>/dev/null | awk '{print $1; exit}')"
+  case "$R" in
+    0.0.0.0|127.0.0.1|::|"") ok "adult domain sinkholed for $CHILD (pornhub.com → ${R:-NXDOMAIN})" ;;
+    *) nok "adult domain RESOLVES for $CHILD (pornhub.com → $R) — DNS content filter is NOT effective" ;;
+  esac
 fi
 
 hdr "Account hygiene"
