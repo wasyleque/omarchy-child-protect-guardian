@@ -25,6 +25,70 @@ fn prompt(lang: &str, source: &str, package: &str) -> String {
     )
 }
 
+/// One model call (Ollama `/api/generate` or an OpenAI-compatible `/chat/completions`). Unlike the
+/// old inline `.ok()?` chain, it LOGS why it failed — a request error, a parse error, or a provider
+/// `error` field such as Ollama's `model '…' not found` (D7: a model name missing its tag used to
+/// drop the note silently). Returns the raw text, or `None` on any failure.
+async fn call_model(
+    client: &Client,
+    cfg: &AiConfig,
+    prompt: &str,
+    timeout: Duration,
+    temperature: f64,
+    max_tokens: u32,
+) -> Option<String> {
+    let openai = cfg.provider == "openai";
+    let body = if openai {
+        json!({
+            "model": cfg.model,
+            "messages": [{ "role": "user", "content": prompt }],
+            "temperature": temperature,
+            "max_tokens": max_tokens
+        })
+    } else {
+        // `keep_alive` holds the model in VRAM so the next call skips the cold-load time, which on a
+        // big local model can exceed the timeout (report: Bielik cold load 13 s vs 12 s timeout).
+        json!({
+            "model": cfg.model,
+            "prompt": prompt,
+            "stream": false,
+            "think": false,
+            "keep_alive": "10m",
+            "options": { "temperature": temperature, "num_predict": max_tokens }
+        })
+    };
+    let mut req = client.post(&cfg.endpoint).timeout(timeout).json(&body);
+    if openai {
+        if let Some(key) = &cfg.api_key {
+            req = req.bearer_auth(key);
+        }
+    }
+    let v: serde_json::Value = match req.send().await {
+        Ok(r) => match r.json().await {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("guardiand: AI response parse failed ({}): {e}", cfg.endpoint);
+                return None;
+            }
+        },
+        Err(e) => {
+            eprintln!("guardiand: AI request failed ({}): {e}", cfg.endpoint);
+            return None;
+        }
+    };
+    // Both providers put a human-readable error here (e.g. an unknown model) — surface it.
+    if let Some(err) = v.get("error") {
+        let msg = err.as_str().map(str::to_string).unwrap_or_else(|| err.to_string());
+        eprintln!("guardiand: AI error from {} (model '{}'): {msg}", cfg.endpoint, cfg.model);
+        return None;
+    }
+    if openai {
+        v.get("choices")?.get(0)?.get("message")?.get("content")?.as_str().map(str::to_string)
+    } else {
+        v.get("response")?.as_str().map(str::to_string)
+    }
+}
+
 /// Return a short risk summary for the request, or `None` on any failure/timeout.
 pub async fn summarize(client: &Client, cfg: &AiConfig, source: &str, package: &str) -> Option<String> {
     if !cfg.enabled || package.trim().is_empty() {
@@ -32,45 +96,7 @@ pub async fn summarize(client: &Client, cfg: &AiConfig, source: &str, package: &
     }
     let timeout = Duration::from_secs(cfg.timeout_secs.max(1));
     let p = prompt(&cfg.digest_lang, source, package);
-
-    let text = match cfg.provider.as_str() {
-        "openai" => {
-            let body = json!({
-                "model": cfg.model,
-                "messages": [{ "role": "user", "content": p }],
-                "temperature": 0.2,
-                "max_tokens": 200
-            });
-            let mut req = client.post(&cfg.endpoint).timeout(timeout).json(&body);
-            if let Some(key) = &cfg.api_key {
-                req = req.bearer_auth(key);
-            }
-            let v: serde_json::Value = req.send().await.ok()?.json().await.ok()?;
-            v.get("choices")?.get(0)?.get("message")?.get("content")?.as_str()?.to_string()
-        }
-        // default: Ollama /api/generate
-        _ => {
-            let body = json!({
-                "model": cfg.model,
-                "prompt": p,
-                "stream": false,
-                "think": false,
-                "options": { "temperature": 0.2, "num_predict": 200 }
-            });
-            let v: serde_json::Value = client
-                .post(&cfg.endpoint)
-                .timeout(timeout)
-                .json(&body)
-                .send()
-                .await
-                .ok()?
-                .json()
-                .await
-                .ok()?;
-            v.get("response")?.as_str()?.to_string()
-        }
-    };
-
+    let text = call_model(client, cfg, &p, timeout, 0.2, 200).await?;
     let cleaned = clean(&text);
     if cleaned.is_empty() {
         None
@@ -124,34 +150,7 @@ pub async fn daily_digest(client: &Client, cfg: &AiConfig, lang: &str, events: &
     }
     let timeout = Duration::from_secs((cfg.timeout_secs.max(1)) * 4); // a digest may take longer than a one-liner
     let p = digest_prompt(lang, events);
-    let text = match cfg.provider.as_str() {
-        "openai" => {
-            let body = json!({
-                "model": cfg.model,
-                "messages": [{ "role": "user", "content": p }],
-                "temperature": 0.3,
-                "max_tokens": 500
-            });
-            let mut req = client.post(&cfg.endpoint).timeout(timeout).json(&body);
-            if let Some(key) = &cfg.api_key {
-                req = req.bearer_auth(key);
-            }
-            let v: serde_json::Value = req.send().await.ok()?.json().await.ok()?;
-            v.get("choices")?.get(0)?.get("message")?.get("content")?.as_str()?.to_string()
-        }
-        _ => {
-            let body = json!({
-                "model": cfg.model,
-                "prompt": p,
-                "stream": false,
-                "think": false,
-                "options": { "temperature": 0.3, "num_predict": 500 }
-            });
-            let v: serde_json::Value = client
-                .post(&cfg.endpoint).timeout(timeout).json(&body).send().await.ok()?.json().await.ok()?;
-            v.get("response")?.as_str()?.to_string()
-        }
-    };
+    let text = call_model(client, cfg, &p, timeout, 0.3, 500).await?;
     let cleaned = clean_to(&text, 1200);
     if cleaned.is_empty() { None } else { Some(cleaned) }
 }

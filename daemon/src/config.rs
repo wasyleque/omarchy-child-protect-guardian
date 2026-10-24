@@ -117,7 +117,7 @@ fn default_digest_lang() -> String { "Polish".to_string() }
 fn default_ai_provider() -> String { "ollama".to_string() }
 fn default_ai_endpoint() -> String { "http://127.0.0.1:11434/api/generate".to_string() }
 fn default_ai_model() -> String { "llama3.2:latest".to_string() }
-fn default_ai_timeout() -> u64 { 12 }
+fn default_ai_timeout() -> u64 { 30 } // headroom for a local model's cold load (keep_alive avoids it after)
 
 /// Remote push-approval settings (ntfy). The parent's phone subscribes to `request_topic`.
 #[derive(Debug, Clone, Deserialize)]
