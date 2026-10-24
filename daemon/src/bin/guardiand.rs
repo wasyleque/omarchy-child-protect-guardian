@@ -173,6 +173,20 @@ fn scan_dns_for_concerns(path: &str) -> Vec<String> {
     out
 }
 
+/// A coarse human category for a window class, so the digest model isn't left to guess (report: it
+/// turned the terminal "foot" into "football"/"games"). None → leave the raw class as-is.
+fn app_category(class: &str) -> Option<&'static str> {
+    match class.to_lowercase().as_str() {
+        "foot" | "alacritty" | "kitty" | "wezterm" | "ghostty" | "xterm" | "konsole" | "st" => Some("terminal"),
+        "firefox" | "chromium" | "chrome" | "brave" | "librewolf" | "zen" => Some("browser"),
+        "steam" | "lutris" | "heroic" | "minecraft" => Some("games"),
+        "code" | "code-oss" | "vscodium" | "zed" => Some("editor"),
+        "discord" | "telegram" | "signal" | "element" | "whatsapp" => Some("chat"),
+        "spotify" | "mpv" | "vlc" => Some("media"),
+        _ => None,
+    }
+}
+
 /// Top foreground apps today from the activity log (approx time = samples × interval). Best-effort.
 fn summarize_activity(path: &str, midnight: u64) -> Vec<String> {
     use std::io::BufRead;
@@ -199,7 +213,10 @@ fn summarize_activity(path: &str, midnight: u64) -> Vec<String> {
         .map(|(c, secs)| {
             let m = secs / 60;
             let t = if m >= 60 { format!("{}h{:02}m", m / 60, m % 60) } else { format!("{m}m") };
-            format!("{c} ~{t}")
+            match app_category(&c) {
+                Some(cat) => format!("{c} ({cat}) ~{t}"),
+                None => format!("{c} ~{t}"),
+            }
         })
         .collect()
 }

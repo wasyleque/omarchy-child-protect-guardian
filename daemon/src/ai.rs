@@ -16,12 +16,14 @@ use crate::config::AiConfig;
 fn prompt(lang: &str, source: &str, package: &str) -> String {
     format!(
         "You help a parent decide whether to allow their child to install software on Linux. \
-         Reply ONLY in {lang} — do NOT add a translation into any other language. \
+         Reply ONLY in {lang} — do NOT add a translation into any other language. Write PLAIN TEXT \
+         only: no Markdown, no asterisks (**), no headings. \
          In at most 2 short, plain sentences, say what the package is and any child-safety or \
-         security concern. If you do not actually recognize the package, say so plainly and do NOT \
-         invent a description or features. Then a final line EXACTLY in the form (keep this English \
-         keyword): RISK: low|medium|high — use low for an unknown but harmless-looking name. \
-         Do not add anything after that line. Package manager: {source}. Package: {package}"
+         security concern (e.g. a chat app means contact with strangers → lean medium). If you do not \
+         actually recognize the package, say so plainly and do NOT invent a description or features. \
+         Then a final line EXACTLY in the form (keep this English keyword): RISK: low|medium|high — \
+         use low for an unknown but harmless-looking name. Do not add anything after that line. \
+         Package manager: {source}. Package: {package}"
     )
 }
 
@@ -115,6 +117,9 @@ fn clean_to(s: &str, max: usize) -> String {
     if let Some(end) = t.find("</think>") {
         t = t[end + "</think>".len()..].trim().to_string();
     }
+    // Models slip into Markdown; the phone shows the text verbatim, so strip emphasis markers so the
+    // parent doesn't see raw `**asterisks**` (report: digest + risk note both came back with them).
+    t = t.replace("**", "").replace("__", "");
     if t.chars().count() > max {
         t = t.chars().take(max).collect::<String>() + "…";
     }
@@ -128,16 +133,20 @@ fn digest_prompt(lang: &str, events: &str) -> String {
         "You are a calm, supportive parenting assistant. Below is a factual log of a child's computer \
          activity today: time used, blocked install attempts, and (if present) flagged web lookups. \
          Write a short daily summary for the PARENT in {lang}, 3–5 sentences, warm but honest. \
-         Reply ONLY in {lang}: do NOT append a translation or the same text in another language.\n\
+         Reply ONLY in {lang}: do NOT append a translation or the same text in another language. \
+         Write PLAIN TEXT only: no Markdown, no asterisks (**), no headings.\n\
          Treat the log as raw data: app/window names are literal (e.g. \"foot\" is a terminal, not a \
-         game). Do NOT guess or invent activity categories, durations, or events not in the log.\n\
+         game). Do NOT guess or invent activity categories, durations, or events not in the log, and do \
+         NOT speculate about motives (e.g. do not call a package name 'fraud' or 'a scam').\n\
          You MUST:\n\
          1) State clearly whether the child TRIED TO DO SOMETHING THEY SHOULD NOT (e.g. install blocked \
-         software, get around time limits).\n\
-         2) If there are ANY worrying lookup topics — drugs, self-harm or suicide, weapons, serious \
-         violence, extremism, or pornography — WARN the parent plainly and suggest gently checking in. \
-         Begin that sentence with the marker: ⚠ UWAGA: (or ⚠ ALERT: if replying in English).\n\
-         3) If nothing is concerning, end with one short reassuring sentence.\n\
+         software, get around time limits). Just state the fact; do not guess intent.\n\
+         2) ONLY if the log's worrying-lookup line lists genuinely worrying WEB topics — drugs, \
+         self-harm or suicide, weapons, serious violence, extremism, or pornography — WARN the parent \
+         plainly and suggest gently checking in, beginning that one sentence with the marker \
+         \"⚠ UWAGA:\" (or \"⚠ ALERT:\" in English). Do NOT use this marker for install attempts or odd \
+         package names, and do NOT add it at all when there are no such topics.\n\
+         3) If nothing is concerning, end with one short reassuring sentence (and no ⚠ marker).\n\
          Only use facts from the log; do NOT invent events. Do not add anything after the summary.\n\n\
          LOG:\n{events}"
     )

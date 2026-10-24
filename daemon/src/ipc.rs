@@ -248,7 +248,9 @@ impl Server {
                         a.record(AuditEvent::WatchdogAlert { message: message.clone() });
                     }
                     let delivered = if let Some(ntfy) = &self.ntfy {
-                        ntfy.alert("watchdog", "Guardian: integrity alert", &message);
+                        // Key per-message so two DIFFERENT alerts aren't swallowed by the cooldown
+                        // (D3), while an identical one repeated fast still is (anti-flood).
+                        ntfy.alert(&format!("watchdog:{message}"), "Guardian: integrity alert", &message);
                         true
                     } else {
                         false
