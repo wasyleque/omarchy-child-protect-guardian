@@ -1,5 +1,5 @@
 [Unit]
-Description=Omarchy Child Protect Guardian — filtering DNS resolver (dnsmasq on :5353)
+Description=Omarchy Child Protect Guardian — filtering DNS resolver (dnsmasq on :5354)
 Documentation=https://github.com/wasyleque/omarchy-child-protect-guardian
 After=network.target
 

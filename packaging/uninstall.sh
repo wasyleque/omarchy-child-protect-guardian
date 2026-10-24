@@ -9,6 +9,8 @@ set -u
 echo "==> stopping services"
 systemctl disable --now guardian-watchdog.timer 2>/dev/null || true
 systemctl disable --now guardiand 2>/dev/null || true
+# Restore DNS first (unmask systemd-resolved, put /etc/resolv.conf back) while the helper still exists.
+[ -x /usr/lib/guardian/guardian-dns-mode ] && /usr/lib/guardian/guardian-dns-mode revert 2>/dev/null || true
 # DNS filter + nft persistence installed by install.sh --enforce (disabling guardian-nftables also
 # flushes the live egress/redirect tables via its ExecStop).
 systemctl disable --now guardian-nftables.service 2>/dev/null || true

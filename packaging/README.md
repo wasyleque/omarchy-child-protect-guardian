@@ -88,7 +88,7 @@ sudo install -Dm644 network/chromium-dns-policy.json /etc/chromium/policies/mana
 ```
 
 ## 3c. Filtering DNS + SafeSearch
-A dnsmasq instance on `:5353` filters the child's DNS (category blocklist + SafeSearch), with the
+A dnsmasq instance on `:5354` filters the child's DNS (category blocklist + SafeSearch), with the
 child's `:53` redirected to it. Full steps in [`dns/README.md`](dns/README.md).
 
 ## 4. Execution allowlist (fapolicyd) — the big one

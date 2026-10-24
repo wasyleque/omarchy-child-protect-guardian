@@ -21,6 +21,10 @@ define CHILD_UIDS  = { 1001 }             # one uid per child account; setup-chi
 define DNS_SERVERS = { 192.168.0.1 }      # your filtering resolver(s): router, Pi-hole, NextDNS, 1.1.1.3 ...
 # --------------------
 
+# Idempotent: ensure the table exists, drop it, then (re)define — so re-applying this file (install,
+# setup-child reload, boot) REPLACES the ruleset instead of stacking a duplicate copy (review D9).
+table inet guardian
+delete table inet guardian
 table inet guardian {
     # Known DNS-over-HTTPS resolver IPs (block on 443 so the browser can't bypass DNS filtering).
     set doh_v4 {
@@ -51,6 +55,12 @@ table inet guardian {
 
         # --- from here down: packets originate from the CHILD ---
         oifname "lo" accept
+        # The child's DNS is DNAT-redirected to the local filter (10-guardian-dns-redirect.nft → the
+        # dnsmasq on 127.0.0.1:5354). That redirected packet is re-evaluated in this output chain with
+        # its ORIGINAL oif (not lo) and dport 5354, so without this it hits the generic UDP/TCP drop
+        # below and the child has no DNS at all (review D8). Allow the loopback filter explicitly.
+        ip daddr 127.0.0.1 meta l4proto { udp, tcp } th dport 5354 accept
+        ip6 daddr ::1 meta l4proto { udp, tcp } th dport 5354 accept
         ct state established,related accept
 
         # Force name resolution through the approved resolver; block every other DNS path.

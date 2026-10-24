@@ -73,6 +73,7 @@ echo "==> DNS content filter (dnsmasq blocklist + SafeSearch) + nftables persist
 install -Dm644 "$HERE/dns/dnsmasq-guardian.conf"             /etc/dnsmasq-guardian.conf
 install -Dm644 "$HERE/dns/safesearch.conf"                  /etc/guardian/dns/safesearch.conf
 install -Dm755 "$HERE/dns/guardian-blocklist-update.sh"     /usr/lib/guardian/guardian-blocklist-update
+install -Dm755 "$HERE/dns/guardian-dns-mode.sh"             /usr/lib/guardian/guardian-dns-mode
 install -Dm644 "$HERE/dns/guardian-dnsmasq.service"          /etc/systemd/system/guardian-dnsmasq.service
 install -Dm644 "$HERE/dns/guardian-blocklist-update.service" /etc/systemd/system/guardian-blocklist-update.service
 install -Dm644 "$HERE/dns/guardian-blocklist-update.timer"   /etc/systemd/system/guardian-blocklist-update.timer
@@ -92,11 +93,12 @@ if [ "$ENFORCE" -eq 1 ]; then
   # M5: on Omarchy, glibc resolves via systemd-resolved (varlink/stub on 127.0.0.53, a SYSTEM process),
   # so the child's lookups never emit a :53 packet and the per-uid redirect filters NOTHING. Detect it.
   if systemctl is-active --quiet systemd-resolved 2>/dev/null; then
-    echo "    *** ACTION REQUIRED (M5): systemd-resolved is active — the per-child DNS filter will catch"
-    echo "        NOTHING until the child's apps emit real :53 queries. Either disable systemd-resolved"
-    echo "        (child-only filtering; parent keeps a plain upstream in /etc/resolv.conf) or point the"
-    echo "        whole machine's DNS at the guardian resolver. Exact steps: packaging/dns/README.md (M5)."
-    echo "        Verify as the child:  getent hosts pornhub.com   → must be 0.0.0.0"
+    echo "    *** ACTION REQUIRED (M5): systemd-resolved is active — the DNS filter will catch NOTHING"
+    echo "        until you pick a mode. Run the guided, reversible chooser:"
+    echo "            sudo /usr/lib/guardian/guardian-dns-mode.sh          # shows status + options"
+    echo "            sudo /usr/lib/guardian/guardian-dns-mode.sh child-only    # A: only the child filtered (recommended)"
+    echo "            sudo /usr/lib/guardian/guardian-dns-mode.sh whole-machine # B: whole computer filtered (parent too)"
+    echo "        Then verify as the child:  getent ahostsv4 pornhub.com   → must be 0.0.0.0"
   fi
 else
   echo "    TEST MODE: DNS filter + nft files installed but NOT started. Re-run with --enforce to activate."
@@ -130,9 +132,9 @@ cat <<'NEXT'
   1. Edit /etc/guardian/policy.toml — set [ntfy] request_topic + parent_pubkey (pair the phone app:
      `guardian-ctl pair --topic <topic>`), then: systemctl restart guardiand
   2. DNS filter + egress: with --enforce these are installed, enabled and made boot-persistent
-     (guardian-dnsmasq, guardian-nftables, blocklist timer). You MUST still resolve the systemd-resolved
-     (M5) choice above, or NOTHING is actually filtered — see packaging/dns/README.md. Then verify as the
-     child: `getent hosts pornhub.com` → 0.0.0.0. Browser/NM lockdown: packaging/network/README.md
+     (guardian-dnsmasq, guardian-nftables, blocklist timer). You MUST still pick a DNS mode or NOTHING is
+     actually filtered (M5):  sudo /usr/lib/guardian/guardian-dns-mode.sh  (child-only | whole-machine |
+     revert). Then verify as the child: `getent ahostsv4 pornhub.com` → 0.0.0.0. Browser/NM: packaging/network/README.md
   3. Execution allowlist (fapolicyd):  sudo packaging/fapolicyd/guardian-fapolicyd-setup.sh
      then test PERMISSIVE, then re-run with --enforce, then REBOOT-TEST. See packaging/fapolicyd/README.md.
      *** REQUIRED, not optional *** — without fapolicyd enforcing, a child can bypass the install

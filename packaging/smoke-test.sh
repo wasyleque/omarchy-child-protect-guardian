@@ -67,14 +67,16 @@ if command -v nft >/dev/null 2>&1; then
 else meh "nft not installed"; fi
 
 hdr "DNS content filter (porn/SafeSearch)"
-if systemctl is-active --quiet guardian-dnsmasq 2>/dev/null; then ok "guardian-dnsmasq filter running (:5353)"; else meh "guardian-dnsmasq not running — category/SafeSearch filtering is OFF"; fi
+if systemctl is-active --quiet guardian-dnsmasq 2>/dev/null; then ok "guardian-dnsmasq filter running (:5354)"; else meh "guardian-dnsmasq not running — category/SafeSearch filtering is OFF"; fi
 # The real test: does a known adult domain resolve to a sinkhole FOR THE CHILD? (catches the M5
 # systemd-resolved trap, where the filter runs but the child's lookups bypass it.)
 if [ -n "$CHILD" ] && id "$CHILD" >/dev/null 2>&1 && command -v getent >/dev/null 2>&1; then
-  RES="$(sudo -u "$CHILD" getent hosts pornhub.com 2>/dev/null | awk '{print $1; exit}')"
+  # Use ahostsv4 (require the 0.0.0.0 sinkhole): `getent hosts` prefers AAAA and returns `::` even when
+  # UNFILTERED, which would false-PASS in exactly the M5 trap (review D12).
+  RES="$(sudo -u "$CHILD" getent ahostsv4 pornhub.com 2>/dev/null | awk '{print $1; exit}')"
   case "$RES" in
-    0.0.0.0|127.0.0.1|::|"") ok "adult domain sinkholed for $CHILD (pornhub.com → ${RES:-NXDOMAIN})" ;;
-    *) nok "adult domain RESOLVES for $CHILD (pornhub.com → $RES) — DNS filter not effective (systemd-resolved/M5?)" ;;
+    0.0.0.0|127.0.0.1|"") ok "adult domain sinkholed for $CHILD (pornhub.com → ${RES:-NXDOMAIN})" ;;
+    *) nok "adult domain RESOLVES for $CHILD (pornhub.com → $RES) — DNS filter not effective (systemd-resolved/M5? run guardian-dns-mode.sh)" ;;
   esac
 else meh "DNS filter effectiveness: pass a child username to test (getent as the child)"; fi
 
