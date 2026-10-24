@@ -716,12 +716,24 @@ async fn main() -> Result<()> {
                 let mut buf = String::new();
                 if f.read_to_string(&mut buf).is_err() { continue; }
                 offset = len;
-                // At most one alert per category per cycle; the alert_worker cooldown de-dups further.
+                // Pass 1: which domains did the filter actually sinkhole this cycle?
+                let mut blocked: std::collections::HashSet<String> = std::collections::HashSet::new();
+                for line in buf.lines() {
+                    if let Some(("blocked", d)) = dns_concern(line) {
+                        if !d.is_empty() { blocked.insert(d); }
+                    }
+                }
+                // Pass 2: at most one alert per category per cycle (the cooldown de-dups further). A
+                // sinkholed domain gets only the "blocked" alert — skip its keyword alert so one visit
+                // isn't reported twice (review D13); a worrying keyword on a NON-blocked domain still fires.
                 let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
                 let pl = ai.digest_lang.to_lowercase().starts_with("pol");
                 for line in buf.lines() {
                     if let Some((cat, domain)) = dns_concern(line) {
-                        if domain.is_empty() || !seen.insert(cat) {
+                        if domain.is_empty() || (cat != "blocked" && blocked.contains(&domain)) {
+                            continue;
+                        }
+                        if !seen.insert(cat) {
                             continue;
                         }
                         let (title, body) = match (cat, pl) {
