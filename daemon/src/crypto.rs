@@ -472,6 +472,27 @@ mod tests {
     }
 
     #[test]
+    fn m4_app_vector() {
+        // Interop vector for the Android app's crypto_box_seal_open: a fixed seed + the exact sealed
+        // payload shape the daemon emits (M4 step 2). Run with `--nocapture` to print a concrete `enc`
+        // to hard-code in the app's CryptoTest (sealed boxes are non-deterministic, so each run differs;
+        // any one blob stays openable by the recipient key forever). Here we only assert round-trip.
+        let seed = [0x11u8; 32];
+        let sk = SigningKey::from_bytes(&seed);
+        let pub_b64 = pubkey_b64(&sk);
+        let plain = r#"{"source":"pacman","package":"steam","reason":"sudo pacman -S steam"}"#;
+        let enc = seal_to_parent(&pub_b64, plain.as_bytes()).expect("seal");
+        let skx = parent_x25519_secret_from_seed(&seed);
+        let pt = skx.unseal(&STANDARD.decode(&enc).unwrap()).expect("unseal");
+        assert_eq!(pt, plain.as_bytes());
+        let seed_hex: String = seed.iter().map(|b| format!("{b:02x}")).collect();
+        println!("M4_VECTOR seed_hex={seed_hex}");
+        println!("M4_VECTOR parent_pub_b64={pub_b64}");
+        println!("M4_VECTOR plaintext={plain}");
+        println!("M4_VECTOR enc_b64={enc}");
+    }
+
+    #[test]
     fn valid_schedule_verifies() {
         let sk = signing_key();
         let dpub = pubkey_b64(&sk);

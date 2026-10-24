@@ -534,19 +534,56 @@ impl Ntfy {
             &self.daemon_key,
             &crypto::challenge_message(&req.id, req.source, &req.package, nonce, &reason, &respond_to),
         );
-        let data = serde_json::json!({
-            "id": req.id,
-            "source": req.source,
-            "package": req.package,
-            "nonce": nonce,
-            "reason": reason,
-            "respond_to": respond_to,
-            "csig": csig,
-        })
-        .to_string();
+        // M4 step 2: optionally seal the sensitive fields (source/package/reason) to the parent's key
+        // so the broker never sees them. id/nonce/respond_to/csig stay cleartext (routing + the app
+        // reconstructs the SAME csig canonical after decrypting). csig above is unchanged either way.
+        let sealed = if self.cfg.encrypt_payload {
+            let enc = self.cfg.parent_pubkey.as_deref().and_then(|pk| {
+                let plain = serde_json::json!({
+                    "source": req.source,
+                    "package": req.package,
+                    "reason": reason,
+                })
+                .to_string();
+                crypto::seal_to_parent(pk, plain.as_bytes())
+            });
+            if enc.is_none() {
+                eprintln!("guardiand: encrypt_payload set but parent_pubkey missing/invalid — sending cleartext");
+            }
+            enc
+        } else {
+            None
+        };
+        let (title, data) = match &sealed {
+            Some(enc) => (
+                // Generic title — the package name is inside the sealed blob, not the broker-visible title.
+                "Approve install request".to_string(),
+                serde_json::json!({
+                    "id": req.id,
+                    "nonce": nonce,
+                    "respond_to": respond_to,
+                    "csig": csig,
+                    "enc": enc,
+                })
+                .to_string(),
+            ),
+            None => (
+                format!("Approve install: {}", req.package),
+                serde_json::json!({
+                    "id": req.id,
+                    "source": req.source,
+                    "package": req.package,
+                    "nonce": nonce,
+                    "reason": reason,
+                    "respond_to": respond_to,
+                    "csig": csig,
+                })
+                .to_string(),
+            ),
+        };
         let payload = serde_json::json!({
             "topic": self.cfg.request_topic,
-            "title": format!("Approve install: {}", req.package),
+            "title": title,
             "message": data,
             "priority": 4,
             "tags": ["closed_lock_with_key"],

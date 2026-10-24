@@ -149,6 +149,13 @@ pub struct NtfyConfig {
     /// show what the child is doing now. Off by default (adds some broker traffic while the child is on).
     #[serde(default)]
     pub publish_activity: bool,
+    /// Encrypt the challenge payload (source/package/reason) to the parent's key so the broker sees
+    /// only ciphertext (M4 step 2): those fields travel as a sealed `enc` blob instead of cleartext,
+    /// and the notification title is generic. The signed `csig` is unchanged (still over the cleartext
+    /// canonical), so the app decrypts first, then verifies as before. Requires `parent_pubkey` and an
+    /// app build that understands `enc`; off by default. Falls back to cleartext if the key is missing.
+    #[serde(default)]
+    pub encrypt_payload: bool,
 }
 
 fn default_ntfy_server() -> String {
