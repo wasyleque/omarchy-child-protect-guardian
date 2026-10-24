@@ -341,6 +341,12 @@ fixed across 3 batches (daemon 0.2.4→0.2.5, app 0.1.6→0.1.7/vc8). Docs commi
     libsodium-compatible crypto_box_seal to the parent's X25519 key (derived from the Ed25519 pairing
     key). Round-trip unit test green. STEP 2 (wire into publish_challenge + app decrypt) is post-agy;
     see "M4 payload encryption" below.
+  - Step 12 — Smoke-test & fapolicyd setup fixes S1–S4 (daemon 0.3.7, by agy): S1 `smoke-test.sh`
+    checks stdout (`grep -qx ALLOW/DENY`) and `guardian-ctl request` exits 1 on `DENY`; S2
+    `guardian-fapolicyd-setup.sh` restarts `fapolicyd` cleanly when already active (never hot-reloads)
+    and verifies enforcement via a `runuser -u <child>` `/tmp` exec probe; S3 pre-validates temp seed
+    before atomic `mv` and compares loaded DB against journal `without duplicates`; S4 parallelizes
+    pacman trust seeding into `trust.d/.pacman.tmp` via `xargs -0 -P$(nproc)`.
 
 ## TODO for agy — AI/Ollama config UI in the Android app (daemon side DONE, commit 40c0d5c)
 The daemon already accepts a signed AI config pushed from the app; only the APP UI is left (user

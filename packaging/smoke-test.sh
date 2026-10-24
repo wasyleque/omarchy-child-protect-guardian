@@ -24,22 +24,24 @@ if [ -r /var/lib/guardian/daemon.pub ]; then ok "daemon.pub readable (F8)"; else
 
 hdr "Local approval loop (no phone, no install)"
 if [ -x "$CTL" ]; then
-  # ALLOW: submit a dummy request in the background, find it, allow it, expect rc=0.
+  # ALLOW: submit a dummy request in the background, find it, allow it, expect ALLOW on stdout.
   "$CTL" request pacman guardian-smoke-allow >/tmp/gsmoke_a.out 2>&1 &
   RP=$!; sleep 1
   ID="$("$CTL" list 2>/dev/null | grep -iF guardian-smoke-allow | grep -oE '[0-9a-f-]{36}' | head -1)"
   if [ -n "$ID" ]; then
     "$CTL" allow "$ID" >/dev/null 2>&1
-    if wait "$RP" 2>/dev/null; then ok "approval loop: submit → list → ALLOW → request returned allow"; else nok "ALLOW path: request did not return success"; fi
+    wait "$RP" 2>/dev/null || true
+    if grep -qx ALLOW /tmp/gsmoke_a.out 2>/dev/null; then ok "approval loop: submit → list → ALLOW → request returned ALLOW"; else nok "ALLOW path: request did not return ALLOW"; fi
   else nok "approval loop: submitted request not found via 'list'"; kill "$RP" 2>/dev/null; fi
 
-  # DENY: expect the request to return non-zero.
+  # DENY: expect the request to print DENY on stdout (fail-closed).
   "$CTL" request pacman guardian-smoke-deny >/tmp/gsmoke_d.out 2>&1 &
   RP=$!; sleep 1
   ID="$("$CTL" list 2>/dev/null | grep -iF guardian-smoke-deny | grep -oE '[0-9a-f-]{36}' | head -1)"
   if [ -n "$ID" ]; then
     "$CTL" deny "$ID" >/dev/null 2>&1
-    if wait "$RP" 2>/dev/null; then nok "DENY path: request returned success (should fail-closed)"; else ok "approval loop: DENY → request returned non-zero (blocked)"; fi
+    wait "$RP" 2>/dev/null || true
+    if grep -qx DENY /tmp/gsmoke_d.out 2>/dev/null; then ok "approval loop: DENY → request returned DENY (blocked)"; else nok "DENY path: request did not return DENY (should fail-closed)"; fi
   else meh "DENY path: request not found (skipped)"; kill "$RP" 2>/dev/null; fi
 else
   nok "guardian-ctl not found"

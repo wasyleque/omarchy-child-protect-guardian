@@ -15,6 +15,11 @@
 #   F3  Arch prereqs                  — fapolicyd user, trust=file, buildroot/ld_so/rpmdb quirks
 #   F14 trust Guardian's own files    — wrappers + binaries aren't pacman-owned, so the child couldn't
 #                                       even reach the install gate
+#   S2  restart when active + probe   — hot-reload on fapolicyd 2.0.1 silently drops enforcement; restart
+#                                       cleanly and verify with a `runuser -u <child>` /tmp exec probe
+#   S3  pre-validate seed + journal   — validate temp seed before replacing live trust.d/pacman; check
+#                                       journal "without duplicates" count and report status accurately
+#   S4  parallel atomic seeding       — write to trust.d/.pacman.tmp with `xargs -0 -P$(nproc)` + atomic mv
 set -euo pipefail
 [ "$(id -u)" -eq 0 ] || { echo "run as root (sudo)"; exit 1; }
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -89,18 +94,47 @@ echo "==> installing rules as $RULES_D/05-guardian.rules (multi-child)"
 # the shipped 50-name must not also be present (old installs)
 rm -f "$RULES_D/50-guardian.rules"
 
-# --- F1: seed trust from pacman in the correct `path size sha256` format -------
+# --- F1 / S3 / S4: seed trust from pacman into temp file, validate, atomic mv --
+WAS_ACTIVE=0
+systemctl is-active --quiet fapolicyd 2>/dev/null && WAS_ACTIVE=1
+
 SEED="$TRUST_D/pacman"
-echo "==> F1: seeding trust from pacman into $SEED (hashing every package file — this is slow)"
-: > "$SEED"
-while IFS= read -r f; do
-  case "$f" in *\\*|*' '*) continue ;; esac          # a backslash/space path silently stops the load
-  [ -f "$f" ] || continue
-  sum="$(sha256sum "$f" 2>/dev/null)" || continue
-  sz="$(stat -c %s "$f" 2>/dev/null)" || continue
-  printf '%s %s %s\n' "$f" "$sz" "${sum%% *}"
-done < <(pacman -Qlq) >> "$SEED"
-echo "    wrote $(wc -l < "$SEED") trusted files"
+SEED_TMP="$TRUST_D/.pacman.tmp"
+OLD_SEEDN=0
+[ -f "$SEED" ] && OLD_SEEDN="$(wc -l < "$SEED" 2>/dev/null || echo 0)"
+rm -f "$SEED_TMP"
+trap 'rm -f "$SEED_TMP"' EXIT
+
+JOBS="$(nproc 2>/dev/null || echo 4)"
+echo "==> F1/S4: seeding trust from pacman into $SEED_TMP (parallel across $JOBS cores)"
+pacman -Qlq | grep -vE '[\\`[:space:]]' | tr '\n' '\0' \
+  | xargs -0 -r -P"$JOBS" -n 256 bash -c '
+      for f in "$@"; do
+        [ -f "$f" ] || continue
+        sum="$(sha256sum "$f" 2>/dev/null)" || continue
+        sz="$(stat -c %s "$f" 2>/dev/null)" || continue
+        printf "%s %s %s\n" "$f" "$sz" "${sum%% *}"
+      done
+      :
+    ' _ > "$SEED_TMP"
+
+SEEDN="$(wc -l < "$SEED_TMP")"
+BAD_LINES="$(grep -cvE '^/[^\\`[:space:]]+ [0-9]+ [0-9a-f]{64}$' "$SEED_TMP" || true)"
+MIN_SEED=10000
+if [ "$OLD_SEEDN" -gt 0 ] && [ $((OLD_SEEDN * 9 / 10)) -gt "$MIN_SEED" ]; then
+  MIN_SEED=$((OLD_SEEDN * 9 / 10))
+fi
+if [ "$SEEDN" -lt "$MIN_SEED" ] || [ "$BAD_LINES" -gt 0 ]; then
+  echo "==> [FAIL] S3: candidate seed $SEED_TMP failed validation (lines=$SEEDN, min=$MIN_SEED, malformed/unsafe=$BAD_LINES)." >&2
+  if [ "$WAS_ACTIVE" -eq 1 ]; then
+    echo "    Live $SEED was NOT overwritten and running fapolicyd was NOT restarted." >&2
+  else
+    echo "    Live $SEED was NOT overwritten and fapolicyd was NOT enabled." >&2
+  fi
+  exit 1
+fi
+mv -f "$SEED_TMP" "$SEED"
+echo "    validated and atomically installed $SEED ($SEEDN trusted files)"
 
 # --- F14: trust Guardian's own (non-pacman) files -----------------------------
 echo "==> F14: trusting Guardian's own files"
@@ -115,32 +149,78 @@ for f in /usr/local/bin/flatpak /usr/local/bin/snap /usr/local/bin/nix-env \
     && echo "    + $tgt"
 done
 
-# --- load + verify ------------------------------------------------------------
-echo "==> compiling rules + loading trust"
-fagenrules --load >/dev/null 2>&1 || true
-fapolicyd-cli --update >/dev/null 2>&1 || true
+# --- compile rules + apply (S2/S3) -------------------------------------------
+echo "==> compiling rules (fagenrules)"
+fagenrules >/dev/null 2>&1 || true
 
-SEEDN="$(wc -l < "$SEED")"
-DBN="$(fapolicyd-cli --dump-db 2>/dev/null | wc -l || echo 0)"
-echo "==> trust DB has $DBN entries; pacman seed had $SEEDN"
-DB_OK=1
-if [ "$SEEDN" -gt 0 ] && [ "$DBN" -lt $((SEEDN * 9 / 10)) ]; then
-  DB_OK=0
-  echo "    !! trust DB ($DBN) is well below the seed ($SEEDN) — a path probably stopped the load."
-  echo "       Check:  journalctl -u fapolicyd | grep -i 'without duplicates'"
-fi
+if [ "$WAS_ACTIVE" -eq 1 ] || [ "$ENFORCE" -eq 1 ]; then
+  RESTART_TS="$(date '+%Y-%m-%d %H:%M:%S')"
+  if [ "$ENFORCE" -eq 1 ]; then
+    systemctl enable fapolicyd >/dev/null 2>&1 || true
+  fi
+  if [ "$WAS_ACTIVE" -eq 1 ]; then
+    echo "==> S2: fapolicyd already active — restarting cleanly (hot-reload on 2.0.1 is unreliable)"
+  else
+    echo "==> ENFORCING: enabling and starting fapolicyd"
+  fi
+  systemctl restart fapolicyd
 
-if [ "$ENFORCE" -eq 1 ]; then
-  # REFUSE to enforce on a partial trust DB: under enforce, a missing system binary means systemd
-  # can't start units and the next boot can hang. Better to stay permissive than to brick the boot.
-  if [ "$DB_OK" -ne 1 ]; then
-    echo "==> ABORTING --enforce: the trust DB looks incomplete. Enabling fapolicyd now could block the"
-    echo "    next boot. Fix the seed (see the hint above), re-run WITHOUT --enforce to re-seed, and only"
-    echo "    pass --enforce once 'trust DB' ≈ 'seed'. fapolicyd was NOT enabled."
+  ACTIVE_OK=0
+  for _ in $(seq 1 30); do
+    if systemctl is-active --quiet fapolicyd 2>/dev/null; then
+      ACTIVE_OK=1
+      break
+    fi
+    sleep 0.5
+  done
+  if [ "$ACTIVE_OK" -ne 1 ]; then
+    echo "==> [FAIL] fapolicyd did not become active after restart!" >&2
     exit 1
   fi
-  echo "==> ENFORCING: enabling fapolicyd"
-  systemctl enable --now fapolicyd
+
+  JLINE=""
+  for _ in $(seq 1 30); do
+    JLINE="$(journalctl -u fapolicyd --since "$RESTART_TS" --no-pager 2>/dev/null | grep -i 'without duplicates' | tail -1 || true)"
+    [ -n "$JLINE" ] && break
+    sleep 0.5
+  done
+  DBN="$(printf '%s\n' "$JLINE" | grep -oE '[0-9]+ entries without duplicates|[0-9]+[[:space:]]+without duplicates' | grep -oE '^[0-9]+' || true)"
+  if [ -z "$DBN" ] || [ "$DBN" -eq 0 ] 2>/dev/null; then
+    DBN="$(fapolicyd-cli --dump-db 2>/dev/null | wc -l || echo 0)"
+  fi
+  echo "==> trust DB has $DBN entries; pacman seed has $SEEDN"
+  if [ "$SEEDN" -gt 0 ] && [ "$DBN" -lt $((SEEDN * 9 / 10)) ]; then
+    echo "==> [FAIL] S3: trust DB ($DBN) is well below seed ($SEEDN) — a path likely stopped the load." >&2
+    echo "    Check:  journalctl -u fapolicyd | grep -i 'without duplicates'" >&2
+    if [ "$WAS_ACTIVE" -eq 0 ]; then
+      systemctl stop fapolicyd 2>/dev/null || true
+      systemctl disable fapolicyd 2>/dev/null || true
+      echo "    fapolicyd was stopped and disabled so the next boot is not blocked." >&2
+    else
+      echo "    WARNING: fapolicyd was already active; fix the seed before rebooting!" >&2
+    fi
+    exit 1
+  fi
+
+  # S2: Verify with a child exec probe on an untrusted /tmp binary (must fail).
+  PROBE_UID="${CHILD_UIDS[0]}"
+  PROBE_USER="$(id -un "$PROBE_UID" 2>/dev/null || getent passwd "$PROBE_UID" | cut -d: -f1 || true)"
+  PROBE_BIN="/tmp/guardian-fapolicyd-probe-$$"
+  cp -f /usr/bin/true "$PROBE_BIN" 2>/dev/null || printf '#!/bin/sh\nexit 0\n' > "$PROBE_BIN"
+  chmod 0755 "$PROBE_BIN"
+  if [ -n "$PROBE_USER" ]; then
+    if runuser -u "$PROBE_USER" -- "$PROBE_BIN" >/dev/null 2>&1; then
+      rm -f "$PROBE_BIN"
+      echo "==> [FAIL] S2 exec-probe: child '$PROBE_USER' (uid=$PROBE_UID) RAN untrusted $PROBE_BIN — fapolicyd is NOT enforcing!" >&2
+      exit 1
+    fi
+    rm -f "$PROBE_BIN"
+    echo "==> [PASS] S2 exec-probe: child '$PROBE_USER' (uid=$PROBE_UID) blocked from executing untrusted /tmp binary"
+  else
+    rm -f "$PROBE_BIN"
+    echo "==> [WARN] S2 exec-probe: no username found for uid $PROBE_UID; probe skipped" >&2
+  fi
+
   echo "    Verify as the child:  bwrap --dev-bind / / --bind ~/x /usr/bin/true /usr/bin/true  → Operation not permitted"
   echo "    *** REBOOT-TEST NOW *** — a bad trust DB only bites on the next boot."
 else

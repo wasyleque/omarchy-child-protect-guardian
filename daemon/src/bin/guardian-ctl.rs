@@ -184,7 +184,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if let ServerMessage::Decision { decision, .. } = response {
                 match decision {
                     Decision::Allow => println!("ALLOW"),
-                    Decision::Deny => println!("DENY"),
+                    Decision::Deny => {
+                        println!("DENY");
+                        exit(1);
+                    }
                 }
             } else {
                 eprintln!("Unexpected response");
