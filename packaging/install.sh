@@ -78,6 +78,8 @@ install -Dm644 "$HERE/dns/guardian-dnsmasq.service"          /etc/systemd/system
 install -Dm644 "$HERE/dns/guardian-blocklist-update.service" /etc/systemd/system/guardian-blocklist-update.service
 install -Dm644 "$HERE/dns/guardian-blocklist-update.timer"   /etc/systemd/system/guardian-blocklist-update.timer
 [ -f /etc/guardian/dns/blocked.hosts ] || install -Dm644 /dev/null /etc/guardian/dns/blocked.hosts  # placeholder so dnsmasq starts before the first fetch
+install -dm755 /var/log/guardian                                              # dnsmasq query log lives here (local only)
+install -Dm644 "$HERE/dns/guardian-dns.logrotate" /etc/logrotate.d/guardian-dns
 # nftables rule sets live in /etc now (stable across repo moves); setup-child.sh keeps CHILD_UIDS current.
 install -Dm644 "$HERE/nftables/guardian-egress.nft"       /etc/guardian/nftables/guardian-egress.nft
 install -Dm644 "$HERE/dns/10-guardian-dns-redirect.nft"   /etc/guardian/nftables/10-guardian-dns-redirect.nft

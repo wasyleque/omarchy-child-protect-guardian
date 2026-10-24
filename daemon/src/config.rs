@@ -106,12 +106,17 @@ pub struct AiConfig {
     /// it the digest still covers blocked attempts from the audit log, but can't flag web lookups.
     #[serde(default)]
     pub dns_query_log: Option<String>,
+    /// When `dns_query_log` is set, also push a SIGNED, rate-limited alert the moment the child hits a
+    /// blocked/worrying domain — so the parent learns in real time, not only in the daily digest.
+    #[serde(default = "default_true")]
+    pub dns_alert: bool,
     /// Optional path to the child-activity log (from guardian-activity-reporter) so the digest can
     /// report which apps/games were used and roughly for how long.
     #[serde(default)]
     pub activity_log: Option<String>,
 }
 
+fn default_true() -> bool { true }
 fn default_digest_hour() -> u8 { 20 }
 fn default_digest_lang() -> String { "Polish".to_string() }
 fn default_ai_provider() -> String { "ollama".to_string() }

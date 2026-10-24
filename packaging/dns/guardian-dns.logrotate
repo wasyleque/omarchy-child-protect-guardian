@@ -1,0 +1,13 @@
+# Rotate the Guardian DNS query log so it can't grow without bound. copytruncate: dnsmasq keeps its
+# open file descriptor, so we copy-then-truncate rather than rename (no SIGHUP needed). The daemon's
+# log watcher detects the truncation (len < offset) and resumes from the top.
+/var/log/guardian/dns-queries.log {
+    daily
+    rotate 7
+    missingok
+    notifempty
+    copytruncate
+    maxsize 20M
+    compress
+    delaycompress
+}

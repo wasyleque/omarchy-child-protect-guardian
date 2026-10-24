@@ -33,8 +33,8 @@ rm -rf /usr/lib/guardian
 rm -f /etc/systemd/system/guardiand.service /etc/systemd/system/guardian-watchdog.service /etc/systemd/system/guardian-watchdog.timer
 rm -f /etc/systemd/system/guardian-nftables.service /etc/systemd/system/guardian-dnsmasq.service \
       /etc/systemd/system/guardian-blocklist-update.service /etc/systemd/system/guardian-blocklist-update.timer
-rm -f /etc/dnsmasq-guardian.conf
-rm -rf /etc/guardian/nftables /etc/guardian/dns
+rm -f /etc/dnsmasq-guardian.conf /etc/logrotate.d/guardian-dns
+rm -rf /etc/guardian/nftables /etc/guardian/dns /var/log/guardian
 systemctl daemon-reload 2>/dev/null || true
 
 echo "==> kept (remove by hand if wanted): /etc/guardian/policy.toml, /var/log/guardian/audit.log,"

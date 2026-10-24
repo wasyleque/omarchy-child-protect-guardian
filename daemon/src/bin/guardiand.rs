@@ -140,27 +140,48 @@ fn secs_until_hour(target_hour: u8) -> u64 {
     (diff as u64) * 60
 }
 
-/// Scan a DNS query log for worrying topics the parent should know about (review: AI-digest safety
-/// requirement — drugs, self-harm/suicide, weapons, etc.). Best-effort + heuristic; the model
-/// interprets. Returns deduped matched domains/lines (capped).
+/// (keyword, parent-facing category) for worrying DNS lookups — the AI-digest safety requirement, and
+/// now also the source for real-time DNS concern alerts. Matched case-insensitively against a log line.
+const DNS_CONCERN_TERMS: &[(&str, &str)] = &[
+    ("suicide", "self-harm"), ("samobój", "self-harm"), ("selfharm", "self-harm"),
+    ("self-harm", "self-harm"), ("cutting", "self-harm"), ("depress", "self-harm"),
+    ("narkotyk", "drugs"), ("drug", "drugs"), ("cocaine", "drugs"), ("heroin", "drugs"),
+    ("mdma", "drugs"), ("weed", "drugs"), ("marijuana", "drugs"), ("dopalacz", "drugs"),
+    ("broń", "weapons"), ("weapon", "weapons"), ("gun", "weapons"), ("firearm", "weapons"),
+    ("ammo", "weapons"), ("bomb", "weapons"), ("explosiv", "weapons"),
+    ("porn", "adult"), ("xxx", "adult"), ("onlyfans", "adult"), ("hentai", "adult"),
+    ("extremis", "extremism"), ("nazi", "extremism"), ("isis", "extremism"),
+];
+
+/// Pull the hostname-looking token out of a dnsmasq log line (has a dot, no slash).
+fn dns_domain_of(line: &str) -> Option<String> {
+    line.split_whitespace()
+        .find(|w| w.contains('.') && !w.contains('/') && !w.ends_with(']'))
+        .map(|s| s.trim_end_matches('.').to_string())
+}
+
+/// Classify a DNS log line: a sinkholed reply (the filter blocked it) → "adult/blocked", else a
+/// worrying keyword → its category, else None. Returns (category, domain).
+fn dns_concern(line: &str) -> Option<(&'static str, String)> {
+    let low = line.to_lowercase();
+    let cat = if low.contains("is 0.0.0.0") || low.contains(" is ::") {
+        "blocked"
+    } else {
+        DNS_CONCERN_TERMS.iter().find(|(t, _)| low.contains(t)).map(|(_, c)| *c)?
+    };
+    Some((cat, dns_domain_of(line).unwrap_or_default()))
+}
+
+/// Scan a DNS query log for worrying topics the parent should know about. Best-effort + heuristic; the
+/// digest model interprets. Returns deduped matched domains (capped).
 fn scan_dns_for_concerns(path: &str) -> Vec<String> {
-    const TERMS: &[&str] = &[
-        "suicide", "samobój", "selfharm", "self-harm", "cutting", "depress",
-        "narkotyk", "drug", "cocaine", "heroin", "mdma", "weed", "marijuana", "dopalacz",
-        "broń", "weapon", "gun", "firearm", "ammo", "bomb", "explosiv",
-        "porn", "xxx", "onlyfans", "hentai", "extremis", "nazi", "isis",
-    ];
     let mut out: Vec<String> = Vec::new();
     if let Ok(f) = std::fs::File::open(path) {
         use std::io::BufRead;
         for line in std::io::BufReader::new(f).lines().map_while(Result::ok) {
             let low = line.to_lowercase();
-            if TERMS.iter().any(|t| low.contains(t)) {
-                let token = line
-                    .split_whitespace()
-                    .find(|w| w.contains('.') && !w.contains('/'))
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| line.trim().to_string());
+            if DNS_CONCERN_TERMS.iter().any(|(t, _)| low.contains(t)) {
+                let token = dns_domain_of(&line).unwrap_or_else(|| line.trim().to_string());
                 if !out.contains(&token) {
                     out.push(token);
                 }
@@ -655,6 +676,71 @@ async fn main() -> Result<()> {
         });
     }
 
+    // Real-time DNS concern alerts: watch the child's DNS query log and push a SIGNED, rate-limited
+    // alert the moment the child hits a blocked/worrying domain — so the parent learns immediately, not
+    // only in the daily digest (the digest flagged these but only if the log existed). Off unless
+    // [ai].dns_query_log is set and [ai].dns_alert (default on).
+    if let Some(ntfy) = &ntfy {
+        let ntfy = Arc::clone(ntfy);
+        let ai_path = policy.ai_config_path.clone();
+        let policy_ai = policy.ai.clone();
+        tokio::spawn(async move {
+            use std::io::{Read, Seek, SeekFrom};
+            // Start at the end of the current log so startup doesn't replay history.
+            let mut offset: u64 = load_ai_override(&ai_path)
+                .or_else(|| policy_ai.clone())
+                .and_then(|a| a.dns_query_log)
+                .and_then(|p| std::fs::metadata(p).ok())
+                .map(|m| m.len())
+                .unwrap_or(0);
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(20)).await;
+                let ai = match load_ai_override(&ai_path)
+                    .or_else(|| policy_ai.clone())
+                    .filter(|a| a.enabled && a.dns_alert)
+                {
+                    Some(a) => a,
+                    None => continue,
+                };
+                let path = match ai.dns_query_log.as_deref() {
+                    Some(p) => p.to_string(),
+                    None => continue,
+                };
+                let mut f = match std::fs::File::open(&path) {
+                    Ok(f) => f,
+                    Err(_) => { offset = 0; continue } // not created yet / rotated away
+                };
+                let len = f.metadata().map(|m| m.len()).unwrap_or(0);
+                if len < offset { offset = 0; } // log rotated/truncated → restart from the top
+                if len == offset || f.seek(SeekFrom::Start(offset)).is_err() { continue; }
+                let mut buf = String::new();
+                if f.read_to_string(&mut buf).is_err() { continue; }
+                offset = len;
+                // At most one alert per category per cycle; the alert_worker cooldown de-dups further.
+                let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+                let pl = ai.digest_lang.to_lowercase().starts_with("pol");
+                for line in buf.lines() {
+                    if let Some((cat, domain)) = dns_concern(line) {
+                        if domain.is_empty() || !seen.insert(cat) {
+                            continue;
+                        }
+                        let (title, body) = match (cat, pl) {
+                            ("blocked", true) => ("Guardian: zablokowana strona".to_string(),
+                                format!("⚠ Dziecko próbowało otworzyć zablokowaną stronę: {domain}")),
+                            ("blocked", false) => ("Guardian: blocked site".to_string(),
+                                format!("⚠ The child tried to open a blocked site: {domain}")),
+                            (c, true) => ("Guardian: niepokojące wyszukiwanie".to_string(),
+                                format!("⚠ UWAGA: niepokojące wyszukiwanie ({c}): {domain}")),
+                            (c, false) => ("Guardian: worrying lookup".to_string(),
+                                format!("⚠ ALERT: worrying lookup ({c}): {domain}")),
+                        };
+                        ntfy.alert(&format!("dns-concern:{cat}"), &title, &body);
+                    }
+                }
+            }
+        });
+    }
+
     // Live "current app" pings: when enabled, publish each active child's foreground app (on change)
     // so the parent app can show "now: <app>". Reads the reporter's per-child activity log.
     if let Some(ntfy) = &ntfy {
@@ -742,5 +828,21 @@ mod tests {
         assert!(summary.contains("steam"), "real child package missing:\n{summary}");
         assert!(summary.contains("Install requests today: 1"), "wrong submitted count:\n{summary}");
         assert!(summary.contains("denied: 1"), "smoke deny inflated the count:\n{summary}");
+    }
+
+    #[test]
+    fn dns_concern_classifies() {
+        // A sinkholed reply → the filter blocked it.
+        assert_eq!(
+            dns_concern("Oct 24 reply pornhub.com is 0.0.0.0"),
+            Some(("blocked", "pornhub.com".to_string()))
+        );
+        // A worrying keyword in the queried domain → its category.
+        assert_eq!(
+            dns_concern("Oct 24 query[A] buy-cocaine.example from 192.168.0.11").map(|(c, _)| c),
+            Some("drugs")
+        );
+        // Ordinary lookups don't alert.
+        assert!(dns_concern("Oct 24 query[A] archlinux.org from 192.168.0.11").is_none());
     }
 }
