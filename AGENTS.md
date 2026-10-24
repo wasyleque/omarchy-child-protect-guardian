@@ -333,7 +333,14 @@ fixed across 3 batches (daemon 0.2.4→0.2.5, app 0.1.6→0.1.7/vc8). Docs commi
     non-Batch-4 follow-ups remain (M4 payload encryption, iOS, app icon, heartbeat-gap alarm).
   - README reworked (b4b854a/f2d7a7d): Status moved below Documentation + reworded ("✅ Working — in
     active testing, not yet sole protection"), new "📱 Android parent app" section + a real phone
-    screenshot (docs/screenshots/android-app.png, public key redacted). daemon now 0.3.4, app 0.1.11/vc12.
+    screenshot (docs/screenshots/android-app.png, public key redacted). daemon now 0.3.6, app 0.1.12/vc13.
+  - Step 10 — AI-config daemon side (40c0d5c, daemon 0.3.5): the daemon accepts a SIGNED
+    `set_ai` push (OCPG-AICFG-v1), applies it live + persists /var/lib/guardian/ai.json; only the
+    APP UI is left → handed to agy (see "TODO for agy" below). Canonical/signing is the agy-tier bit.
+  - Step 11 — M4 payload encryption STEP 1 (220d5e9, daemon 0.3.6): crypto::seal_to_parent() —
+    libsodium-compatible crypto_box_seal to the parent's X25519 key (derived from the Ed25519 pairing
+    key). Round-trip unit test green. STEP 2 (wire into publish_challenge + app decrypt) is post-agy;
+    see "M4 payload encryption" below.
 
 ## TODO for agy — AI/Ollama config UI in the Android app (daemon side DONE, commit 40c0d5c)
 The daemon already accepts a signed AI config pushed from the app; only the APP UI is left (user
