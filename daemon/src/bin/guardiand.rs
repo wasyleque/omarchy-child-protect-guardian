@@ -241,6 +241,10 @@ fn build_day_summary(audit_path: &std::path::Path, dns_log: Option<&str>, activi
     let (mut submitted, mut denied, mut refused, mut ctrl, mut rejected, mut blocks, mut grants) =
         (0u32, 0u32, 0u32, 0u32, 0u32, 0u32, 0u32);
     let mut pkgs: Vec<String> = Vec::new();
+    // Requests from uid 0 (root — e.g. the smoke test) and `guardian-smoke-*` dummies are not the
+    // child's activity, so they must never appear in the parent-facing digest (D1). Track their ids
+    // so their later `decided` events are skipped too.
+    let mut excluded_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
     if let Ok(f) = std::fs::File::open(audit_path) {
         use std::io::BufRead;
         for line in std::io::BufReader::new(f).lines().map_while(Result::ok) {
@@ -253,12 +257,25 @@ fn build_day_summary(audit_path: &std::path::Path, dns_log: Option<&str>, activi
             }
             match v.get("event").and_then(|e| e.as_str()).unwrap_or("") {
                 "submitted" => {
+                    let uid = v.get("uid").and_then(|u| u.as_u64()).unwrap_or(0);
+                    let pkg = v.get("package").and_then(|p| p.as_str()).unwrap_or("");
+                    let id = v.get("id").and_then(|i| i.as_str()).unwrap_or("");
+                    if uid == 0 || pkg.starts_with("guardian-smoke-") {
+                        if !id.is_empty() {
+                            excluded_ids.insert(id.to_string());
+                        }
+                        continue;
+                    }
                     submitted += 1;
-                    if let Some(p) = v.get("package").and_then(|p| p.as_str()) {
-                        pkgs.push(p.to_string());
+                    if !pkg.is_empty() {
+                        pkgs.push(pkg.to_string());
                     }
                 }
                 "decided" => {
+                    let id = v.get("id").and_then(|i| i.as_str()).unwrap_or("");
+                    if excluded_ids.contains(id) {
+                        continue;
+                    }
                     if v.get("decision").and_then(|d| d.as_str()) == Some("deny") {
                         denied += 1;
                     }
@@ -302,9 +319,14 @@ fn build_day_summary(audit_path: &std::path::Path, dns_log: Option<&str>, activi
         }
     }
     if let Some(path) = dns_log {
-        let hits = scan_dns_for_concerns(path);
-        if !hits.is_empty() {
-            s.push_str(&format!("Potentially worrying web lookups: {}.\n", hits.join(", ")));
+        if std::path::Path::new(path).exists() {
+            let hits = scan_dns_for_concerns(path);
+            if !hits.is_empty() {
+                s.push_str(&format!("Potentially worrying web lookups: {}.\n", hits.join(", ")));
+            }
+        } else {
+            // Be explicit rather than silently skipping (the digest shouldn't imply "nothing found").
+            s.push_str(&format!("(DNS query log not found at {path} — web-lookup check skipped.)\n"));
         }
     }
     if s.trim().is_empty() {
@@ -601,7 +623,7 @@ async fn main() -> Result<()> {
                 if let Some(ai) = cur.filter(|a| a.enabled && (manual || a.digest_enabled)) {
                     let events = build_day_summary(&audit_path, ai.dns_query_log.as_deref(), ai.activity_log.as_deref());
                     match guardian::ai::daily_digest(&client, &ai, &ai.digest_lang, &events).await {
-                        Some(d) => ntfy.alert("daily-digest", "Guardian: podsumowanie dnia", &d),
+                        Some(d) => ntfy.alert("!daily-digest", "Guardian: podsumowanie dnia", &d),
                         None => eprintln!("guardiand: daily digest skipped (AI unavailable)"),
                     }
                 } else if manual {
@@ -664,4 +686,44 @@ async fn main() -> Result<()> {
     });
 
     server.run(&policy.socket_path, &policy.submit_socket_path).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    #[test]
+    fn digest_excludes_uid0_and_smoke_requests() {
+        // D1 regression: the smoke test's uid-0 `guardian-smoke-*` requests must not appear in the
+        // parent-facing digest, and their deny must not inflate the "denied" count — only the real
+        // child's (uid 1001) request should.
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let dir = std::env::temp_dir();
+        let path = dir.join(format!("guardian_digest_test_{}.log", std::process::id()));
+        {
+            let mut f = std::fs::File::create(&path).unwrap();
+            let lines = [
+                format!(r#"{{"event":"submitted","ts":{now},"uid":0,"package":"guardian-smoke-allow","id":"aaa"}}"#),
+                format!(r#"{{"event":"decided","ts":{now},"id":"aaa","decision":"allow"}}"#),
+                format!(r#"{{"event":"submitted","ts":{now},"uid":0,"package":"guardian-smoke-deny","id":"bbb"}}"#),
+                format!(r#"{{"event":"decided","ts":{now},"id":"bbb","decision":"deny"}}"#),
+                format!(r#"{{"event":"submitted","ts":{now},"uid":1001,"package":"steam","id":"ccc"}}"#),
+                format!(r#"{{"event":"decided","ts":{now},"id":"ccc","decision":"deny"}}"#),
+            ];
+            for l in lines {
+                writeln!(f, "{l}").unwrap();
+            }
+        }
+        let summary = build_day_summary(&path, None, None);
+        let _ = std::fs::remove_file(&path);
+
+        assert!(!summary.contains("guardian-smoke"), "smoke packages leaked into digest:\n{summary}");
+        assert!(summary.contains("steam"), "real child package missing:\n{summary}");
+        assert!(summary.contains("Install requests today: 1"), "wrong submitted count:\n{summary}");
+        assert!(summary.contains("denied: 1"), "smoke deny inflated the count:\n{summary}");
+    }
 }

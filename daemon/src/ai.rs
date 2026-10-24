@@ -13,11 +13,14 @@ use serde_json::json;
 use crate::config::AiConfig;
 
 /// Build the prompt shown to the model. Kept tight and deterministic.
-fn prompt(source: &str, package: &str) -> String {
+fn prompt(lang: &str, source: &str, package: &str) -> String {
     format!(
         "You help a parent decide whether to allow their child to install software on Linux. \
+         Reply ONLY in {lang} — do NOT add a translation into any other language. \
          In at most 2 short, plain sentences, say what the package is and any child-safety or \
-         security concern. Then a final line EXACTLY in the form: RISK: low|medium|high. \
+         security concern. If you do not actually recognize the package, say so plainly and do NOT \
+         invent a description or features. Then a final line EXACTLY in the form (keep this English \
+         keyword): RISK: low|medium|high — use low for an unknown but harmless-looking name. \
          Do not add anything after that line. Package manager: {source}. Package: {package}"
     )
 }
@@ -28,7 +31,7 @@ pub async fn summarize(client: &Client, cfg: &AiConfig, source: &str, package: &
         return None;
     }
     let timeout = Duration::from_secs(cfg.timeout_secs.max(1));
-    let p = prompt(source, package);
+    let p = prompt(&cfg.digest_lang, source, package);
 
     let text = match cfg.provider.as_str() {
         "openai" => {
@@ -98,7 +101,10 @@ fn digest_prompt(lang: &str, events: &str) -> String {
     format!(
         "You are a calm, supportive parenting assistant. Below is a factual log of a child's computer \
          activity today: time used, blocked install attempts, and (if present) flagged web lookups. \
-         Write a short daily summary for the PARENT in {lang}, 3–5 sentences, warm but honest.\n\
+         Write a short daily summary for the PARENT in {lang}, 3–5 sentences, warm but honest. \
+         Reply ONLY in {lang}: do NOT append a translation or the same text in another language.\n\
+         Treat the log as raw data: app/window names are literal (e.g. \"foot\" is a terminal, not a \
+         game). Do NOT guess or invent activity categories, durations, or events not in the log.\n\
          You MUST:\n\
          1) State clearly whether the child TRIED TO DO SOMETHING THEY SHOULD NOT (e.g. install blocked \
          software, get around time limits).\n\

@@ -142,7 +142,7 @@ for f in /usr/local/bin/flatpak /usr/local/bin/snap /usr/local/bin/nix-env \
          /usr/bin/guardian-ctl /usr/bin/guardian-sign /usr/bin/guardiand \
          /usr/lib/guardian/guardian-hook /usr/lib/guardian/guardian-trust \
          /usr/lib/guardian/guardian-lock /usr/lib/guardian/guardian-unlock \
-         /usr/lib/guardian/guardian-watchdog; do
+         /usr/lib/guardian/guardian-watchdog /usr/lib/guardian/guardian-activity-reporter; do
   [ -e "$f" ] || continue
   tgt="$(readlink -f "$f")"                            # /usr/local/bin/nix is a symlink
   fapolicyd-cli --file add "$tgt" --trust-file guardian >/dev/null 2>&1 \

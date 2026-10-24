@@ -410,12 +410,22 @@ impl Ntfy {
         let mut last: HashMap<String, Instant> = HashMap::new();
         while let Some((key, title, body)) = rx.recv().await {
             let now = Instant::now();
-            if let Some(t) = last.get(&key) {
-                if now.duration_since(*t) < ALERT_COOLDOWN {
-                    continue;
+            // Keys prefixed with '!' bypass the cooldown (e.g. the daily/on-demand digest, which is
+            // parent-initiated or once-a-day — not a flood vector). D3: never drop those silently.
+            let bypass = key.starts_with('!');
+            if !bypass {
+                if let Some(t) = last.get(&key) {
+                    let since = now.duration_since(*t);
+                    if since < ALERT_COOLDOWN {
+                        eprintln!(
+                            "guardiand: alert '{key}' suppressed by cooldown ({}s left)",
+                            (ALERT_COOLDOWN - since).as_secs()
+                        );
+                        continue;
+                    }
                 }
+                last.insert(key, now);
             }
-            last.insert(key, now);
             if let Err(e) = self.publish_alert(&title, &body).await {
                 eprintln!("guardiand: alert publish failed: {e:#}");
             }
@@ -463,6 +473,11 @@ impl Ntfy {
 
     /// Register the request's secret and push the appropriate notification to the parent's phone.
     pub async fn push(&self, req: &InstallRequest) -> Result<()> {
+        // D2: the smoke test's dummy requests are resolved locally via the control socket — never
+        // bother the parent's phone with them (and so a late tap can't trigger a "rejected approval").
+        if req.package.starts_with("guardian-smoke-") {
+            return Ok(());
+        }
         match &self.mode {
             Mode::Token => {
                 let token = random_hex();
