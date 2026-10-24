@@ -397,10 +397,22 @@ AI-config from the app over ntfy works, M4 broker side OK (generic title, packag
     `call_model()` that LOGS the failure cause (request/parse error, or a provider `error` like Ollama's "model
     '…' not found" — a tagless model name used to vanish silently); sends Ollama `keep_alive="10m"` and raises the
     default `timeout_secs` 12 → 30 so a local model's cold load (Bielik ~13 s) doesn't time out.
-  - REMAINING for the next on-host round (re-test on .12 at 0.3.11 + app 0.1.15): confirm the digest now shows on
-    the phone (D6 fix) with Bielik content filtered + Polish (D1/S7); D7 app half = send the model name WITH its
-    tag / fetch `/api/tags` for the dropdown (agy); re-test M4 using the new in-app debug log; the `guardian-ctl
-    alert` "watchdog" key still de-dupes distinct test alerts within 15 min (minor; key it per-message if annoying).
+## On-host test #3 (0.3.11 + app 0.1.15 re-test on .12, 2026-10-24) — mostly PASS (see …-v0311.md)
+PASS: smoke 14/0/0, S2 exec-probe, S5 reporter trusted, S1. Bielik (tag `:Q8_0`) digest = good Polish, smoke/uid-0
+NOT counted, `foot` not a game, "DNS log not found" shown, no silent AI errors. Risk note now Polish. Phone: D5
+catch-up works (missed msgs arrived), D6 fixed (Polish/⚠ alerts + digest show in-app), D4 notification-Deny works.
+**M4 PASS, flag left ON** (see the M4 section). Remaining nits → Step 20 + agy follow-ups below.
+  - Step 20 — digest/risk polish (bf2bf0f, daemon 0.3.12, by Claude): strip Markdown `**` from model output +
+    prompts say "plain text" (phone showed raw asterisks); the ⚠ UWAGA marker is now scoped to genuinely worrying
+    WEB-lookup topics only (never for install attempts / odd names, never when none) and the model is told not to
+    speculate about motives (fixes the "⚠ UWAGA … ✅ all fine" contradiction + the invented "fraud"); risk prompt
+    leans a chat app to medium; summarize_activity tags window classes with a category ("foot (terminal)") so the
+    model stops inventing "football"; D3 `guardian-ctl alert` keys per-message so two different alerts in 15 min
+    both send (digest-now already bypassed the cooldown since 0.3.10).
+  - FOR agy (app follow-ups, not blocking): D7 app half — send the model name WITH its tag / fetch `/api/tags` from
+    the box and offer only installed models; collapse a catch-up burst (~10 at once) into one summary notification
+    and don't notify for already-expired/resolved cards.
+  - NOT done (needs physical presence at .12): reboot test after the fapolicyd setup; setup-child.sh F12/F13.
 
 ## DONE (by agy) — AI/Ollama config UI in the Android app (daemon side commit 40c0d5c, app 0.1.13/vc14)
 The daemon already accepts a signed AI config pushed from the app; only the APP UI is left (user
@@ -422,7 +434,11 @@ paused it for agy). Contract to implement in android-app:
 Keep Crypto.signAiCfg + the exact canonical as the correctness-critical bit (agy-tier); the form layout
 is routine. Add the new strings to all 6 locales (en/pl/es/de/fr/zh).
 
-## M4 payload encryption — STEP 1 + STEP 2 DONE (flag OFF pending on-device confirm)
+## M4 payload encryption — DONE + CONFIRMED ON-DEVICE, flag ON (2026-10-24, 0.3.11 + app 0.1.15)
+On-host #3 re-test: with `encrypt_payload = true`, the `htop3` card arrived with a generic ntfy title and
+the package nowhere in the broker message; the phone decrypted it (**Debug log decrypt=OK — lazysodium on
+device**), Allow round-tripped (daemon `→ Allow`, `guardian-ctl request` returned ALLOW). **Flag left ON.**
+Closes the README privacy caveat (the broker sees only ciphertext). History:
 - STEP 1 (220d5e9, daemon 0.3.6): crypto::seal_to_parent(parent_ed25519_pub_b64, plaintext) → base64 of
   a **libsodium-compatible crypto_box_seal** (anonymous sealed box) to the parent's X25519 key, derived
   from the parent's Ed25519 pairing key via `VerifyingKey::to_montgomery()`
@@ -436,9 +452,7 @@ is routine. Add the new strings to all 6 locales (en/pl/es/de/fr/zh).
   BouncyCastle JVM fallback for host tests; `NtfyService` decrypts `enc` then runs the existing csig
   verification unchanged. `CryptoTest.sealOpenMatchesDaemonVector` opens the daemon's exact sealed blob
   (cross-impl interop PROVEN on the host JVM: crypto_box crate → BouncyCastle).
-- REMAINING (last mile, needs the child box + phone): the host vector test used the **BouncyCastle**
-  path; confirm the **on-device lazysodium** path opens a real encrypted challenge end-to-end, THEN flip
-  `[ntfy].encrypt_payload = true`. Closes the README privacy caveat (broker sees only ciphertext).
+- CONFIRMED on-device (see above) — nothing left here.
 
 ## Workflow routing (this machine)
 - **Logic / architecture / integrations →** `agy`.
