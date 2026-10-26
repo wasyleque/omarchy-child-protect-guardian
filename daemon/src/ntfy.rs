@@ -626,8 +626,26 @@ impl Ntfy {
     pub async fn audit_mirror_loop(self: Arc<Self>, mut rx: mpsc::UnboundedReceiver<String>, topic: String) {
         eprintln!("guardiand: mirroring signed audit entries to ntfy topic '{topic}'");
         while let Some(entry) = rx.recv().await {
-            if let Err(e) = self.publish_audit(&topic, &entry).await {
-                eprintln!("guardiand: audit mirror publish failed: {e:#}");
+            // Retry with backoff before giving up: at boot the network is often not up for the first
+            // few seconds, so a one-shot publish of the startup heartbeat/entry would be silently lost
+            // (review R1). Later entries buffer in the unbounded channel meanwhile and flush once this
+            // one lands. Cap the attempts so a genuinely unreachable broker can't wedge the loop.
+            let mut delay = Duration::from_secs(2);
+            for attempt in 1..=5u32 {
+                match self.publish_audit(&topic, &entry).await {
+                    Ok(()) => break,
+                    Err(e) if attempt == 5 => {
+                        eprintln!("guardiand: audit mirror publish failed after {attempt} attempts, dropping entry: {e:#}");
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "guardiand: audit mirror publish failed (attempt {attempt}/5): {e:#} — retrying in {}s",
+                            delay.as_secs()
+                        );
+                        tokio::time::sleep(delay).await;
+                        delay = (delay * 2).min(Duration::from_secs(30));
+                    }
+                }
             }
         }
     }

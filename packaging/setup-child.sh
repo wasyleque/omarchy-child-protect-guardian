@@ -134,44 +134,97 @@ else
   echo "    text consoles already hardened ($LOGIND_DROPIN)"
 fi
 
-# F12: a display-manager autologin into a NON-child account (Omarchy ships SDDM autologin for the
-#      parent) hands a child that session on power-on — every other layer is moot.
-for conf in /etc/sddm.conf.d/*.conf /etc/sddm.conf; do
+# F12: the child must be able to REACH their session after a reboot. On Omarchy there are two traps:
+#   (a) SDDM autologins the PARENT — a child who powers on lands in that privileged session; and
+#   (b) the 'omarchy' SDDM theme shows ONLY the last user with no picker, so a freshly-created child
+#       can't select their account — and F13 above has masked the text consoles, so there is NO tty
+#       fallback either (review R2: the child could not log in graphically after the reboot).
+# The clean, theme-independent fix on a single-child box is to AUTOLOGIN THE CHILD: their locked-down,
+# filtered, scheduled session starts on boot with no greeter/picker needed, and the parent administers
+# over SSH or `sudo`. With several kids you instead need a Qt6 picker theme (noted at the end).
+SDDM_DIR=/etc/sddm.conf.d
+THEMES_DIR=/usr/share/sddm/themes
+
+detect_session() {               # the installed Hyprland session .desktop for SDDM to launch
+  local s d
+  for s in hyprland-uwsm hyprland Hyprland; do
+    for d in /usr/share/wayland-sessions /usr/share/xsessions; do
+      [ -f "$d/$s.desktop" ] && { echo "$s.desktop"; return 0; }
+    done
+  done
+  echo "hyprland.desktop"
+}
+write_child_autologin() {        # point SDDM autologin at the child (rewrite [Autologin] in $1 / a drop-in)
+  local conf="${1:-$SDDM_DIR/autologin.conf}" sess; sess="$(detect_session)"
+  mkdir -p "$SDDM_DIR"
+  if [ -f "$conf" ]; then
+    cp -a "$conf" "$conf.guardian.bak"
+    sed -i -E '/^[[:space:]]*(User|Session)[[:space:]]*=/d' "$conf"
+    grep -qiE '^\[Autologin\]' "$conf" || printf '[Autologin]\n' >> "$conf"
+  else
+    printf '[Autologin]\n' > "$conf"
+  fi
+  printf 'User=%s\nSession=%s\n' "$CHILD" "$sess" >> "$conf"
+  echo "       SDDM now autologins the child '$CHILD' (session $sess). The child's session starts on"
+  echo "       boot; administer as the parent over SSH or 'sudo'. Backup: ${conf}.guardian.bak (if any)."
+}
+
+# Find the first existing SDDM autologin, and the active greeter theme.
+cur_au=""; cur_conf=""
+for conf in "$SDDM_DIR"/*.conf /etc/sddm.conf; do
   [ -f "$conf" ] || continue
   au="$(sed -nE 's/^[[:space:]]*User[[:space:]]*=[[:space:]]*(.+)/\1/p' "$conf" | head -1)"
-  if [ -n "$au" ] && grep -qiE '^\[Autologin\]|^[[:space:]]*Session[[:space:]]*=' "$conf" && [ "$au" != "$CHILD" ]; then
-    echo "    !! $conf autologins '$au' — a child who powers on lands in that session with its privileges."
-    read -r -p "       Remove this autologin? [Y/n] " a
-    case "$a" in
-      n|N) echo "       left as-is — WARNING: this bypasses Guardian entirely." ;;
-      *) cp -a "$conf" "$conf.guardian.bak"
-         sed -i -E '/^[[:space:]]*(User|Session)[[:space:]]*=/d' "$conf"
-         echo "       autologin removed (backup: $conf.guardian.bak); a login prompt will appear on boot." ;;
-    esac
+  if [ -n "$au" ] && grep -qiE '^\[Autologin\]|^[[:space:]]*Session[[:space:]]*=' "$conf"; then
+    cur_au="$au"; cur_conf="$conf"; break
   fi
 done
+THEME="$(sed -nE 's/^[[:space:]]*Current[[:space:]]*=[[:space:]]*(.+)/\1/p' /etc/sddm.conf "$SDDM_DIR"/*.conf 2>/dev/null | head -1 || true)"
 
-# F12 greeter: Omarchy's SDDM theme shows only the last user (no picker), so a freshly-created child
-#      can't pick their account. Recommend an alternative ONLY if it is installed AND is a Qt6 theme:
-#      a Qt5 theme on a Qt6 greeter gives a BLANK login screen (libQt5Quick.so.5: cannot open shared
-#      object file) — confirmed on-host. If no Qt6 alternative exists, leave 'omarchy' and just warn.
-THEMES_DIR=/usr/share/sddm/themes
-THEME="$(sed -nE 's/^[[:space:]]*Current[[:space:]]*=[[:space:]]*(.+)/\1/p' /etc/sddm.conf /etc/sddm.conf.d/*.conf 2>/dev/null | head -1)"
+if [ "$cur_au" = "$CHILD" ]; then
+  echo "    SDDM autologins the child '$CHILD' — the child's session starts on boot (correct for a child box)."
+elif [ -n "$cur_au" ]; then
+  echo "    !! SDDM autologins '$cur_au' (not the child '$CHILD'):"
+  echo "       - on power-on a child lands in that privileged session, and"
+  [ "$THEME" = "omarchy" ] && echo "       - the 'omarchy' greeter has no user picker, so after a reboot the child can't select '$CHILD'"
+  echo "         (text consoles are masked — F13 — so there is no tty fallback)."
+  echo "       [c] autologin the CHILD '$CHILD'  (recommended for a single-child box)"
+  echo "       [r] remove autologin             (a greeter appears — needs a Qt6 picker theme to reach the child)"
+  echo "       [k] keep as-is                   (WARNING: bypasses Guardian entirely)"
+  read -r -p "       choose [c/r/k]: " a
+  case "$a" in
+    r|R) for conf in "$SDDM_DIR"/*.conf /etc/sddm.conf; do
+           [ -f "$conf" ] || continue
+           grep -qiE '^\[Autologin\]|^[[:space:]]*(User|Session)[[:space:]]*=' "$conf" || continue
+           cp -a "$conf" "$conf.guardian.bak"
+           sed -i -E '/^[[:space:]]*(User|Session)[[:space:]]*=/d' "$conf"
+         done
+         echo "       autologin removed (backups: *.guardian.bak)." ;;
+    k|K) echo "       left as-is — WARNING: this bypasses Guardian entirely." ;;
+    *)   write_child_autologin "$cur_conf" ;;
+  esac
+elif [ "$THEME" = "omarchy" ]; then
+  echo "    NOTE: no autologin is set and the 'omarchy' greeter shows only the last user (no picker), so"
+  echo "          after a reboot the child '$CHILD' may be unable to reach their session (text consoles"
+  echo "          are masked — F13). On a single-child box, autologin the child instead:"
+  read -r -p "       Autologin the child '$CHILD' so their session starts on boot? [Y/n] " a
+  case "$a" in
+    n|N) echo "       left without autologin — install a Qt6 SDDM picker theme so '$CHILD' is selectable." ;;
+    *)   write_child_autologin ;;
+  esac
+fi
+
+# Multi-child: autologin fits ONE child; with several kids you need a greeter that LISTS users. Point
+# at an installed Qt6 picker theme (a Qt5 theme on the Qt6 greeter = BLANK screen, libQt5Quick.so.5
+# missing; confirmed on-host), then reboot-test. Only suggested when such a theme is actually present.
 if [ "$THEME" = "omarchy" ]; then
   PICK=""
-  for t in $(ls -1 "$THEMES_DIR" 2>/dev/null | grep -vix omarchy); do
+  for t in $(ls -1 "$THEMES_DIR" 2>/dev/null | grep -vix omarchy || true); do
     md="$THEMES_DIR/$t/metadata.desktop"
     [ -f "$md" ] && grep -qiE '^[[:space:]]*QtVersion[[:space:]]*=[[:space:]]*6' "$md" && { PICK="$t"; break; }
   done
-  echo "    NOTE: the SDDM theme 'omarchy' shows only the last user, so a new child can't pick their account."
   if [ -n "$PICK" ]; then
-    echo "          A Qt6 theme is installed — switch to it (then REBOOT and confirm the child can log in):"
-    echo "              sudo sed -i 's/^Current=.*/Current=$PICK/' /etc/sddm.conf.d/*.conf"
-  else
-    echo "          WARNING: the other installed themes are Qt5 but the greeter is Qt6 — switching to them"
-    echo "          gives a BLANK login screen (libQt5Quick.so.5 missing). Leaving 'omarchy' unchanged."
-    echo "          For multi-user login, install a Qt6 SDDM theme that has a user list, switch to it and"
-    echo "          reboot-test. Do NOT set a Qt5 theme."
+    echo "    (several children) a Qt6 picker theme '$PICK' is installed — switch to it and reboot-test:"
+    echo "        sudo sed -i 's/^Current=.*/Current=$PICK/' $SDDM_DIR/*.conf"
   fi
 fi
 

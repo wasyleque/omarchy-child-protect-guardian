@@ -128,6 +128,22 @@ else
   ok "no display-manager autologin into a non-child account"
 fi
 
+# Combined greeter trap (review R2): the 'omarchy' SDDM theme shows ONLY the last user (no picker), so
+# if the child is NOT the autologin user they cannot select their account at the greeter — and with the
+# text consoles masked (F13) there is no tty fallback, i.e. the child is locked out of their own box.
+sddm_theme="$(sed -nE 's/^[[:space:]]*Current[[:space:]]*=[[:space:]]*(.+)/\1/p' /etc/sddm.conf /etc/sddm.conf.d/*.conf 2>/dev/null | head -1 || true)"
+autologin_user=""
+for conf in /etc/sddm.conf.d/*.conf /etc/sddm.conf; do
+  [ -f "$conf" ] || continue
+  u="$(sed -nE 's/^[[:space:]]*User[[:space:]]*=[[:space:]]*(.+)/\1/p' "$conf" | head -1)"
+  if [ -n "$u" ] && grep -qiE '^\[Autologin\]|^[[:space:]]*Session[[:space:]]*=' "$conf"; then autologin_user="$u"; break; fi
+done
+if [ "$sddm_theme" = "omarchy" ] && [ -n "$CHILD" ] && [ "$autologin_user" != "$CHILD" ]; then
+  nok "greeter 'omarchy' has no user picker and autologin != '$CHILD' — the child can't reach their session after a reboot (F13 masks the tty fallback too); run setup-child.sh to autologin the child, or install a Qt6 picker theme (R2)"
+elif [ "$sddm_theme" = "omarchy" ] && [ "$autologin_user" = "$CHILD" ]; then
+  ok "greeter has no picker but autologins the child '$CHILD' — child reaches their session on boot"
+fi
+
 hdr "Summary"
 printf '  %d pass, %d warn, %d fail\n' "$pass" "$warn" "$fail"
 if [ "$fail" -gt 0 ]; then

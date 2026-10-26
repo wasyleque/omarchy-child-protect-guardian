@@ -1,7 +1,12 @@
 [Unit]
 Description=Omarchy Child Protect Guardian daemon
 Documentation=https://github.com/wasyleque/omarchy-child-protect-guardian
-After=local-fs.target
+# Start after the network is actually up: at boot the daemon's ntfy stream + off-box audit-mirror
+# publish would otherwise fail for the first few seconds ("Temporary failure in name resolution") and
+# the startup heartbeat could be lost (review R1). network-online.target is best-effort, so the mirror
+# loop also retries (daemon ntfy.rs); local-fs.target keeps the key/state dirs available.
+Wants=network-online.target
+After=network-online.target local-fs.target
 
 [Service]
 Type=simple
