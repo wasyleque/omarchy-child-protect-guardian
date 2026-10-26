@@ -483,6 +483,29 @@ confirmed. One self-inflicted finding:
   - STATUS: content-filtering + concern-alert path is functionally complete and verified on hardware.
     Remaining are physical-presence items only (reboot test; setup-child.sh F12/F13).
 
+## On-host test #7 (reboot on .12, 2026-10-26, daemon 0.3.14) — survives reboot (see …-reboot.md)
+First real reboot after the DNS/M5/fapolicyd work. **Survived:** guardiand + fapolicyd +
+guardian-nftables + guardian-dnsmasq all active; systemd-resolved still masked; static resolv.conf
+intact; child DNS filter (pornhub → 0.0.0.0) and parent-unfiltered both hold; signed pornhub alerts
+reach the phone. Three findings → fixes (daemon 0.3.15→0.3.16):
+  - R1 — boot-time name-resolution errors + lost startup audit-mirror publish (minor). Fix (by Claude):
+    guardiand.service now `Wants=/After=network-online.target` so it starts after the network, and the
+    audit-mirror loop RETRIES each entry (5 attempts, 2→30 s backoff) instead of dropping it on the
+    first failure — so the startup heartbeat isn't lost while the network is still coming up.
+  - R2 — **the child could not log in graphically after the reboot (high, F12).** Trap: SDDM autologins
+    the parent + the 'omarchy' greeter has no user picker (only the last user) + F13 masks the TTYs →
+    no way to reach the child account. Fix (by Claude): setup-child.sh now OFFERS a working,
+    theme-independent path — AUTOLOGIN THE CHILD (locked-down session starts on boot; parent administers
+    over SSH/sudo), with [c] child-autologin / [r] remove / [k] keep, plus a Qt6 picker-theme pointer for
+    the multi-child case; harden-audit now FAILs on the combined "greeter has no picker + autologin ≠
+    child" (child locked out). Shipping a patched Qt6 greeter theme is NOT done blind (untestable here).
+  - R3 — D14 still seen on 0.3.14 (`guardian-ctl schedule-status` as uid 1000 alerted). Already fixed in
+    0.3.15 (unknown subcommand is rejected before the socket opens) — the reboot test predated it. The
+    daemon's "blocked control attempt" alert is ALSO already rate-limited (shared key 'ipc-blocked', 900 s
+    cooldown), so a genuine unauthorized connect can't spam. No further change.
+  - NOT done yet (needs the tester at .12): the post-reboot full check + child GUI session once the child
+    can log in; a re-reboot to confirm child-autologin + nft/DNS-mode persistence end-to-end. 35 tests.
+
 ## DONE (by agy) — AI/Ollama config UI in the Android app (daemon side commit 40c0d5c, app 0.1.13/vc14)
 The daemon already accepts a signed AI config pushed from the app; only the APP UI is left (user
 paused it for agy). Contract to implement in android-app:
