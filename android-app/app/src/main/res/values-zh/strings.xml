@@ -136,4 +136,17 @@
     <string name="nav_settings">设置</string>
     <string name="nav_logs">日志</string>
     <string name="status_locked">🔒 电脑已锁定</string>
+
+    <!-- AI 自主模式 (BETA) -->
+    <string name="hdr_autonomy">AI 自主模式 (BETA)</string>
+    <string name="autonomy_for_fmt">AI 自主模式 (BETA)：%1$s</string>
+    <string name="autonomy_beta_warn">⚠ BETA：模型可能过于严格；默认为 ASK。在 AUTO 模式下可能会拒绝过多软件。</string>
+    <string name="autonomy_mode_ask">ASK — 始终询问家长（默认）</string>
+    <string name="autonomy_mode_quiet">QUIET — 安全软件自动放行，其余询问</string>
+    <string name="autonomy_mode_auto">AUTO — 由模型决定 (BETA)</string>
+    <string name="hint_autonomy_pkg">软件包名称（如 gimp）</string>
+    <string name="btn_autonomy_ask_about">再次询问此软件包</string>
+    <string name="autonomy_sent_fmt">已发送自主模式：%1$s ✓</string>
+    <string name="autonomy_undo_sent_fmt">将重新询问“%1$s” ✓</string>
+    <string name="autonomy_pkg_empty">请先输入软件包名称</string>
 </resources>

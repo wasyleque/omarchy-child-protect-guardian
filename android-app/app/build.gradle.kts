@@ -11,8 +11,8 @@ android {
         applicationId = "com.omega.guardian"
         minSdk = 26
         targetSdk = 34
-        versionCode = 18
-        versionName = "0.1.17"
+        versionCode = 19
+        versionName = "0.1.18"
         resourceConfigurations += listOf("en", "pl", "es", "de", "fr", "zh")
     }
 

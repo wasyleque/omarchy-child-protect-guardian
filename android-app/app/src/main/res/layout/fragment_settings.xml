@@ -237,5 +237,68 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="@string/btn_send_ai" />
+
+        <TextView
+            android:id="@+id/lblAutonomyFor"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="@string/hdr_autonomy"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/autonomy_beta_warn"
+            android:textSize="13sp" />
+
+        <RadioGroup
+            android:id="@+id/rgAutonomy"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:orientation="vertical">
+
+            <RadioButton
+                android:id="@+id/rbAutonomyAsk"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:minHeight="48dp"
+                android:text="@string/autonomy_mode_ask" />
+
+            <RadioButton
+                android:id="@+id/rbAutonomyQuiet"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:text="@string/autonomy_mode_quiet" />
+
+            <RadioButton
+                android:id="@+id/rbAutonomyAuto"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:text="@string/autonomy_mode_auto" />
+        </RadioGroup>
+
+        <EditText
+            android:id="@+id/etAutonomyAskAbout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:hint="@string/hint_autonomy_pkg"
+            android:inputType="textNoSuggestions"
+            android:minHeight="48dp"
+            android:singleLine="true"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btnAutonomyAskAbout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="@string/btn_autonomy_ask_about" />
     </LinearLayout>
 </ScrollView>

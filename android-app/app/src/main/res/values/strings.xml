@@ -143,4 +143,17 @@
     <string name="nav_settings">Settings</string>
     <string name="nav_logs">Logs</string>
     <string name="status_locked">🔒 Computer locked</string>
+
+    <!-- AI Autonomy (BETA) -->
+    <string name="hdr_autonomy">AI Autonomy (BETA)</string>
+    <string name="autonomy_for_fmt">AI Autonomy (BETA) for %1$s</string>
+    <string name="autonomy_beta_warn">⚠ BETA: The model can be overly strict; default is ASK. In AUTO mode it may deny too much.</string>
+    <string name="autonomy_mode_ask">ASK — always ask parent (default)</string>
+    <string name="autonomy_mode_quiet">QUIET — auto-allow safe, ask the rest</string>
+    <string name="autonomy_mode_auto">AUTO — model decides (BETA)</string>
+    <string name="hint_autonomy_pkg">Package name (e.g. gimp)</string>
+    <string name="btn_autonomy_ask_about">Ask again about this package</string>
+    <string name="autonomy_sent_fmt">Autonomy mode sent: %1$s ✓</string>
+    <string name="autonomy_undo_sent_fmt">Will ask parent about \"%1$s\" ✓</string>
+    <string name="autonomy_pkg_empty">Enter a package name first</string>
 </resources>

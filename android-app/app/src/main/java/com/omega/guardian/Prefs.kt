@@ -160,6 +160,14 @@ object Prefs {
         plain(ctx).edit().putString("ai_$child", cfgJson).apply()
     }
 
+    /** Last pushed autonomy mode per child ("ask" | "quiet" | "auto"), default "ask". */
+    fun autonomyMode(ctx: Context, child: String = activeChildName(ctx)): String =
+        plain(ctx).getString("autonomy_$child", "ask") ?: "ask"
+
+    fun setAutonomyMode(ctx: Context, mode: String, child: String = activeChildName(ctx)) {
+        plain(ctx).edit().putString("autonomy_$child", mode).apply()
+    }
+
     /**
      * Parse a scanned QR / link (`#pair=` base64url of `{server, topic, dpub, pair_to}`). Returns the
      * fields as a JSONObject (does NOT store — the caller names the child, then calls [addChild]).

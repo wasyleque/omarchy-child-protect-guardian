@@ -61,6 +61,7 @@ class SettingsFragment : Fragment() {
     )
     private var currentAiModels: List<String> = defaultAiModels
     private var suppressModelSpinnerSync = false
+    private var suppressAutonomySync = false
     private val aiTimeouts = intArrayOf(8, 12, 20, 30, 60)
     private val aiHours = (0..23).toList()
     private val aiLangs = arrayOf("Polish", "English", "Spanish", "German", "French", "Chinese")
@@ -90,12 +91,32 @@ class SettingsFragment : Fragment() {
         b.btnSendSchedule.setOnClickListener { sendSchedule() }
         b.btnSendAi.setOnClickListener { sendAiConfig() }
 
+        b.rgAutonomy.setOnCheckedChangeListener { _, checkedId ->
+            if (!suppressAutonomySync) {
+                val mode = when (checkedId) {
+                    R.id.rbAutonomyQuiet -> "quiet"
+                    R.id.rbAutonomyAuto -> "auto"
+                    else -> "ask"
+                }
+                sendAutonomy(mode, "")
+            }
+        }
+        b.btnAutonomyAskAbout.setOnClickListener {
+            val pkg = b.etAutonomyAskAbout.text.toString().trim()
+            if (pkg.isEmpty()) {
+                (activity as? MainActivity)?.toast(getString(R.string.autonomy_pkg_empty))
+            } else {
+                sendAutonomy(currentSelectedAutonomyMode(), pkg)
+            }
+        }
+
         initScheduleRows()
         b.cbSameEveryDay.setOnCheckedChangeListener { _, _ -> updateScheduleRowsVisibility() }
 
         setupAiControls()
         renderHeaderOnly()
         loadAiConfigToForm()
+        loadAutonomyToForm()
     }
 
     override fun onResume() {
@@ -105,6 +126,7 @@ class SettingsFragment : Fragment() {
         val curChild = Prefs.activeChildName(ctx)
         if (curChild != lastLoadedChild) {
             loadAiConfigToForm()
+            loadAutonomyToForm()
         }
     }
 
@@ -112,6 +134,7 @@ class SettingsFragment : Fragment() {
         if (_b == null || !isAdded) return
         renderHeaderOnly()
         loadAiConfigToForm()
+        loadAutonomyToForm()
     }
 
     fun renderHeaderOnly() {
@@ -123,6 +146,8 @@ class SettingsFragment : Fragment() {
             if (n > 0) getString(R.string.sched_for_fmt, activeName) else getString(R.string.hdr_schedule)
         binding.lblAiFor.text =
             if (n > 0) getString(R.string.ai_for_fmt, activeName) else getString(R.string.hdr_ai)
+        binding.lblAutonomyFor.text =
+            if (n > 0) getString(R.string.autonomy_for_fmt, activeName) else getString(R.string.hdr_autonomy)
         binding.tvPubkey.text = Prefs.publicKeyB64(ctx)
     }
 
@@ -453,6 +478,73 @@ class SettingsFragment : Fragment() {
             }
             if (isAdded) {
                 act.toast(if (ok) getString(R.string.ai_sent) else getString(R.string.send_failed))
+            }
+        }
+    }
+
+    private fun currentSelectedAutonomyMode(): String = when (b.rgAutonomy.checkedRadioButtonId) {
+        R.id.rbAutonomyQuiet -> "quiet"
+        R.id.rbAutonomyAuto -> "auto"
+        else -> "ask"
+    }
+
+    private fun loadAutonomyToForm() {
+        val binding = _b ?: return
+        val ctx = context ?: return
+        val savedMode = Prefs.autonomyMode(ctx)
+        suppressAutonomySync = true
+        when (savedMode) {
+            "quiet" -> binding.rbAutonomyQuiet.isChecked = true
+            "auto" -> binding.rbAutonomyAuto.isChecked = true
+            else -> binding.rbAutonomyAsk.isChecked = true
+        }
+        suppressAutonomySync = false
+    }
+
+    /** Sign (`OCPG-AUTONOMY-v1`) and POST `{kind:"set_autonomy", daemon_pub, nonce, child:"", ts, mode, ask_about, sig}`. */
+    private fun sendAutonomy(mode: String, askAbout: String) {
+        val act = activity as? MainActivity ?: return
+        val ctx = requireContext()
+        val respondTo = Prefs.lastRespondTo(ctx); val dpub = Prefs.dpub(ctx)
+        if (respondTo == null || dpub == null) {
+            act.toast(getString(R.string.lock_needs_pair))
+            loadAutonomyToForm()
+            return
+        }
+
+        val appCtx = ctx.applicationContext
+        val childName = Prefs.activeChildName(ctx)
+        viewLifecycleOwner.lifecycleScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                try {
+                    val ts = System.currentTimeMillis() / 1000
+                    val nonce = act.randomHex(16)
+                    val sig = Crypto.signAutonomy(Prefs.seed(appCtx), dpub, nonce, "", ts, mode, askAbout)
+                    val payload = JSONObject()
+                        .put("kind", "set_autonomy")
+                        .put("daemon_pub", dpub)
+                        .put("nonce", nonce)
+                        .put("child", "")
+                        .put("ts", ts)
+                        .put("mode", mode)
+                        .put("ask_about", askAbout)
+                        .put("sig", sig)
+                    val req = Request.Builder().url(respondTo).post(payload.toString().toRequestBody()).build()
+                    act.http.newCall(req).execute().use { it.isSuccessful }
+                } catch (e: Exception) { false }
+            }
+            if (!isAdded || _b == null) return@launch
+            if (ok) {
+                Prefs.setAutonomyMode(ctx, mode, childName)
+                if (askAbout.isNotEmpty()) {
+                    b.etAutonomyAskAbout.setText("")
+                    act.toast(getString(R.string.autonomy_undo_sent_fmt, askAbout))
+                } else {
+                    act.toast(getString(R.string.autonomy_sent_fmt, mode.uppercase()))
+                }
+            } else {
+                act.toast(getString(R.string.send_failed))
+                loadAutonomyToForm()
             }
         }
     }

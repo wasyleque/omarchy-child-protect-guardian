@@ -136,4 +136,17 @@
     <string name="nav_settings">Paramètres</string>
     <string name="nav_logs">Journaux</string>
     <string name="status_locked">🔒 Ordinateur verrouillé</string>
+
+    <!-- Autonomie IA (BETA) -->
+    <string name="hdr_autonomy">Autonomie IA (BETA)</string>
+    <string name="autonomy_for_fmt">Autonomie IA (BETA) pour %1$s</string>
+    <string name="autonomy_beta_warn">⚠ BETA : Le modèle peut être trop strict ; ASK par défaut. En AUTO il peut trop refuser.</string>
+    <string name="autonomy_mode_ask">ASK — toujours demander (par défaut)</string>
+    <string name="autonomy_mode_quiet">QUIET — autoriser les sûrs, demander le reste</string>
+    <string name="autonomy_mode_auto">AUTO — le modèle décide (BETA)</string>
+    <string name="hint_autonomy_pkg">Nom du paquet (ex. gimp)</string>
+    <string name="btn_autonomy_ask_about">Redemander pour ce paquet</string>
+    <string name="autonomy_sent_fmt">Mode d\'autonomie envoyé : %1$s ✓</string>
+    <string name="autonomy_undo_sent_fmt">Redemandera pour « %1$s » ✓</string>
+    <string name="autonomy_pkg_empty">Saisis d\'abord un nom de paquet</string>
 </resources>

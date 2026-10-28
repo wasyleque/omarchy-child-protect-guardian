@@ -142,4 +142,17 @@
     <string name="nav_settings">Ajustes</string>
     <string name="nav_logs">Registros</string>
     <string name="status_locked">🔒 Ordenador bloqueado</string>
+
+    <!-- Autonomía de IA (BETA) -->
+    <string name="hdr_autonomy">Autonomía de IA (BETA)</string>
+    <string name="autonomy_for_fmt">Autonomía de IA (BETA) para %1$s</string>
+    <string name="autonomy_beta_warn">⚠ BETA: El modelo puede ser demasiado estricto; por defecto ASK. En AUTO puede rechazar demasiado.</string>
+    <string name="autonomy_mode_ask">ASK — preguntar siempre (por defecto)</string>
+    <string name="autonomy_mode_quiet">QUIET — permitir seguros, preguntar el resto</string>
+    <string name="autonomy_mode_auto">AUTO — el modelo decide (BETA)</string>
+    <string name="hint_autonomy_pkg">Nombre del paquete (p. ej. gimp)</string>
+    <string name="btn_autonomy_ask_about">Volver a preguntar por este paquete</string>
+    <string name="autonomy_sent_fmt">Modo de autonomía enviado: %1$s ✓</string>
+    <string name="autonomy_undo_sent_fmt">Se volverá a preguntar por «%1$s» ✓</string>
+    <string name="autonomy_pkg_empty">Introduce primero el nombre del paquete</string>
 </resources>

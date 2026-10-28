@@ -91,4 +91,23 @@ class CryptoTest {
         assertEquals("OCPG-ALERT-v1|TEST2 Zażółć gęślą ⚠ jaźń|1792847488", canonical)
         assertTrue(Crypto.verify(dpub, canonical, asig))
     }
+
+    @Test
+    fun autonomySignatureVerifiesAndTamperedFails() {
+        val sig = Crypto.signAutonomy(seed, pub, "nonce42", "", 1700000003L, "quiet", "")
+        val msg = Crypto.autonomyCanonical(pub, "nonce42", "", 1700000003L, "quiet", "")
+        assertEquals("OCPG-AUTONOMY-v1|$pub|nonce42||1700000003|quiet|", msg)
+        assertTrue(Crypto.verify(pub, msg, sig))
+
+        val escalated = Crypto.autonomyCanonical(pub, "nonce42", "", 1700000003L, "auto", "")
+        assertFalse(Crypto.verify(pub, escalated, sig))
+
+        val sigUndo = Crypto.signAutonomy(seed, pub, "nonce43", "", 1700000004L, "auto", "gimp")
+        val msgUndo = Crypto.autonomyCanonical(pub, "nonce43", "", 1700000004L, "auto", "gimp")
+        assertEquals("OCPG-AUTONOMY-v1|$pub|nonce43||1700000004|auto|gimp", msgUndo)
+        assertTrue(Crypto.verify(pub, msgUndo, sigUndo))
+
+        val tamperedPkg = Crypto.autonomyCanonical(pub, "nonce43", "", 1700000004L, "auto", "wine")
+        assertFalse(Crypto.verify(pub, tamperedPkg, sigUndo))
+    }
 }

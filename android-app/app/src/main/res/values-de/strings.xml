@@ -136,4 +136,17 @@
     <string name="nav_settings">Einstellungen</string>
     <string name="nav_logs">Protokolle</string>
     <string name="status_locked">🔒 Computer gesperrt</string>
+
+    <!-- KI-Autonomie (BETA) -->
+    <string name="hdr_autonomy">KI-Autonomie (BETA)</string>
+    <string name="autonomy_for_fmt">KI-Autonomie (BETA) für %1$s</string>
+    <string name="autonomy_beta_warn">⚠ BETA: Das Modell ist teils zu streng; Standard ist ASK. In AUTO lehnt es evtl. zu viel ab.</string>
+    <string name="autonomy_mode_ask">ASK — immer nachfragen (Standard)</string>
+    <string name="autonomy_mode_quiet">QUIET — sichere automatisch, Rest fragen</string>
+    <string name="autonomy_mode_auto">AUTO — Modell entscheidet (BETA)</string>
+    <string name="hint_autonomy_pkg">Paketname (z. B. gimp)</string>
+    <string name="btn_autonomy_ask_about">Bei diesem Paket wieder nachfragen</string>
+    <string name="autonomy_sent_fmt">Autonomiemodus gesendet: %1$s ✓</string>
+    <string name="autonomy_undo_sent_fmt">Für „%1$s“ wird wieder gefragt ✓</string>
+    <string name="autonomy_pkg_empty">Bitte zuerst einen Paketnamen eingeben</string>
 </resources>

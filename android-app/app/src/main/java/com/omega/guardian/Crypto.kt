@@ -33,6 +33,7 @@ object Crypto {
     private const val LOCK = "OCPG-LOCK-v1"
     private const val SCHED = "OCPG-SCHED-v1"
     private const val AICFG = "OCPG-AICFG-v1"
+    private const val AUTONOMY = "OCPG-AUTONOMY-v1"
 
     private fun b64e(b: ByteArray): String = Base64.getEncoder().encodeToString(b)
     private fun b64d(s: String): ByteArray = Base64.getDecoder().decode(s)
@@ -95,6 +96,13 @@ object Crypto {
     /** Sign a pushed AI/Ollama config. `cfgJson` must be sent to the daemon verbatim as the `cfg` field. */
     fun signAiCfg(seed: ByteArray, daemonPubB64: String, nonce: String, ts: Long, cfgJson: String): String =
         b64e(signRaw(seed, aiCfgCanonical(daemonPubB64, nonce, ts, cfgJson)))
+
+    fun autonomyCanonical(daemonPubB64: String, nonce: String, child: String, ts: Long, mode: String, askAbout: String) =
+        "$AUTONOMY|$daemonPubB64|$nonce|$child|$ts|$mode|$askAbout"
+
+    /** Sign a pushed autonomy command (`mode` = "ask"|"quiet"|"auto", `child` = "", `askAbout` = "" or package fragment). */
+    fun signAutonomy(seed: ByteArray, daemonPubB64: String, nonce: String, child: String, ts: Long, mode: String, askAbout: String): String =
+        b64e(signRaw(seed, autonomyCanonical(daemonPubB64, nonce, child, ts, mode, askAbout)))
 
     /** Verify a daemon-signed challenge/alert message with the paired daemon public key (base64). */
     fun verify(daemonPubB64: String, msg: String, sigB64: String): Boolean = try {
