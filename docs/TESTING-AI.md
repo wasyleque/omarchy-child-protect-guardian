@@ -15,8 +15,8 @@ Instrukcja krok po kroku na **czystym Omarchy (Arch)** + telefonie rodzica. Opis
   Albo skopiuj z maszyny, która je zbudowała: `scp -r wasyl@<laptop>:Work/ocpg-models ~/ocpg-models`.
 
 ## 1. Aplikacja rodzica na telefonie
-1. Na telefonie pobierz najnowszą apkę **https://omega-lubin.com/models/guardian-parent-0.1.16.apk**
-   (na GitHub Releases wisi starsza wersja — jej nie pobieraj). Zezwól na instalację z tego źródła, zainstaluj, uruchom.
+1. Na telefonie otwórz **https://github.com/wasyleque/omarchy-child-protect-guardian/releases/latest**
+   i pobierz `guardian-parent-<wersja>.apk` (aktualnie 0.1.16). Zezwól na instalację z tego źródła, zainstaluj, uruchom.
 2. W ustawieniach aplikacji zezwól na powiadomienia (i wyłącz oszczędzanie baterii dla niej), inaczej wieczorny digest może nie dojść.
 3. Parowanie zrobisz w kroku 3 (kod QR z komputera).
 

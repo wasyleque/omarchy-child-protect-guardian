@@ -3,15 +3,15 @@
 Zwięzła, „krok po kroku” instrukcja po polsku na czysty komputer testowy z Omarchy + telefon rodzica.
 Pełny opis funkcji, ryzyk i ograniczeń AI: [`AI-MODELS.md`](AI-MODELS.md). Szczegółowy wariant: [`TESTING-AI.md`](TESTING-AI.md).
 
-Duże pliki (modele ~750 MB i APK) są hostowane poza gitem, bo nie mieszczą się w drzewie repo:
-**https://omega-lubin.com/models/**.
+Apkę pobierasz z **GitHub Releases** (najnowsza = „Latest"). Modele (~750 MB) są za duże na drzewo gita,
+więc leżą na serwerze: **https://omega-lubin.com/models/**.
 
 > Trzymaj otwarty drugi terminal z rootem. Wszystko wraca do starego działania: `guardian-ctl autonomy ask`.
 
-## 1. Telefon — apka 0.1.16
-W przeglądarce telefonu: **https://omega-lubin.com/models/guardian-parent-0.1.16.apk** → zainstaluj
-(na GitHub Releases wisi starsza wersja — jej nie bierz). Zezwól na **powiadomienia** i **wyłącz
-oszczędzanie baterii** dla aplikacji.
+## 1. Telefon — apka (GitHub Releases)
+W przeglądarce telefonu otwórz **https://github.com/wasyleque/omarchy-child-protect-guardian/releases/latest**
+i pobierz `guardian-parent-<wersja>.apk` (aktualnie 0.1.16). Zezwól na instalację z tego źródła, zainstaluj.
+Następnie zezwól na **powiadomienia** i **wyłącz oszczędzanie baterii** dla aplikacji.
 
 ## 2. Demon
 ```bash
