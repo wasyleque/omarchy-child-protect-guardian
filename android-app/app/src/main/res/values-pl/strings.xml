@@ -129,11 +129,17 @@
     <string name="decision_retry_btn">Ponów</string>
     <string name="hdr_alerts">Alerty i podsumowania dnia</string>
     <string name="alerts_empty">Brak alertów.</string>
-    <string name="hdr_debug">Log debugowania (ostatnie 50 zdarzeń)</string>
+    <string name="hdr_debug">Log debugowania (ostatnie 200 zdarzeń)</string>
     <string name="btn_copy_debug">Kopiuj</string>
     <string name="btn_clear_debug">Wyczyść</string>
     <string name="debug_empty">Brak zdarzeń.</string>
     <string name="debug_copied">Skopiowano log debugowania</string>
     <string name="hint_ai_model_tag">Pełna nazwa modelu z tagiem (np. qooba/bielik-4.5b-v3.0-instruct:Q8_0)</string>
     <string name="catchup_summary_fmt">Guardian: %1$d zdarzeń w czasie offline — otwórz, aby zobaczyć</string>
+
+    <!-- dolna nawigacja + status -->
+    <string name="nav_home">Główny</string>
+    <string name="nav_settings">Ustawienia</string>
+    <string name="nav_logs">Logi</string>
+    <string name="status_locked">🔒 Komputer zablokowany</string>
 </resources>

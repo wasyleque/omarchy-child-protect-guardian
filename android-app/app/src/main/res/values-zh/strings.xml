@@ -123,11 +123,17 @@
     <string name="decision_retry_btn">重试</string>
     <string name="hdr_alerts">警报与每日日报</string>
     <string name="alerts_empty">暂无警报。</string>
-    <string name="hdr_debug">调试日志（最近 50 条事件）</string>
+    <string name="hdr_debug">调试日志（最近 200 条事件）</string>
     <string name="btn_copy_debug">复制</string>
     <string name="btn_clear_debug">清空</string>
     <string name="debug_empty">暂无事件。</string>
     <string name="debug_copied">已复制调试日志</string>
     <string name="hint_ai_model_tag">包含标签的完整模型名（如 qooba/bielik-4.5b-v3.0-instruct:Q8_0）</string>
     <string name="catchup_summary_fmt">Guardian：离线期间有 %1$d 条事件 — 打开应用查看</string>
+
+    <!-- 底部导航 + 状态 -->
+    <string name="nav_home">主页</string>
+    <string name="nav_settings">设置</string>
+    <string name="nav_logs">日志</string>
+    <string name="status_locked">🔒 电脑已锁定</string>
 </resources>

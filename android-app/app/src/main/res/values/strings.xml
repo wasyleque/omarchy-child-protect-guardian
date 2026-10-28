@@ -130,11 +130,17 @@
     <string name="decision_retry_btn">Retry</string>
     <string name="hdr_alerts">Alerts &amp; daily digest</string>
     <string name="alerts_empty">No alerts yet.</string>
-    <string name="hdr_debug">Debug log (last 50 events)</string>
+    <string name="hdr_debug">Debug log (last 200 events)</string>
     <string name="btn_copy_debug">Copy</string>
     <string name="btn_clear_debug">Clear</string>
     <string name="debug_empty">No events yet.</string>
     <string name="debug_copied">Debug log copied</string>
     <string name="hint_ai_model_tag">Full model name with tag (e.g. qooba/bielik-4.5b-v3.0-instruct:Q8_0)</string>
     <string name="catchup_summary_fmt">Guardian: %1$d event(s) while offline — open the app to view</string>
+
+    <!-- bottom navigation + status -->
+    <string name="nav_home">Home</string>
+    <string name="nav_settings">Settings</string>
+    <string name="nav_logs">Logs</string>
+    <string name="status_locked">🔒 Computer locked</string>
 </resources>

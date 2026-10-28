@@ -123,11 +123,17 @@
     <string name="decision_retry_btn">Wiederholen</string>
     <string name="hdr_alerts">Warnungen &amp; Tageszusammenfassung</string>
     <string name="alerts_empty">Noch keine Warnungen.</string>
-    <string name="hdr_debug">Debug-Protokoll (letzte 50 Ereignisse)</string>
+    <string name="hdr_debug">Debug-Protokoll (letzte 200 Ereignisse)</string>
     <string name="btn_copy_debug">Kopieren</string>
     <string name="btn_clear_debug">Leeren</string>
     <string name="debug_empty">Noch keine Ereignisse.</string>
     <string name="debug_copied">Debug-Protokoll kopiert</string>
     <string name="hint_ai_model_tag">Vollständiger Modellname mit Tag (z. B. qooba/bielik-4.5b-v3.0-instruct:Q8_0)</string>
     <string name="catchup_summary_fmt">Guardian: %1$d Ereignis(se) während Offline-Zeit — zum Ansehen öffnen</string>
+
+    <!-- Untere Navigation + Status -->
+    <string name="nav_home">Start</string>
+    <string name="nav_settings">Einstellungen</string>
+    <string name="nav_logs">Protokolle</string>
+    <string name="status_locked">🔒 Computer gesperrt</string>
 </resources>

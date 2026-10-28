@@ -123,11 +123,17 @@
     <string name="decision_retry_btn">Réessayer</string>
     <string name="hdr_alerts">Alertes et bilan quotidien</string>
     <string name="alerts_empty">Aucune alerte.</string>
-    <string name="hdr_debug">Journal de débogage (50 derniers événements)</string>
+    <string name="hdr_debug">Journal de débogage (200 derniers événements)</string>
     <string name="btn_copy_debug">Copier</string>
     <string name="btn_clear_debug">Effacer</string>
     <string name="debug_empty">Aucun événement.</string>
     <string name="debug_copied">Journal copié</string>
     <string name="hint_ai_model_tag">Nom complet du modèle avec tag (ex. qooba/bielik-4.5b-v3.0-instruct:Q8_0)</string>
     <string name="catchup_summary_fmt">Guardian : %1$d événement(s) hors ligne — ouvre l\'app pour voir</string>
+
+    <!-- navigation inférieure + état -->
+    <string name="nav_home">Accueil</string>
+    <string name="nav_settings">Paramètres</string>
+    <string name="nav_logs">Journaux</string>
+    <string name="status_locked">🔒 Ordinateur verrouillé</string>
 </resources>

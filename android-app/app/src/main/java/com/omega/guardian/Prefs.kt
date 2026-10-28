@@ -294,9 +294,9 @@ object Prefs {
         JSONArray()
     }
 
-    // ---- Debug log (last 50 ws/crypto/network events for D4/D5/D6/M4 diagnostics) ----
+    // ---- Debug log (last 200 ws/crypto/network events for D4/D5/D6/M4 diagnostics) ----
     private const val K_DEBUG_LOG = "debug_log"
-    private const val MAX_DEBUG = 50
+    private const val MAX_DEBUG = 200
     private val debugLock = Any()
 
     fun addDebugLog(ctx: Context, msg: String) {
@@ -317,7 +317,8 @@ object Prefs {
 
     fun debugLogs(ctx: Context): List<String> {
         val arr = try { JSONArray(plain(ctx).getString(K_DEBUG_LOG, "[]")) } catch (e: Exception) { JSONArray() }
-        return (0 until arr.length()).map { arr.optString(it, "") }
+        val limit = arr.length().coerceAtMost(MAX_DEBUG)
+        return (0 until limit).map { arr.optString(it, "") }
     }
 
     fun clearDebugLogs(ctx: Context) {

@@ -129,11 +129,17 @@
     <string name="decision_retry_btn">Reintentar</string>
     <string name="hdr_alerts">Alertas y resumen diario</string>
     <string name="alerts_empty">Aún no hay alertas.</string>
-    <string name="hdr_debug">Registro de depuración (últimos 50 eventos)</string>
+    <string name="hdr_debug">Registro de depuración (últimos 200 eventos)</string>
     <string name="btn_copy_debug">Copiar</string>
     <string name="btn_clear_debug">Borrar</string>
     <string name="debug_empty">Sin eventos.</string>
     <string name="debug_copied">Registro copiado</string>
     <string name="hint_ai_model_tag">Nombre completo del modelo con etiqueta (p. ej. qooba/bielik-4.5b-v3.0-instruct:Q8_0)</string>
     <string name="catchup_summary_fmt">Guardian: %1$d evento(s) sin conexión — abre la app para ver</string>
+
+    <!-- navegación inferior + estado -->
+    <string name="nav_home">Inicio</string>
+    <string name="nav_settings">Ajustes</string>
+    <string name="nav_logs">Registros</string>
+    <string name="status_locked">🔒 Ordenador bloqueado</string>
 </resources>
