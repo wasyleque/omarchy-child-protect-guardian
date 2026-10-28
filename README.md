@@ -100,6 +100,7 @@ Things competitors on Windows/macOS/Android **can't** do, but we can:
 | [`android-app/`](android-app/) | **Native Android parent app** (Kotlin) — the recommended parent client; on-device Ed25519 signing, background push |
 | [`parent-app/`](parent-app/) | Cross-platform parent approval app (installable PWA) — on-device Ed25519 signing |
 | [`packaging/`](packaging/) | Deploy: installer, systemd unit, pacman hook, nftables egress, fapolicyd allowlist, hardening audit |
+| [`docs/AI-MODELS.md`](docs/AI-MODELS.md) · [`docs/TESTING-AI.md`](docs/TESTING-AI.md) | **BETA:** local AI models, parent-selectable autonomy (ask/quiet/auto), guaranteed evening digest — what it means, risks, and a fresh-install test plan |
 | [`docs/TESTING.md`](docs/TESTING.md) | Step-by-step test plan for a clean system (layer-by-layer + red-team bypass attempts) |
 
 ## 📱 Android parent app

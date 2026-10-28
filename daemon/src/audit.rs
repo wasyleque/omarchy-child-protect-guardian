@@ -54,6 +54,16 @@ pub enum AuditEvent {
     WatchdogAlert {
         message: String,
     },
+    /// A request was answered by the local models (autonomy mode quiet/auto). No text, only the rating.
+    AutoDecided {
+        id: Uuid,
+        source: InstallSource,
+        package: String,
+        decision: Decision,
+        light: String,
+        min_age_hint: u8,
+        mode: String,
+    },
     /// Periodic liveness marker; its absence off-box is a dead-man's-switch signal.
     Heartbeat,
     /// A remote approval was rejected (bad signature, forged, stale, mismatched, or unknown format).

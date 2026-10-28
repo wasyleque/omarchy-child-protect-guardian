@@ -102,3 +102,18 @@ default_on_timeout = "deny"
 #endpoint = "https://api.openai.com/v1/chat/completions"
 #model = "gpt-4o-mini"
 #api_key = "sk-..."
+
+# ---- Local AI autonomy (BETA) - see docs/AI-MODELS.md ---------------------------------------------
+# Lets small local ONNX models (service guardian-ai, no network) answer install requests for you and
+# adds a guaranteed evening digest listing every decision. Default mode "ask" = nothing changes.
+# Switch at runtime (persisted):  guardian-ctl autonomy ask|quiet|auto
+#[autonomy]
+#mode = "ask"          # ask = every request to you | quiet = model approves GREEN only | auto = model decides
+#yellow = "deny"       # auto only: what to do with an uncertain (yellow) rating: "deny" or "ask"
+#child_age = 10        # used for the traffic light
+#digest_hour = 19      # evening digest, sent EVERY day in quiet/auto (even when nothing happened)
+#timeout_secs = 20     # waiting for the sidecar; on timeout/error the request goes to you
+#sidecar_socket = "/run/guardian-ai/ai.sock"
+# Names that ALWAYS go to you whatever the model says (defaults: messengers, VPN/Tor, hacking tools).
+# Setting always_ask REPLACES the default list, so copy the defaults you want to keep.
+#always_ask = ["discord", "telegram", "signal", "tor", "vpn"]

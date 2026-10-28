@@ -556,3 +556,12 @@ Closes the README privacy caveat (the broker sees only ciphertext). History:
 - Privacy-first: no telemetry; cloud only relays the parent's decision.
 - Zero-Bypass enforcement (Polkit, cgroups v2, nftables/eBPF).
 - Every build stage must end with something testable.
+
+## Local AI models + parent-selectable autonomy (2026-10-28, daemon 0.4.0) — BETA
+Docs: docs/AI-MODELS.md (what/risks), docs/TESTING-AI.md (fresh-Omarchy test). Not yet tested on a real host.
+- `daemon/src/autonomy.rs`: modes ask|quiet|auto, pure `decide()` (unit-tested, fail-closed to the parent), sidecar client, persisted state (`/var/lib/guardian/autonomy.json`: mode + extra always-ask names).
+- `ipc.rs`: submit flow asks the sidecar when mode != ask; `Decide` -> audit `auto_decided` + `Decided{via: ai}`, no ntfy; `Ask` -> normal path. `guardian-ctl autonomy [ask|quiet|auto|ask-about <pkg>]`.
+- `guardiand.rs`: the digest task now runs in quiet/auto even without Ollama, appends `build_autonomy_section` (always non-empty), uses `[autonomy].digest_hour`. `ntfy.rs`: '!' alerts (digests) retry in the background on publish failure.
+- `ai-sidecar/`: `guardian_ai_sidecar.py` (asyncio Unix socket, ops ping/rate_package/check_page/grooming, package description from the local pacman db / flatpak appstream, unknown => ask), `ocpg_ai.py`, `guardian-ai.service` (DynamicUser, PrivateNetwork, Nice 19, MemoryMax 1500M), `install.sh`. Models (~750 MB) are NOT in git (built in ~/micromodel, copy in ~/Work/ocpg-models).
+- NOT wired: page-text check_page and grooming collectors (sidecar ready), phone-app switch/undo, per-child ages.
+- Known: pkg model over-strict (gimp/blender/wine red); 43 tests pass.

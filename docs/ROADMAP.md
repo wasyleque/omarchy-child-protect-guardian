@@ -114,3 +114,10 @@ pełna skuteczność — decyzja zawsze dociera do PC i jest twardo egzekwowana,
 i bez możliwości obejścia. Etapy: 0) koncepcja · 1) lokalne wstrzymanie+zgoda · 2) zdalny push ·
 3) nieobchodzalna egzekucja (nftables/eBPF, cgroups, PAM) · 4) Sandbox + raporty · 5) apka rodzica
 (podpisane zgody, ekran „About" z autorem i wsparciem) · 6) wydanie.
+
+## Local AI models and autonomy (BETA, v0.4.0)
+- [x] ONNX models (content text, package rating, grooming) in a sandboxed `guardian-ai` sidecar.
+- [x] Parent-selectable mode ask / quiet / auto, guaranteed evening digest with the model's decisions.
+- [ ] Test on a fresh host (docs/TESTING-AI.md), collect parent corrections as human labels, retrain.
+- [ ] Wire page-text checks into the DNS/browser layer; chat collector for the grooming monitor.
+- [ ] Mode switch and per-decision "undo" in the Android app; per-child ages.

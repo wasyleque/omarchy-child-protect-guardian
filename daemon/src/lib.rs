@@ -8,6 +8,7 @@
 
 pub mod ai;
 pub mod audit;
+pub mod autonomy;
 pub mod config;
 pub mod crypto;
 pub mod ipc;

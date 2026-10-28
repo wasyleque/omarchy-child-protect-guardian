@@ -1,0 +1,20 @@
+{
+ "version": "0.2.0",
+ "target": "8GB RAM, CPU only",
+ "content": {
+  "lite_pass_below": 0.08,
+  "main_block_above": 0.25,
+  "note": "main_model: xlmr (recall .94 @0.25, 265MB) or fast (recall .91, 130MB); risk = P(inappropriate)+0.5*P(questionable); lower main_block_above = stricter",
+  "main_model": "xlmr"
+ },
+ "pkg": {
+  "conservative_p": 0.2,
+  "note": "advisory traffic light only; parent decides"
+ },
+ "grooming": {
+  "threshold": 0.977,
+  "window": 12,
+  "stride": 6,
+  "need_consecutive": 2
+ }
+}

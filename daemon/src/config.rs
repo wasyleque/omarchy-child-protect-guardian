@@ -38,9 +38,20 @@ pub struct Policy {
     /// Optional AI risk-summary of each install request (shown to the parent). Off by default.
     #[serde(default)]
     pub ai: Option<AiConfig>,
+    /// Optional parent-selectable autonomy: let the local ONNX models answer install requests and send
+    /// an evening digest. Absent → mode "ask" (every request goes to the parent, as before).
+    #[serde(default)]
+    pub autonomy: Option<AutonomyConfig>,
+    /// Where the parent's autonomy choices (mode, extra always-ask names) are persisted.
+    #[serde(default = "default_autonomy_state_path")]
+    pub autonomy_state_path: PathBuf,
     /// Where an AI config pushed from the app is persisted (overrides `[ai]` on next start + at runtime).
     #[serde(default = "default_ai_config_path")]
     pub ai_config_path: PathBuf,
+}
+
+fn default_autonomy_state_path() -> PathBuf {
+    PathBuf::from("/var/lib/guardian/autonomy.json")
 }
 
 fn default_ai_config_path() -> PathBuf {
@@ -62,6 +73,8 @@ impl Default for Policy {
             ntfy: None,
             schedule: None,
             ai: None,
+            autonomy: None,
+            autonomy_state_path: default_autonomy_state_path(),
             ai_config_path: default_ai_config_path(),
         }
     }
@@ -114,6 +127,69 @@ pub struct AiConfig {
     /// report which apps/games were used and roughly for how long.
     #[serde(default)]
     pub activity_log: Option<String>,
+}
+
+/// How much the local models may decide on their own (per installation, beta).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, serde::Serialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum AutonomyMode {
+    /// Every request goes to the parent (default; the models only add a hint).
+    #[default]
+    Ask,
+    /// Green = approved by the model; yellow/red = still asked. Everything is in the evening digest.
+    Quiet,
+    /// The model decides: green = allow, red = deny, yellow per `yellow`. Digest lists every decision.
+    Auto,
+}
+
+/// What `auto` does with a "yellow" (uncertain) rating.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, serde::Serialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum YellowPolicy {
+    /// Deny, and list it in the digest (stricter-wins; default).
+    #[default]
+    Deny,
+    /// Ask the parent as usual.
+    Ask,
+}
+
+/// Parent-selectable autonomy of the local models (beta). See docs/AI-MODELS.md.
+#[derive(Debug, Clone, Deserialize, serde::Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct AutonomyConfig {
+    pub mode: AutonomyMode,
+    pub yellow: YellowPolicy,
+    /// Child's age, used for the traffic light (per installation in this beta).
+    pub child_age: u8,
+    /// Unix socket of the `guardian-ai` sidecar (the ONNX models run there, sandboxed, no network).
+    pub sidecar_socket: PathBuf,
+    /// Max time to wait for the sidecar before falling back to asking the parent.
+    pub timeout_secs: u64,
+    /// Package-name fragments (case-insensitive) that ALWAYS go to the parent, whatever the model says.
+    pub always_ask: Vec<String>,
+    /// Local hour (0-23) of the evening digest. It is sent every day in quiet/auto, even if nothing happened.
+    pub digest_hour: u8,
+}
+
+impl Default for AutonomyConfig {
+    fn default() -> Self {
+        Self {
+            mode: AutonomyMode::Ask,
+            yellow: YellowPolicy::Deny,
+            child_age: 10,
+            sidecar_socket: PathBuf::from("/run/guardian-ai/ai.sock"),
+            timeout_secs: 20,
+            always_ask: [
+                "discord", "telegram", "signal", "whatsapp", "element", "matrix", "messenger", "skype", "zoom",
+                "tor", "vpn", "wireguard", "openvpn", "proxy", "tails", "i2p", "kali", "metasploit", "nmap",
+                "wireshark", "aircrack", "hashcat", "john", "sqlmap", "bittorrent", "transmission", "qbittorrent",
+            ]
+            .iter()
+            .map(|s| s.to_string())
+            .collect(),
+            digest_hour: 19,
+        }
+    }
 }
 
 fn default_true() -> bool { true }

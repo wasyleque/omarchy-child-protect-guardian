@@ -98,7 +98,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     if !matches!(
         args[1].as_str(),
-        "list" | "allow" | "deny" | "request" | "alert" | "schedule" | "digest-now"
+        "list" | "allow" | "deny" | "request" | "alert" | "schedule" | "digest-now" | "autonomy"
     ) {
         eprintln!("Unknown command: {}", args[1]);
         eprintln!("Run `guardian-ctl` with no arguments for the list of commands.");
@@ -243,6 +243,46 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
+        "autonomy" => {
+            // guardian-ctl autonomy            -> show the mode
+            // guardian-ctl autonomy ask|quiet|auto -> set it (persisted)
+            let mut ask_about = None;
+            let mode = match args.get(2).map(|s| s.as_str()) {
+                None => None,
+                Some("ask-about") => {
+                    // guardian-ctl autonomy ask-about <package>: always ask the parent about it (undo a denial)
+                    match args.get(3) {
+                        Some(p) => ask_about = Some(p.clone()),
+                        None => {
+                            eprintln!("usage: guardian-ctl autonomy ask-about <package>");
+                            exit(2);
+                        }
+                    }
+                    None
+                }
+                Some("ask") => Some(guardian::config::AutonomyMode::Ask),
+                Some("quiet") => Some(guardian::config::AutonomyMode::Quiet),
+                Some("auto") => Some(guardian::config::AutonomyMode::Auto),
+                Some(other) => {
+                    eprintln!("unknown mode '{other}' — use ask, quiet or auto");
+                    exit(2);
+                }
+            };
+            send_message(&mut stream, ClientMessage::Autonomy { mode, ask_about })?;
+            match read_response(&mut stream)? {
+                ServerMessage::AutonomyMode { mode, enabled } => {
+                    if enabled {
+                        println!("autonomy mode: {}", format!("{mode:?}").to_lowercase());
+                    } else {
+                        println!("autonomy mode: ask ([autonomy] is not configured in policy.toml — every request goes to the parent)");
+                    }
+                }
+                _ => {
+                    eprintln!("Unexpected response");
+                    exit(1);
+                }
+            }
+        }
         "digest-now" => {
             send_message(&mut stream, ClientMessage::DigestNow)?;
             match read_response(&mut stream)? {
@@ -271,6 +311,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("  alert <message>   - Send a tamper/integrity alert to the parent");
         eprintln!("  schedule   - Show screen-time status");
             eprintln!("  digest-now - Run the AI parenting digest now (test the AI config)");
+            eprintln!("  autonomy [ask|quiet|auto|ask-about <pkg>] - Show/set how much the local models may decide (beta)");
             eprintln!("  pair --topic <t> [--server <u>] [--app <u>]  - Show a pairing QR");
             eprintln!("  audit-verify <path>   - Verify the audit log chain");
             exit(2);

@@ -76,6 +76,8 @@ pub enum DecisionVia {
     NtfyToken,
     /// Remote ntfy, Ed25519-signed (zero-trust mode).
     NtfySigned,
+    /// Decided by the local ONNX models under the parent's autonomy mode (beta).
+    Ai,
     /// No decision arrived in time; policy fallback applied.
     Timeout,
 }

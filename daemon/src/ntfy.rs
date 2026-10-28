@@ -428,6 +428,22 @@ impl Ntfy {
             }
             if let Err(e) = self.publish_alert(&title, &body).await {
                 eprintln!("guardiand: alert publish failed: {e:#}");
+                if bypass {
+                    // Digests must not be lost to a transient outage: retry in the background with backoff
+                    // (30s, 2m, 10m, 30m, 1h) without blocking the other alerts.
+                    let me = Arc::clone(&self);
+                    let (t, b) = (title.clone(), body.clone());
+                    tokio::spawn(async move {
+                        for secs in [30u64, 120, 600, 1800, 3600] {
+                            tokio::time::sleep(Duration::from_secs(secs)).await;
+                            if me.publish_alert(&t, &b).await.is_ok() {
+                                eprintln!("guardiand: digest delivered on retry after {secs}s");
+                                return;
+                            }
+                        }
+                        eprintln!("guardiand: digest could NOT be delivered after all retries");
+                    });
+                }
             }
         }
     }

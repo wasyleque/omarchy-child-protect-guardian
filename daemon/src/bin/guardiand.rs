@@ -373,6 +373,66 @@ fn build_day_summary(audit_path: &std::path::Path, dns_log: Option<&str>, activi
     s
 }
 
+/// The evening "what the models decided" section (autonomy quiet/auto). Facts only — package names,
+/// colours and counts from the audit log; never page or chat text. Always returns something, so the
+/// digest also says "nothing happened" instead of staying silent.
+fn build_autonomy_section(audit_path: &std::path::Path, mode: &str, pl: bool) -> String {
+    let (_, _, minute) = guardian::schedule::local_now();
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let midnight = now.saturating_sub((minute as u64) * 60);
+    let (mut allowed, mut denied): (Vec<String>, Vec<String>) = (Vec::new(), Vec::new());
+    let (mut submitted, mut auto_n) = (0u32, 0u32);
+    if let Ok(f) = std::fs::File::open(audit_path) {
+        use std::io::BufRead;
+        for line in std::io::BufReader::new(f).lines().map_while(Result::ok) {
+            let v: serde_json::Value = match serde_json::from_str(&line) {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+            if v.get("ts").and_then(|t| t.as_u64()).unwrap_or(0) < midnight {
+                continue;
+            }
+            let pkg = v.get("package").and_then(|p| p.as_str()).unwrap_or("").to_string();
+            match v.get("event").and_then(|e| e.as_str()).unwrap_or("") {
+                "submitted" if v.get("uid").and_then(|u| u.as_u64()).unwrap_or(0) != 0 && !pkg.starts_with("guardian-smoke-") => submitted += 1,
+                "auto_decided" => {
+                    auto_n += 1;
+                    let light = v.get("light").and_then(|l| l.as_str()).unwrap_or("?");
+                    let hint = v.get("min_age_hint").and_then(|h| h.as_u64()).unwrap_or(0);
+                    let item = format!("{pkg} ({light}, {hint}+)");
+                    if v.get("decision").and_then(|d| d.as_str()) == Some("allow") { allowed.push(item) } else { denied.push(item) }
+                }
+                _ => {}
+            }
+        }
+    }
+    let list = |v: &Vec<String>| if v.is_empty() { "-".to_string() } else { v.join(", ") };
+    let asked = submitted.saturating_sub(auto_n);
+    if pl {
+        let mut s = format!("Decyzje modelu AI (tryb: {mode}, wersja beta). ");
+        if submitted == 0 {
+            s.push_str("Dziś nie było żadnych próśb o instalację.");
+        } else {
+            s.push_str(&format!("Zatwierdził: {}. Odrzucił: {}. Do Ciebie trafiło: {} z {} próśb.", list(&allowed), list(&denied), asked, submitted));
+            if !denied.is_empty() {
+                s.push_str(" Jeśli któraś odmowa to błąd, wykonaj na komputerze: guardian-ctl autonomy ask-about <nazwa> — dziecko poprosi ponownie, a Ty zdecydujesz.");
+            }
+        }
+        s
+    } else {
+        let mut s = format!("AI model decisions (mode: {mode}, beta). ");
+        if submitted == 0 {
+            s.push_str("No install requests today.");
+        } else {
+            s.push_str(&format!("Approved: {}. Denied: {}. Sent to you: {} of {} requests.", list(&allowed), list(&denied), asked, submitted));
+            if !denied.is_empty() {
+                s.push_str(" If a denial is wrong, run on the computer: guardian-ctl autonomy ask-about <name> — the child asks again and you decide.");
+            }
+        }
+        s
+    }
+}
+
 fn load_sched_state(path: &std::path::Path, eng: &std::sync::Mutex<guardian::schedule::TimeEngine>) {
     if let Ok(s) = std::fs::read_to_string(path) {
         if let Ok(v) = serde_json::from_str::<serde_json::Value>(&s) {
@@ -637,6 +697,13 @@ async fn main() -> Result<()> {
     // changing the hour/model from the app takes effect without a daemon restart.
     // `digest_tx` lets the control socket (`guardian-ctl digest-now`) nudge the task to run the
     // digest immediately; None when there is no ntfy to deliver it.
+    let autonomy = policy
+        .autonomy
+        .clone()
+        .map(|c| Arc::new(guardian::autonomy::Autonomy::new(c, policy.autonomy_state_path.clone())));
+    if let Some(a) = &autonomy {
+        eprintln!("guardiand: autonomy configured (mode {:?}, sidecar {}) — BETA", a.mode(), a.config().sidecar_socket.display());
+    }
     let mut digest_tx: Option<tokio::sync::mpsc::UnboundedSender<()>> = None;
     if let Some(ntfy) = &ntfy {
         let (tx, mut digest_rx) = tokio::sync::mpsc::unbounded_channel::<()>();
@@ -645,27 +712,55 @@ async fn main() -> Result<()> {
         let audit_path = policy.audit_path.clone();
         let ai_path = policy.ai_config_path.clone();
         let policy_ai = policy.ai.clone();
+        let autonomy = autonomy.clone();
         tokio::spawn(async move {
             let client = reqwest::Client::new();
             loop {
                 let cur = load_ai_override(&ai_path).or_else(|| policy_ai.clone());
-                let hour = cur.as_ref().map(|a| a.digest_hour).unwrap_or(20);
+                // With quiet/auto the parent has handed decisions to the models, so the evening digest
+                // is mandatory and uses the autonomy hour; otherwise the old [ai] digest rules apply.
+                let auto_active = autonomy.as_ref().map(|a| a.mode() != guardian::config::AutonomyMode::Ask).unwrap_or(false);
+                let hour = if auto_active {
+                    autonomy.as_ref().map(|a| a.config().digest_hour).unwrap_or(19)
+                } else {
+                    cur.as_ref().map(|a| a.digest_hour).unwrap_or(20)
+                };
                 // Wake on whichever comes first: the daily hour, or an on-demand `digest-now`.
                 let manual = tokio::select! {
                     _ = tokio::time::sleep(std::time::Duration::from_secs(secs_until_hour(hour))) => false,
                     r = digest_rx.recv() => match r { Some(()) => true, None => break },
                 };
                 let cur = load_ai_override(&ai_path).or_else(|| policy_ai.clone());
-                // A manual trigger runs whenever AI is enabled (explicit test); the timer still
-                // honors the `digest_enabled` opt-in.
-                if let Some(ai) = cur.filter(|a| a.enabled && (manual || a.digest_enabled)) {
-                    let events = build_day_summary(&audit_path, ai.dns_query_log.as_deref(), ai.activity_log.as_deref());
-                    match guardian::ai::daily_digest(&client, &ai, &ai.digest_lang, &events).await {
-                        Some(d) => ntfy.alert("!daily-digest", "Guardian: podsumowanie dnia", &d),
-                        None => eprintln!("guardiand: daily digest skipped (AI unavailable)"),
+                let auto_active = autonomy.as_ref().map(|a| a.mode() != guardian::config::AutonomyMode::Ask).unwrap_or(false);
+                let dns = cur.as_ref().and_then(|a| a.dns_query_log.clone());
+                let act = cur.as_ref().and_then(|a| a.activity_log.clone());
+                let lang = cur.as_ref().map(|a| a.digest_lang.clone()).unwrap_or_else(|| "Polish".to_string());
+                // A manual trigger runs whenever AI is enabled (explicit test); the timer still honors the
+                // `digest_enabled` opt-in. In quiet/auto the digest is sent regardless of the LLM (the
+                // facts below do not need it), so it can never silently not appear.
+                let llm_cfg = cur.filter(|a| a.enabled && (manual || a.digest_enabled));
+                if llm_cfg.is_some() || auto_active {
+                    let events = build_day_summary(&audit_path, dns.as_deref(), act.as_deref());
+                    let narrative = match &llm_cfg {
+                        Some(ai) => guardian::ai::daily_digest(&client, ai, &ai.digest_lang, &events).await,
+                        None => None,
+                    };
+                    let mut body = match narrative {
+                        Some(d) => d,
+                        None if llm_cfg.is_some() => {
+                            eprintln!("guardiand: AI narrative unavailable — sending the plain facts instead");
+                            events.clone()
+                        }
+                        None => events.clone(),
+                    };
+                    if auto_active {
+                        let mode = autonomy.as_ref().map(|a| format!("{:?}", a.mode()).to_lowercase()).unwrap_or_default();
+                        body.push_str("\n\n");
+                        body.push_str(&build_autonomy_section(&audit_path, &mode, lang.to_lowercase().starts_with("pol")));
                     }
+                    ntfy.alert("!daily-digest", "Guardian: podsumowanie dnia", &body);
                 } else if manual {
-                    eprintln!("guardiand: digest-now requested but [ai].enabled is false — nothing sent");
+                    eprintln!("guardiand: digest-now requested but [ai].enabled is false and autonomy is off — nothing sent");
                 }
                 // After a timer fire, guard against re-firing within the same minute; a manual
                 // trigger loops straight back to waiting for the next hour.
@@ -798,6 +893,7 @@ async fn main() -> Result<()> {
         audit,
         schedule,
         digest_tx,
+        autonomy,
     });
 
     server.run(&policy.socket_path, &policy.submit_socket_path).await
@@ -840,6 +936,30 @@ mod tests {
         assert!(summary.contains("steam"), "real child package missing:\n{summary}");
         assert!(summary.contains("Install requests today: 1"), "wrong submitted count:\n{summary}");
         assert!(summary.contains("denied: 1"), "smoke deny inflated the count:\n{summary}");
+    }
+
+    #[test]
+    fn autonomy_section_lists_decisions_and_never_stays_silent() {
+        let dir = std::env::temp_dir();
+        let path = dir.join(format!("guardian_autosec_test_{}.log", std::process::id()));
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+        let lines = [
+            format!(r#"{{"seq":1,"ts":{now},"event":"submitted","id":"a","uid":1000,"source":"pacman","package":"tuxmath"}}"#),
+            format!(r#"{{"seq":2,"ts":{now},"event":"auto_decided","id":"a","source":"pacman","package":"tuxmath","decision":"allow","light":"green","min_age_hint":7,"mode":"quiet"}}"#),
+            format!(r#"{{"seq":3,"ts":{now},"event":"submitted","id":"b","uid":1000,"source":"flatpak","package":"badgame"}}"#),
+            format!(r#"{{"seq":4,"ts":{now},"event":"auto_decided","id":"b","source":"flatpak","package":"badgame","decision":"deny","light":"red","min_age_hint":18,"mode":"auto"}}"#),
+            format!(r#"{{"seq":5,"ts":{now},"event":"submitted","id":"c","uid":1000,"source":"pacman","package":"discord"}}"#),
+        ];
+        std::fs::write(&path, lines.join("\n")).unwrap();
+        let s = build_autonomy_section(&path, "auto", true);
+        assert!(s.contains("tuxmath (green, 7+)"), "{s}");
+        assert!(s.contains("badgame (red, 18+)"), "{s}");
+        assert!(s.contains("1 z 3"), "{s}"); // one request went to the parent, out of three
+        assert!(s.contains("ask-about"), "{s}");
+        let _ = std::fs::remove_file(&path);
+        // empty day → still a sentence, never an empty digest
+        let empty = build_autonomy_section(&dir.join("guardian_no_such_log"), "quiet", false);
+        assert!(empty.contains("No install requests today"), "{empty}");
     }
 
     #[test]

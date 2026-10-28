@@ -1,0 +1,33 @@
+[Unit]
+Description=Guardian AI sidecar (local ONNX models, BETA)
+Documentation=https://github.com/wasyleque/omarchy-child-protect-guardian/blob/main/docs/AI-MODELS.md
+After=local-fs.target
+
+[Service]
+Type=simple
+ExecStart=/opt/guardian-ai/venv/bin/python /opt/guardian-ai/guardian_ai_sidecar.py
+Environment=GUARDIAN_AI_MODELS=/usr/share/guardian-ai/models
+Environment=GUARDIAN_AI_SOCKET=/run/guardian-ai/ai.sock
+Restart=on-failure
+RestartSec=5
+# Unnoticeable for the user: lowest priority, small RAM cap, one CPU thread (set in the runtime).
+Nice=19
+CPUWeight=10
+IOSchedulingClass=idle
+MemoryMax=1500M
+# Sandbox: no network, no write access, no privileges. The daemon (root) can still reach the 0600 socket;
+# the child cannot.
+DynamicUser=yes
+RuntimeDirectory=guardian-ai
+RuntimeDirectoryMode=0700
+PrivateNetwork=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX
+SystemCallFilter=@system-service
+
+[Install]
+WantedBy=multi-user.target

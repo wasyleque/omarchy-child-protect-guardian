@@ -58,6 +58,12 @@ pub enum ClientMessage {
     /// Control-only: run the AI parenting digest right now (on-demand test of the AI config,
     /// instead of waiting for `[ai].digest_hour`). Bypasses the `digest_enabled` gate.
     DigestNow,
+    /// Control-only: read (mode = null) or set the autonomy mode of the local models (ask|quiet|auto).
+    Autonomy {
+        #[serde(default)] mode: Option<crate::config::AutonomyMode>,
+        /// Make this package (name fragment) always go to the parent from now on (undo a model denial).
+        #[serde(default)] ask_about: Option<String>,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -72,6 +78,8 @@ pub enum ServerMessage {
     Schedule { status: String, remaining_secs: Option<u64> },
     /// Ack for `DigestNow`; `ok` is false when no digest task is wired (no ntfy configured).
     DigestTriggered { ok: bool },
+    /// Answer for `Autonomy`: the mode now in effect (`enabled` false = no `[autonomy]` wiring → always ask).
+    AutonomyMode { mode: crate::config::AutonomyMode, enabled: bool },
     Error { message: String },
 }
 
@@ -91,6 +99,8 @@ pub struct Server {
     pub schedule: Vec<(String, Arc<Mutex<TimeEngine>>)>,
     /// Trigger for the on-demand AI digest (`DigestNow`); None when no digest task runs (no ntfy).
     pub digest_tx: Option<tokio::sync::mpsc::UnboundedSender<()>>,
+    /// Local-model autonomy (beta). None → every request goes to the parent.
+    pub autonomy: Option<Arc<crate::autonomy::Autonomy>>,
 }
 
 fn bind(path: &Path, mode: u32) -> Result<UnixListener> {
@@ -295,6 +305,28 @@ impl Server {
                     }
                     send(&mut write_half, &ServerMessage::DigestTriggered { ok }).await?;
                 }
+                (true, ClientMessage::Autonomy { mode, ask_about }) => {
+                    let reply = match &self.autonomy {
+                        None => ServerMessage::AutonomyMode { mode: crate::config::AutonomyMode::Ask, enabled: false },
+                        Some(a) => {
+                            if let Some(m) = mode {
+                                if let Err(e) = a.set_mode(m) {
+                                    eprintln!("guardiand: cannot persist autonomy mode: {e}");
+                                }
+                                eprintln!("guardiand: autonomy mode set to {m:?} via control socket");
+                            }
+                            if let Some(frag) = ask_about {
+                                if let Err(e) = a.ask_about(&frag) {
+                                    eprintln!("guardiand: cannot add always-ask '{frag}': {e}");
+                                } else {
+                                    eprintln!("guardiand: '{frag}' will always be asked about (parent override)");
+                                }
+                            }
+                            ServerMessage::AutonomyMode { mode: a.mode(), enabled: true }
+                        }
+                    };
+                    send(&mut write_half, &reply).await?;
+                }
                 (true, ClientMessage::Submit { .. }) => {
                     send(&mut write_half, &ServerMessage::Error {
                         message: "submit not accepted on the control socket".into(),
@@ -336,6 +368,40 @@ impl Server {
                             package: req.package.clone(),
                             reason: req.reason.clone(),
                         });
+                    }
+                    // Beta autonomy: the local models may answer on the parent's behalf (quiet/auto). Any doubt
+                    // falls through to the normal parent-approval path below.
+                    if let Some(auto) = &self.autonomy {
+                        if auto.mode() != crate::config::AutonomyMode::Ask {
+                            let rating = auto.rate(req.source, &req.package).await;
+                            let cfg = auto.config();
+                            match crate::autonomy::decide(&cfg, &req.package, rating.as_ref()) {
+                                crate::autonomy::Outcome::Decide { decision, light, min_age_hint } => {
+                                    self.queue.cancel(req.id);
+                                    eprintln!(
+                                        "guardiand: AI {:?} '{}' (light {}, age hint {}, mode {:?}) — will be listed in the digest",
+                                        decision, req.package, light.as_str(), min_age_hint, cfg.mode
+                                    );
+                                    if let Some(a) = &self.audit {
+                                        a.record(AuditEvent::AutoDecided {
+                                            id: req.id,
+                                            source: req.source,
+                                            package: req.package.clone(),
+                                            decision,
+                                            light: light.as_str().to_string(),
+                                            min_age_hint,
+                                            mode: format!("{:?}", cfg.mode).to_lowercase(),
+                                        });
+                                        a.record(AuditEvent::Decided { id: req.id, decision, via: DecisionVia::Ai });
+                                    }
+                                    send(&mut write_half, &ServerMessage::Decision { id: req.id, decision }).await?;
+                                    break;
+                                }
+                                crate::autonomy::Outcome::Ask { why } => {
+                                    eprintln!("guardiand: AI defers '{}' to the parent ({why})", req.package);
+                                }
+                            }
+                        }
                     }
                     if let Some(ntfy) = &self.ntfy {
                         if let Err(e) = ntfy.push(&req).await {
