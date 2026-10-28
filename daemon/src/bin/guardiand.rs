@@ -704,6 +704,10 @@ async fn main() -> Result<()> {
     if let Some(a) = &autonomy {
         eprintln!("guardiand: autonomy configured (mode {:?}, sidecar {}) — BETA", a.mode(), a.config().sidecar_socket.display());
     }
+    // Let a signed `set_autonomy` pushed from the parent app flip the mode live (ask|quiet|auto).
+    if let (Some(ntfy), Some(a)) = (&ntfy, &autonomy) {
+        ntfy.set_autonomy(Arc::clone(a));
+    }
     let mut digest_tx: Option<tokio::sync::mpsc::UnboundedSender<()>> = None;
     if let Some(ntfy) = &ntfy {
         let (tx, mut digest_rx) = tokio::sync::mpsc::unbounded_channel::<()>();

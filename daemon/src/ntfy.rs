@@ -78,6 +78,8 @@ pub struct Ntfy {
     sched_tx: Mutex<Option<mpsc::UnboundedSender<(String, crate::schedule::ChildSchedule)>>>,
     /// Where a pushed AI config is persisted (so it survives restart + the digest task re-reads it).
     ai_config_path: Mutex<Option<std::path::PathBuf>>,
+    /// Shared autonomy handle so a signed `set_autonomy` from the app changes the mode live + persists it.
+    autonomy: Mutex<Option<Arc<crate::autonomy::Autonomy>>>,
 }
 
 #[derive(Deserialize)]
@@ -178,6 +180,7 @@ impl Ntfy {
             lock_override: Mutex::new(None),
             sched_tx: Mutex::new(None),
             ai_config_path: Mutex::new(None),
+            autonomy: Mutex::new(None),
         }))
     }
 
@@ -199,6 +202,11 @@ impl Ntfy {
     /// Deliver verified pushed schedules (child, override) here (the daemon applies + persists them).
     pub fn set_sched_sink(&self, tx: mpsc::UnboundedSender<(String, crate::schedule::ChildSchedule)>) {
         *self.sched_tx.lock().unwrap() = Some(tx);
+    }
+
+    /// Give the push channel the shared Autonomy handle so a signed `set_autonomy` can change the mode.
+    pub fn set_autonomy(&self, autonomy: Arc<crate::autonomy::Autonomy>) {
+        *self.autonomy.lock().unwrap() = Some(autonomy);
     }
 
     /// Enable AI risk-summaries (enriches each published challenge).
@@ -346,6 +354,63 @@ impl Ntfy {
             let _ = std::fs::write(path, &a.cfg);
         }
         eprintln!("guardiand: ntfy AI config updated from the app");
+    }
+
+    /// Apply a verified pushed autonomy-mode change (ask|quiet|auto) from the app. Same anti-replay +
+    /// addressing + timestamp checks as a grant; applies live via the shared Autonomy handle, which
+    /// persists it (so a restart keeps the parent's choice). An optional `ask_about` fragment re-routes
+    /// a wrongly-denied package back to the parent. BETA — the parent chose this from the phone.
+    fn handle_autonomy(&self, vk: &VerifyingKey, a: crypto::SignedAutonomy) {
+        if a.daemon_pub != crypto::pubkey_b64(&self.daemon_key) {
+            eprintln!("guardiand: ntfy rejected autonomy (addressed to a different daemon)");
+            return;
+        }
+        let now = now_secs();
+        if a.ts > now.saturating_add(60) || now.saturating_sub(a.ts) > MAX_TS_SKEW_SECS {
+            eprintln!("guardiand: ntfy rejected autonomy (timestamp out of window)");
+            return;
+        }
+        if self.grant_nonces.lock().unwrap().contains(&a.nonce) {
+            eprintln!("guardiand: ntfy rejected autonomy (replayed nonce)");
+            return;
+        }
+        if !crypto::verify_autonomy(vk, &a) {
+            eprintln!("guardiand: ntfy rejected autonomy (bad signature)");
+            self.alert("autonomy-forged", "Guardian: FORGED autonomy change blocked", "An autonomy-mode change with an invalid signature was rejected.");
+            return;
+        }
+        let mode = match a.mode.as_str() {
+            "ask" => crate::config::AutonomyMode::Ask,
+            "quiet" => crate::config::AutonomyMode::Quiet,
+            "auto" => crate::config::AutonomyMode::Auto,
+            other => {
+                eprintln!("guardiand: ntfy rejected autonomy (unknown mode '{other}')");
+                return;
+            }
+        };
+        // Spend the nonce only after the message is fully valid (so a rejected one can be retried).
+        self.grant_nonces.lock().unwrap().insert(a.nonce.clone());
+        if let Some(p) = &self.grant_nonce_path {
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) {
+                use std::io::Write as _;
+                let _ = writeln!(f, "{}", a.nonce);
+            }
+        }
+        match self.autonomy.lock().unwrap().as_ref() {
+            Some(aut) => {
+                if let Err(e) = aut.set_mode(mode) {
+                    eprintln!("guardiand: autonomy mode changed but not persisted: {e}");
+                }
+                let ask = a.ask_about.trim();
+                if !ask.is_empty() {
+                    if let Err(e) = aut.ask_about(ask) {
+                        eprintln!("guardiand: autonomy ask-about not persisted: {e}");
+                    }
+                }
+                eprintln!("guardiand: ntfy autonomy set to {:?} from the app (BETA)", mode);
+            }
+            None => eprintln!("guardiand: autonomy change received but no [autonomy] is configured — ignored"),
+        }
     }
 
     /// Apply a verified pushed schedule for a child (same anti-replay + addressing checks as a grant).
@@ -789,6 +854,13 @@ impl Ntfy {
         if let Ok(a) = serde_json::from_str::<crypto::SignedAiCfg>(msg) {
             if a.kind == "set_ai" {
                 self.handle_aicfg(vk, a);
+                return;
+            }
+        }
+        // ...and a pushed autonomy-mode change (ask|quiet|auto) selected by the parent in the app.
+        if let Ok(a) = serde_json::from_str::<crypto::SignedAutonomy>(msg) {
+            if a.kind == "set_autonomy" {
+                self.handle_autonomy(vk, a);
                 return;
             }
         }

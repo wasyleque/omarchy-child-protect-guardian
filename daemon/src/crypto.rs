@@ -204,6 +204,54 @@ pub fn verify_schedule(vk: &VerifyingKey, s: &SignedSchedule) -> bool {
     vk.verify_strict(schedule_message(&s.daemon_pub, &s.nonce, &s.child, s.ts, &s.sched).as_bytes(), &sig).is_ok()
 }
 
+/// Domain for a parent-pushed autonomy-mode change (ask|quiet|auto) + optional "ask-about" undo.
+pub const AUTONOMY_DOMAIN: &str = "OCPG-AUTONOMY-v1";
+
+/// Bytes the parent app signs to set the local-model autonomy mode. `child` is reserved for a future
+/// per-child split ("" = the whole installation today, which is how autonomy state is kept); `mode` is
+/// `ask`|`quiet`|`auto`; `ask_about` is an optional package fragment to re-route to the parent (undo a
+/// wrong denial), "" when unused. Signed verbatim, like a schedule/AI-config, so there is no ambiguity.
+pub fn autonomy_message(daemon_pub: &str, nonce: &str, child: &str, ts: u64, mode: &str, ask_about: &str) -> String {
+    format!("{AUTONOMY_DOMAIN}|{daemon_pub}|{nonce}|{child}|{ts}|{mode}|{ask_about}")
+}
+
+/// A signed autonomy-set command posted by the parent app.
+#[derive(Debug, Deserialize)]
+pub struct SignedAutonomy {
+    /// Discriminator ("set_autonomy").
+    pub kind: String,
+    pub daemon_pub: String,
+    pub nonce: String,
+    /// Target child ("" = the single/global installation; reserved for a future per-child split).
+    #[serde(default)]
+    pub child: String,
+    pub ts: u64,
+    /// `ask` | `quiet` | `auto`.
+    pub mode: String,
+    /// Optional package fragment to add to the always-ask list (undo a wrong denial); "" when unused.
+    #[serde(default)]
+    pub ask_about: String,
+    pub sig: String,
+}
+
+/// Verify a signed autonomy command against the parent key.
+pub fn verify_autonomy(vk: &VerifyingKey, a: &SignedAutonomy) -> bool {
+    let sig_bytes = match STANDARD.decode(a.sig.trim()) {
+        Ok(b) => b,
+        Err(_) => return false,
+    };
+    let arr: [u8; 64] = match sig_bytes.try_into() {
+        Ok(a) => a,
+        Err(_) => return false,
+    };
+    let sig = Signature::from_bytes(&arr);
+    vk.verify_strict(
+        autonomy_message(&a.daemon_pub, &a.nonce, &a.child, a.ts, &a.mode, &a.ask_about).as_bytes(),
+        &sig,
+    )
+    .is_ok()
+}
+
 /// Load the daemon's Ed25519 signing key from `path` (base64 of a 32-byte seed), creating a fresh
 /// one (0600) on first run. The matching public key is what the parent app pairs to verify challenges.
 pub fn load_or_create_daemon_key(path: &Path) -> Result<SigningKey> {
@@ -507,5 +555,36 @@ mod tests {
         let mut s = sign_sched(&sk, &dpub, "n1", "zosia", 1_000, r#"{"daily_budget_minutes":90}"#);
         s.sched = r#"{"daily_budget_minutes":600}"#.into(); // bump the budget after signing
         assert!(!verify_schedule(&sk.verifying_key(), &s), "editing the schedule must break the signature");
+    }
+
+    fn sign_autonomy(sk: &SigningKey, dpub: &str, nonce: &str, child: &str, ts: u64, mode: &str, ask: &str) -> SignedAutonomy {
+        let sig = sk.sign(autonomy_message(dpub, nonce, child, ts, mode, ask).as_bytes());
+        SignedAutonomy {
+            kind: "set_autonomy".into(),
+            daemon_pub: dpub.into(),
+            nonce: nonce.into(),
+            child: child.into(),
+            ts,
+            mode: mode.into(),
+            ask_about: ask.into(),
+            sig: STANDARD.encode(sig.to_bytes()),
+        }
+    }
+
+    #[test]
+    fn valid_autonomy_verifies() {
+        let sk = signing_key();
+        let dpub = pubkey_b64(&sk);
+        let a = sign_autonomy(&sk, &dpub, "n1", "", 1_000, "auto", "");
+        assert!(verify_autonomy(&sk.verifying_key(), &a));
+    }
+
+    #[test]
+    fn tampered_autonomy_mode_fails() {
+        let sk = signing_key();
+        let dpub = pubkey_b64(&sk);
+        let mut a = sign_autonomy(&sk, &dpub, "n1", "", 1_000, "quiet", "");
+        a.mode = "auto".into(); // escalate the mode after signing
+        assert!(!verify_autonomy(&sk.verifying_key(), &a), "changing the mode must break the signature");
     }
 }
