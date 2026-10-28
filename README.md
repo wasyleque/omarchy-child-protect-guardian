@@ -83,6 +83,11 @@ Things competitors on Windows/macOS/Android **can't** do, but we can:
   action, never a shell; cryptographically bound to what the parent actually saw.
 - **AI risk assistant** — on-demand, plain-language risk check (traffic light + permission
   translator); public app metadata only, zero child data leaves the device.
+- **Optional local-AI autonomy (BETA, off by default)** — tiny on-device models (no network, CPU only)
+  can answer install requests *for* you: choose `ask` (default — everything still comes to you),
+  `quiet` (auto-approve only clearly safe apps) or `auto` (the model also denies risky ones). Anything
+  doubtful always returns to you, you get a guaranteed evening digest of every decision, and one command
+  switches it back off. See [`docs/AI-MODELS.md`](docs/AI-MODELS.md).
 - **LACS open age ratings** — a community, multi-dimensional age scale beyond PEGI/ESRB, covering
   Linux/AUR/Flathub apps.
 - **Gentle stats & AI parenting digest** — hours, apps and site categories, plus a weekly summary

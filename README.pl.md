@@ -90,6 +90,11 @@ Rzeczy, których konkurencja na Windows/macOS/Android **nie może** zrobić, a m
   opisaną akcję, nigdy shell; kryptograficznie związana z tym, co rodzic faktycznie zobaczył.
 - **Asystent AI oceny ryzyka** — na żądanie, prostym językiem (światła + tłumacz uprawnień);
   wyłącznie publiczne metadane apki, żadne dane dziecka nie opuszczają urządzenia.
+- **Opcjonalna autonomia lokalnego AI (BETA, domyślnie wyłączona)** — małe modele na urządzeniu (bez
+  sieci, tylko CPU) mogą odpowiadać na prośby o instalację *za* Ciebie: wybierasz `ask` (domyślnie —
+  wszystko nadal do Ciebie), `quiet` (sam zatwierdza tylko wyraźnie bezpieczne) albo `auto` (model też
+  odrzuca ryzykowne). Każda wątpliwość wraca do Ciebie, co wieczór dostajesz gwarantowane podsumowanie
+  wszystkich decyzji, a jedno polecenie wyłącza to z powrotem. Zob. [`docs/AI-MODELS.md`](docs/AI-MODELS.md).
 - **Otwarty ranking wiekowy LACS** — społecznościowa, wielowymiarowa skala poza PEGI/ESRB,
   obejmująca apki z Linux/AUR/Flathub.
 - **Łagodne statystyki i digest AI dla rodzica** — godziny, aplikacje i kategorie stron oraz
