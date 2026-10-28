@@ -87,6 +87,11 @@ Dinge, die die Konkurrenz auf Windows/macOS/Android **nicht** kann, wir aber sch
   beschriebene Aktion, niemals eine Shell; kryptografisch an das gebunden, was die Eltern gesehen haben.
 - **KI-Risikoassistent** — verständliche Risikoprüfung auf Abruf (Ampel + Berechtigungsübersetzer); nur
   öffentliche App-Metadaten, keinerlei Kinderdaten verlassen das Gerät.
+- **Optionale lokale KI-Autonomie (BETA, standardmäßig aus)** — winzige Modelle auf dem Gerät (ohne Netz,
+  nur CPU) können Installationsanfragen *für* dich beantworten: Du wählst `ask` (Standard — alles kommt
+  weiterhin zu dir), `quiet` (genehmigt automatisch nur eindeutig sichere Apps) oder `auto` (das Modell
+  lehnt riskante auch ab). Alles Zweifelhafte geht an dich zurück, du erhältst jeden Abend eine garantierte
+  Zusammenfassung aller Entscheidungen, und ein Befehl schaltet es wieder aus. Siehe [`docs/AI-MODELS.md`](docs/AI-MODELS.md).
 - **Offene Altersfreigaben LACS** — mehrdimensionale Community-Altersskala jenseits von PEGI/ESRB für
   Linux/AUR/Flathub-Apps.
 - **Sanfte Statistiken & KI-Eltern-Zusammenfassung** — Stunden, Apps und Seitenkategorien sowie eine

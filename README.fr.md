@@ -91,6 +91,11 @@ Ce que la concurrence sur Windows/macOS/Android **ne peut pas** faire, mais nous
 - **Assistant IA d'évaluation des risques** — vérification à la demande en langage clair (feu tricolore +
   traducteur de permissions) ; métadonnées publiques uniquement, aucune donnée de l'enfant ne quitte
   l'appareil.
+- **Autonomie optionnelle de l'IA locale (BÊTA, désactivée par défaut)** — de petits modèles sur l'appareil
+  (sans réseau, CPU uniquement) peuvent répondre *à ta place* aux demandes d'installation : tu choisis `ask`
+  (par défaut — tout continue de t'être soumis), `quiet` (n'approuve automatiquement que les apps clairement
+  sûres) ou `auto` (le modèle refuse aussi les risquées). Tout doute te revient, tu reçois chaque soir un
+  résumé garanti de toutes les décisions, et une seule commande le désactive. Voir [`docs/AI-MODELS.md`](docs/AI-MODELS.md).
 - **Classification d'âge ouverte LACS** — échelle communautaire multidimensionnelle au-delà de PEGI/ESRB,
   couvrant les applis Linux/AUR/Flathub.
 - **Statistiques douces & bilan parental IA** — heures, applis et catégories de sites, plus un résumé qui

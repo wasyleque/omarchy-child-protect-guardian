@@ -88,6 +88,11 @@ Cosas que la competencia en Windows/macOS/Android **no puede** hacer, y nosotros
   descrita, nunca una shell; vinculada criptográficamente a lo que el adulto vio realmente.
 - **Asistente IA de riesgos** — comprobación bajo demanda en lenguaje sencillo (semáforo + traductor de
   permisos); solo metadatos públicos de la app, ningún dato del menor sale del dispositivo.
+- **Autonomía opcional de IA local (BETA, desactivada por defecto)** — modelos pequeños en el dispositivo
+  (sin red, solo CPU) pueden responder *por* ti a las solicitudes de instalación: eliges `ask` (por
+  defecto — todo sigue llegándote a ti), `quiet` (aprueba automáticamente solo apps claramente seguras) o
+  `auto` (el modelo también deniega las arriesgadas). Cualquier duda vuelve a ti, cada noche recibes un
+  resumen garantizado de todas las decisiones, y un solo comando lo desactiva. Ver [`docs/AI-MODELS.md`](docs/AI-MODELS.md).
 - **Clasificación por edades abierta LACS** — escala comunitaria y multidimensional más allá de
   PEGI/ESRB, cubriendo apps de Linux/AUR/Flathub.
 - **Estadísticas suaves y resumen IA para padres** — horas, apps y categorías de sitios, más un resumen
