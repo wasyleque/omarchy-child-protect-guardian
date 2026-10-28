@@ -9,12 +9,14 @@ Instrukcja krok po kroku na **czystym Omarchy (Arch)** + telefonie rodzica. Opis
 ## 0. Co przygotować
 - Komputer z Omarchy (8 GB RAM, bez GPU wystarczy), konto rodzica (z sudo) i **konto dziecka** (bez sudo).
 - Telefon z Androidem, internet na obu urządzeniach (ntfy.sh).
-- Modele (~750 MB, nie ma ich w git): folder `ocpg-models` (pliki `content_lite/`, `content_main_xlmr/`, `pkg/`, `grooming/`, `config.json`),
-  np. skopiuj z laptopa: `scp -r wasyl@<laptop>:Work/ocpg-models ~/ocpg-models`.
+- Modele (~750 MB, nie ma ich w git — za duże na drzewo gita): folder `ocpg-models` (`content_lite/`,
+  `content_main_xlmr/`, `pkg/`, `grooming/`, `config.json`). Najłatwiej pobrać gotowy tarball:
+  `wget https://omega-lubin.com/models/ocpg-models.tar.gz && tar -xzf ocpg-models.tar.gz` (powstanie `~/ocpg-models`).
+  Albo skopiuj z maszyny, która je zbudowała: `scp -r wasyl@<laptop>:Work/ocpg-models ~/ocpg-models`.
 
 ## 1. Aplikacja rodzica na telefonie
-1. Na telefonie otwórz **https://github.com/wasyleque/omarchy-child-protect-guardian/releases/latest** i pobierz `guardian-parent-0.1.9.apk`
-   (lub nowszy). Zezwól na instalację z tego źródła, zainstaluj, uruchom.
+1. Na telefonie pobierz najnowszą apkę **https://omega-lubin.com/models/guardian-parent-0.1.16.apk**
+   (na GitHub Releases wisi starsza wersja — jej nie pobieraj). Zezwól na instalację z tego źródła, zainstaluj, uruchom.
 2. W ustawieniach aplikacji zezwól na powiadomienia (i wyłącz oszczędzanie baterii dla niej), inaczej wieczorny digest może nie dojść.
 3. Parowanie zrobisz w kroku 3 (kod QR z komputera).
 

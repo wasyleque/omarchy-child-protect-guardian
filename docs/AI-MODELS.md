@@ -74,8 +74,9 @@ still says so ("No install requests today"), so silence never means a broken sys
 ## Install on a test machine
 
 ```bash
-# 1. models (not in git, ~750 MB): copy the release folder, e.g.
-scp -r laptop:Work/ocpg-models ~/ocpg-models
+# 1. models (not in git, ~750 MB — too big for the git tree): fetch the prebuilt tarball
+wget https://omega-lubin.com/models/ocpg-models.tar.gz && tar -xzf ocpg-models.tar.gz   # -> ~/ocpg-models
+#    or copy the release folder from the build machine:  scp -r laptop:Work/ocpg-models ~/ocpg-models
 # 2. sidecar
 sudo ai-sidecar/install.sh ~/ocpg-models
 # 3. daemon 0.4.0 (cargo build --release as usual), then add to /etc/guardian/policy.toml:
