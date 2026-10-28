@@ -60,6 +60,10 @@ guardian-ctl autonomy                  # → autonomy mode: ask
 Dziecko zgłasza prośby tak: `sudo -u <dziecko> guardian-ctl request pacman <paczka>` (w drugim terminalu; blokuje do decyzji).
 Logi decyzji: `journalctl -u guardiand -f`.
 
+> Tryb (`ask`/`quiet`/`auto`) i „cofnięcie odmowy” ustawisz też **z telefonu**: apka → ⚙️ Ustawienia →
+> „Autonomia AI (BETA)”. Zmiana jest podpisana (`OCPG-AUTONOMY-v1`) i równoważna poleceniom
+> `guardian-ctl autonomy …` poniżej (wymaga demona ≥ 0.4.1).
+
 **A. Tryb `ask` (domyślny)** — `... request pacman gcompris-qt`: karta na telefonie, w logu `AI` nic nie robi. ✅ jak przed zmianą.
 
 **B. Tryb `quiet`** — `sudo guardian-ctl autonomy quiet`:

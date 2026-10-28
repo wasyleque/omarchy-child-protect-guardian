@@ -78,6 +78,9 @@ sudo systemctl stop guardian-ai  # brak modelu => każda prośba trafia na telef
 sudo systemctl start guardian-ai
 guardian-ctl autonomy ask        # powrót do starego działania
 ```
+Ten sam tryb ustawisz **z telefonu**: apka → ⚙️ Ustawienia → „Autonomia AI (BETA)" (ask/quiet/auto +
+„Pytaj ponownie o tę paczkę"). Zmiana jest podpisana i działa od ręki (wymaga demona ≥ 0.4.1).
+
 Filtr treści (po `--enforce`), jako dziecko:
 ```bash
 sudo -u dziecko getent ahostsv4 pornhub.com    # 0.0.0.0

@@ -62,13 +62,12 @@ still says so ("No install requests today"), so silence never means a broken sys
 6. **Privacy:** everything runs on the child's machine; the sidecar has no network (systemd `PrivateNetwork=yes`), its socket is `0600` (the child
    cannot talk to it), no page/chat text is stored or sent, the digest contains package names, colours and counts only.
 7. **Resources:** the sidecar runs at `Nice=19`, `CPUWeight=10`, `MemoryMax=1500M`; one rating takes about 0.2–0.3 s on CPU. Disk: ~750 MB models + ~200 MB Python libraries.
-8. **Beta limits:** one child age per installation (`child_age`); mode is switched with `guardian-ctl` on the PC (not yet from the phone app).
+8. **Beta limits:** one child age per installation (`child_age`). The mode is set from the **phone app** (Settings → "AI autonomy (BETA)" — a signed `ask`/`quiet`/`auto` switch plus an "ask again about this package" undo) or on the PC with `guardian-ctl autonomy`.
 
 ## Not wired yet (be honest with yourself)
 
 - **Web pages:** the sidecar can score page text (`check_page`), but nothing in the daemon calls it yet (the DNS layer remains word/domain based).
 - **Grooming / chats:** the sidecar has a grooming monitor (`grooming` op), but there is no chat collector yet. The model was trained on a public 2000s English corpus (PAN-2012): per 12-message window recall 95% / FPR 3%, per whole conversation recall only 43%. Treat it as an assist.
-- **Phone app:** no switch and no "undo" button for model decisions yet; the digest is text.
 - **Per-child ages and per-package overrides** beyond `ask-about`.
 
 ## Install on a test machine
